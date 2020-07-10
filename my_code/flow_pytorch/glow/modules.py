@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from glow_pytorch.glow import thops
+from my_code.flow_pytorch.glow import thops
 
 
 class ActNorm2d(nn.Module):

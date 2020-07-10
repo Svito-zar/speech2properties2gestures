@@ -1,4 +1,4 @@
-name: base
+name: gesture_flow
 channels:
   - pytorch
   - defaults

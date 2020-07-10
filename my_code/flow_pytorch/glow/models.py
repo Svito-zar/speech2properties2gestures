@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from tqdm import tqdm
 
-from glow_pytorch.glow import modules, thops, utils
+from my_code.flow_pytorch.glow import modules, thops, utils
 
 
 class ModalityEncoder(nn.Module):
@@ -336,7 +336,6 @@ class FlowStep(nn.Module):
             logdet = thops.sum(torch.log(scale), dim=[1]) + logdet
         z = thops.cat_feature(z1, z2)
         return z, logdet
-        # ToDo: why do we return audio_features ?
 
     def reverse_flow(self, input_, condition, logdet):
         """
@@ -464,12 +463,12 @@ class FlowNet(nn.Module):
 
 
 class Glow(nn.Module):
-    def __init__(self, hparams, feature_encoder_dim=0):
+    def __init__(self, hparams):
         super().__init__()
         self.flow = FlowNet(
-            C=utils.face_dim(hparams.Data),
+            C=hparams.Glow["distr_dim"],
             hidden_channels=hparams.Glow["hidden_channels"],
-            cond_dim=hparams.Conditioning["cond_dim"],
+            cond_dim=hparams.Glow["cond_dim"],
             K=hparams.Glow["K"],
             L=hparams.Glow["L"],
             actnorm_scale=hparams.Glow["actnorm_scale"],
@@ -478,8 +477,8 @@ class Glow(nn.Module):
             LU_decomposed=hparams.Glow["LU_decomposed"],
             scale_eps=hparams.Glow["scale_eps"],
             scale_logging=hparams.Validation["scale_logging"],
-            feature_encoder_dim=feature_encoder_dim,
             glow_rnn_type=hparams.Glow["rnn_type"],
+            feature_encoder_dim = hparams.Glow["feature_encoder_dim"]
         )
 
     def forward(

@@ -1,5 +1,6 @@
 import random
 from functools import reduce
+import os
 
 import numpy as np
 import optuna
@@ -8,83 +9,71 @@ from pytorch_lightning import LightningModule
 from torch.optim import SGD, Adam, RMSprop
 from torch.optim.lr_scheduler import LambdaLR, MultiplicativeLR, StepLR
 from torch.utils.data import DataLoader
-from glow_pytorch.glow.modules import GaussianDiag
+from my_code.flow_pytorch.glow.modules import GaussianDiag
+
+from my_code.flow_pytorch.data.trinity_taras import SpeechGestureDataset
 
 
-from glow_pytorch.glow import (
-    DataMixin,
+from my_code.flow_pytorch.glow import (
     FeatureEncoder,
     Glow,
     calc_jerk,
-    get_longest_history,
-    LoggingMixin,
-    TestMixin,
+    get_longest_history
 )
 
 
-class LetsFaceItGlow(DataMixin, LoggingMixin, TestMixin, LightningModule):
+class GestureFlow(LightningModule):
     def __init__(self, hparams, dataset_root=None, test=None):
         super().__init__()
 
-        self.test_params(hparams)
         if dataset_root is not None:
             hparams.dataset_root = dataset_root
+
         if test is not None:
             hparams.Test = test
 
         if not hparams.Glow.get("rnn_type"):
             hparams.Glow["rnn_type"] = "gru"
 
+        self.data_root = hparams.dataset_root
+
         self.hparams = hparams
+
+        # obtain datasets
+        self.load_datasets()
+
+        # define key parameters
+        self.hparams = hparams
+        self.train_seq_len = hparams.Train["seq_len"]
+        self.val_seq_len = hparams.Validation["seq_len"]
         self.best_jerk = torch.tensor(np.Inf)
-        self.last_missmatched_nll = torch.tensor(np.Inf)
-        self.feature_encoder = FeatureEncoder(
-            self.hparams.Conditioning, self.hparams.Data
-        )
 
-        self.glow = Glow(hparams, self.feature_encoder.dim)
+        self.glow = Glow(hparams)
 
-        if self.hparams.Train["use_negative_nll_loss"]:
-            p2_face_history = self.hparams.Conditioning["p2_face"]["history"]
-            p2_speech_history = self.hparams.Conditioning["p2_speech"]["history"]
 
-            if p2_face_history > 0 and p2_speech_history > 0:
-                self.missmatched_modalities = ["p2_face", "p2_speech"]
-                self.missmatched_nll_name = "p2"
-            elif p2_face_history > 0:
-                self.missmatched_modalities = ["p2_face"]
-                self.missmatched_nll_name = "p2_face"
-            elif p2_speech_history > 0:
-                self.missmatched_modalities = ["p2_speech"]
-                self.missmatched_nll_name = "p2_speech"
+    def load_datasets(self):
+        try:
+            self.train_dataset = SpeechGestureDataset(self.hparams.data_root)
+            scalings = self.train_dataset.get_scalers()
+            self.val_dataset = SpeechGestureDataset(self.hparams.data_root, scalings, train=False)
+        except FileNotFoundError as err:
+            abs_data_dir = os.path.abspath(self.hparams.data_dir)
+            if not os.path.isdir(abs_data_dir):
+                print(f"ERROR: The given dataset directory {abs_data_dir} does not exist!")
+                print("Please, set the correct path with the --data_dir option!")
             else:
-                self.missmatched_modalities = None
-
-    def test_params(self, hparams):
-        train_seq_len = hparams.Train["seq_len"]
-        val_seq_len = hparams.Validation["seq_len"]
-        for history in ["p1_face", "p2_face", "p1_speech", "p2_speech"]:
-            his = hparams.Conditioning[history]["history"] + 1
-            assert his < train_seq_len, f"{his} > {train_seq_len}"
-            assert his < val_seq_len, f"{his} > {val_seq_len}"
+                print("ERROR: Missing data in the dataset!")
+            exit(-1)
 
 
     def inference(self, seq_len, data=None):
         self.glow.init_rnn_hidden()
 
-        output_shape = torch.zeros_like(data["p1_face"][:, 0, :])
-        frame_nb = None
-        if self.hparams.Conditioning["use_frame_nb"]:
-            frame_nb = torch.ones((data["p1_face"].shape[0], 1)).type_as(
-                data["p1_face"]
-            )
+        output_shape = torch.zeros_like(data[:, 0, :])
+        prev_poses = []
 
-        prev_p1_faces = data["p1_face"]
-
-        start_ts = get_longest_history(self.hparams.Conditioning)
-
-        for time_st in range(start_ts, seq_len):
-            condition = self.create_conditioning(data, time_st, frame_nb, prev_p1_faces)
+        for time_st in range(0, seq_len):
+            condition =None
 
             output, _ = self.glow(
                 condition=condition,
@@ -93,38 +82,28 @@ class LetsFaceItGlow(DataMixin, LoggingMixin, TestMixin, LightningModule):
                 output_shape=output_shape,
             )
 
-            prev_p1_faces = torch.cat([prev_p1_faces, output.unsqueeze(1)], dim=1)
+            prev_poses = torch.cat([prev_poses, output.unsqueeze(1)], dim=1)
 
-            if self.hparams.Conditioning["use_frame_nb"]:
-                frame_nb += 2
 
-        return prev_p1_faces[:, start_ts:]
+        return prev_poses
 
     def forward(self, batch):
         self.glow.init_rnn_hidden()
 
         loss = 0
-        start_ts = get_longest_history(self.hparams.Conditioning)
-
-        frame_nb = None
-        if self.hparams.Conditioning["use_frame_nb"]:
-            frame_nb = batch["frame_nb"].clone() + start_ts * 2
+        seq_len = batch["audio"].shape[1]
 
         z_seq = []
         losses = []
-        for time_st in range(start_ts, batch["p1_face"].shape[1]):
-            curr_input = batch["p1_face"][:, time_st, :]
-            condition = self.create_conditioning(
-                batch, time_st, frame_nb, batch["p1_face"]
-            )
+        for time_st in range(0, seq_len):
+            curr_output = batch["gesture"][:, time_st, :]
+            curr_cond = batch["audio"][:, time_st, :]
 
-            z_enc, objective = self.glow(x=curr_input, condition=condition)
+            z_enc, objective = self.glow(x=curr_output, condition=curr_cond)
             tmp_loss = self.loss(objective, z_enc)
             losses.append(tmp_loss.cpu().detach())
             loss += torch.mean(tmp_loss)
 
-            if self.hparams.Conditioning["use_frame_nb"]:
-                frame_nb += 2
             z_seq.append(z_enc.detach())
 
         return z_seq, (loss / len(z_seq)).unsqueeze(-1), losses
@@ -166,27 +145,6 @@ class LetsFaceItGlow(DataMixin, LoggingMixin, TestMixin, LightningModule):
 
         if batch_idx == 0:  #  and self.global_step > 0
             output["jerk"] = {}
-            idx = random.randint(0, batch["p1_face"].shape[0] - 1)
-            if self.hparams.Validation["inference"]:
-                seq_len = self.hparams.Validation["seq_len"]
-                cond_data = {
-                    "p1_face": batch["p1_face"][
-                        :, : get_longest_history(self.hparams.Conditioning)
-                    ],
-                    "p2_face": batch.get("p2_face"),
-                    "p1_speech": batch.get("p1_speech"),
-                    "p2_speech": batch.get("p2_speech"),
-                }
-                predicted_seq = self.inference(seq_len, data=cond_data)
-
-                output["jerk"]["gt_mean"] = calc_jerk(
-                    batch["p1_face"][:, -predicted_seq.shape[1] :]
-                )
-                output["jerk"]["generated_mean"] = calc_jerk(predicted_seq)
-
-                idx = random.randint(0, cond_data["p1_face"].shape[0] - 1)
-                if self.hparams.Validation["render"]:
-                    self.render_results(predicted_seq, batch, idx)
 
             if self.hparams.Validation["check_invertion"]:
                 # Test if the Flow works correctly
@@ -195,38 +153,6 @@ class LetsFaceItGlow(DataMixin, LoggingMixin, TestMixin, LightningModule):
             if self.hparams.Validation["scale_logging"]:
                 self.log_scales()
 
-            # Test if the Flow is listening to other modalities
-            if self.hparams.Validation["wrong_context_test"]:
-                mismatch = self.hparams.Mismatch
-                output["mismatched_nll"] = {"actual_nll": loss}
-
-                for key, modalities in mismatch["shuffle_batch"].items():
-                    if all(
-                        [
-                            self.hparams.Conditioning[x]["history"] > 0
-                            for x in modalities
-                        ]
-                    ):
-                        deranged_batch = self.derange_batch(batch, modalities)
-                        _, missaligned_nll, _ = self(deranged_batch)
-
-                        output["mismatched_nll"][
-                            f"shuffle_batch_{key}"
-                        ] = missaligned_nll
-
-                for key, modalities in mismatch["shuffle_time"].items():
-                    if all(
-                        [
-                            self.hparams.Conditioning[x]["history"] > 0
-                            for x in modalities
-                        ]
-                    ):
-                        deranged_batch = self.derange_batch(
-                            batch, modalities, shuffle_time=True
-                        )
-                        _, shuffled_nll, _ = self(deranged_batch)
-
-                        output["mismatched_nll"][f"shuffle_time_{key}"] = shuffled_nll
         return output
 
     def validation_epoch_end(self, outputs):
@@ -339,3 +265,19 @@ class LetsFaceItGlow(DataMixin, LoggingMixin, TestMixin, LightningModule):
         # update params
         optimizer.step()
         optimizer.zero_grad()
+
+    def train_dataloader(self):
+        loader = torch.utils.data.DataLoader(
+            dataset=self.train_dataset,
+            batch_size=self.hparams.batch_size,
+            shuffle=True
+        )
+        return loader
+
+    def val_dataloader(self):
+        loader = torch.utils.data.DataLoader(
+            dataset=self.val_dataset,
+            batch_size=self.hparams.batch_size,
+            shuffle=False
+        )
+        return loader

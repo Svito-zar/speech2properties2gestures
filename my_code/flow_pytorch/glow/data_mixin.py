@@ -1,7 +1,7 @@
 import h5py
 from pathlib import Path
 import torch
-from glow_pytorch.glow_mimicry_dataset import GlowMimicryDataset
+from flow_pytorch.glow_mimicry_dataset import GlowMimicryDataset
 from torch.utils.data.dataloader import DataLoader
 
 

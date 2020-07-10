@@ -6,7 +6,7 @@ from jsmin import jsmin
 import json
 import yaml
 from pytorch_lightning import Trainer
-from misc.shared import DATA_DIR
+from my_code.misc.shared import DATA_DIR
 
 
 
@@ -25,7 +25,7 @@ def get_hparams():
     if override_params.hparams_file.endswith(".json"):
         hparams_json = json.loads(jsmin(open(override_params.hparams_file).read()))
     elif override_params.hparams_file.endswith(".yaml"):
-        hparams_json = yaml.load(open(override_params.hparams_file))
+        hparams_json = yaml.load(open(override_params.hparams_file), Loader=yaml.FullLoader)
     hparams_json["dataset_root"] = str(DATA_DIR)
 
     params = vars(default_params)

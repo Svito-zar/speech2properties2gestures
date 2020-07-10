@@ -2,4 +2,4 @@
 
 from setuptools import setup, find_packages
 
-setup(name="lets_face_it", packages=find_packages())
+setup(name="my_code", packages=find_packages())
