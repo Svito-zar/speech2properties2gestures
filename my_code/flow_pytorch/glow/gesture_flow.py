@@ -5,6 +5,7 @@ import os
 import numpy as np
 import optuna
 import torch
+import torch.nn as nn
 from pytorch_lightning import LightningModule
 from torch.optim import SGD, Adam, RMSprop
 from torch.optim.lr_scheduler import LambdaLR, MultiplicativeLR, StepLR
@@ -50,6 +51,22 @@ class GestureFlow(LightningModule):
 
         self.glow = Glow(hparams)
 
+        # read important hparams
+        self.past_context = self.hparams.Cond["Speech"]["prev_context"]
+        self.future_context = self.hparams.Cond["Speech"]["future_context"]
+        self.autoregr_hist_length = self.hparams.Cond["Autoregression"]["history_length"]
+
+        # To reduce deminsionality of the speech encoding
+        self.reduce_speech_enc = nn.Sequential(nn.Linear(int(self.hparams.Cond["Speech"]["dim"] * \
+                                                             (self.past_context + self.future_context)),
+                                                         self.hparams.Cond["Speech"]["enc_dim"]),
+                                               nn.Tanh(), nn.Dropout(self.hparams.dropout))
+
+        self.calculate_mean_pose()
+
+    def calculate_mean_pose(self):
+        self.mean_pose = np.mean(self.val_dataset.gesture, axis=(0, 1))
+        np.save("./glow/utils/mean_pose.npy", self.mean_pose)
 
     def load_datasets(self):
         try:
@@ -64,6 +81,40 @@ class GestureFlow(LightningModule):
             else:
                 print("ERROR: Missing data in the dataset!")
             exit(-1)
+
+    def create_conditioning(self, batch, time_st):
+
+        # take audio with context
+        curr_audio = batch["audio"][:, time_st - self.past_context:time_st + self.future_context]
+
+        speech_concat = torch.flatten(curr_audio, start_dim=1)
+        speech_cond_info = self.reduce_speech_enc(speech_concat)
+
+        # Full teacher forcing
+        if self.autoregr_hist_length > 0:
+            prev_poses = batch["gesture"][:, time_st - self.autoregr_hist_length:time_st, :]
+        else:
+            prev_poses = 0
+
+        if self.autoregr_hist_length > 0:
+            # Take several previous poses for conditioning
+            if self.autoregr_hist_length == 3:
+                pose_condition_info = torch.cat((prev_poses[:,-1], prev_poses[:,-2],
+                                                 prev_poses[:,-3]), 1)
+            elif self.autoregr_hist_length == 2:
+                pose_condition_info = torch.cat((prev_poses[:,-1], prev_poses[:,-2]), 1)
+            else:
+                pose_condition_info = prev_poses[-1]
+
+            # Todo: encode various conditioning
+
+            curr_cond = torch.cat((speech_cond_info, pose_condition_info), 1)
+
+        else:
+            pose_condition_info = None
+            curr_cond = speech_cond_info
+
+        return curr_cond
 
 
     def inference(self, seq_len, data=None):
@@ -88,6 +139,8 @@ class GestureFlow(LightningModule):
         return prev_poses
 
     def forward(self, batch):
+
+        # Initialize and read main variables
         self.glow.init_rnn_hidden()
 
         loss = 0
@@ -95,9 +148,12 @@ class GestureFlow(LightningModule):
 
         z_seq = []
         losses = []
-        for time_st in range(0, seq_len):
+
+        for time_st in range(self.past_context + self.autoregr_hist_length, seq_len-self.future_context):
+
             curr_output = batch["gesture"][:, time_st, :]
-            curr_cond = batch["audio"][:, time_st, :]
+
+            curr_cond = self.create_conditioning(batch, time_st)
 
             z_enc, objective = self.glow(x=curr_output, condition=curr_cond)
             tmp_loss = self.loss(objective, z_enc)
@@ -111,6 +167,11 @@ class GestureFlow(LightningModule):
     def loss(self, objective, z):
         objective += GaussianDiag.logp_simplified(z)
         nll = (-objective) / float(np.log(2.0))
+        return nll
+
+    def alt_loss(self, objective, z):
+        log_likelihood = objective + GaussianDiag.logp_simplified(z)
+        nll = (-log_likelihood) / float(np.log(2.0))
         return nll
 
     def training_step(self, batch, batch_idx):
@@ -246,3 +307,32 @@ class GestureFlow(LightningModule):
             shuffle=False
         )
         return loader
+
+    def test_invertability(self, z_seq, loss, data):
+
+        reconstr_seq = []
+
+        self.glow.init_rnn_hidden()
+        backward_loss = 0
+
+        for time_st, z_enc in enumerate(z_seq):
+            condition = self.create_conditioning(data,time_st + self.past_context + self.autoregr_hist_length)
+
+            reconstr, backward_objective = self.glow(
+                z=z_enc, condition=condition, eps_std=1, reverse=True
+            )
+
+            backward_loss += torch.mean(
+                self.loss(-backward_objective, z_enc)
+            )  # , x.size(1)
+
+            reconstr_seq.append(reconstr.detach())
+
+        backward_loss = (backward_loss / len(z_seq)).unsqueeze(-1)
+
+        print("\nBackward: ", backward_loss)
+        print("Forward: ", loss)
+
+        error_percentage = (backward_loss - loss) * 100 / loss
+
+        return torch.abs(error_percentage)

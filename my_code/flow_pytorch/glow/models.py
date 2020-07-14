@@ -200,7 +200,8 @@ class f_seq(nn.Module):
     def forward(self, z, condition):
         if self.rnn_type == "gru":
             self.hidden = self.rnn(
-                torch.cat((z, self.cond_transform(condition)), dim=1), self.hidden
+                torch.cat((z, condition), dim=1), self.hidden
+                #torch.cat((z, self.cond_transform(condition)), dim=1), self.hidden
             )
         elif self.rnn_type == "lstm":
             self.hidden, self.cell = self.rnn(
