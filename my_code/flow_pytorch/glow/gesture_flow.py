@@ -114,25 +114,12 @@ class GestureFlow(LightningModule):
         return nll
 
     def training_step(self, batch, batch_idx):
-        if (
-            self.hparams.Train["use_negative_nll_loss"]
-            and self.last_missmatched_nll > 0
-            and random.random() < 0.1
-            and self.missmatched_modalities
-        ):
-            deranged_batch = self.derange_batch(batch, self.missmatched_modalities)
-            _, loss, _ = self(deranged_batch)
+        _, loss, _ = self(batch)
+        tb_log = {"Loss/train": loss}
 
-            tb_log = {"Loss/missmatched_nll": -loss}
-            self.last_missmatched_nll = -loss
-            loss *= -0.1
-        else:
-            _, loss, _ = self(batch)
-            tb_log = {"Loss/train": loss}
-
-            if self.hparams.optuna and self.global_step > 20 and loss > 0:
-                message = f"Trial was pruned since loss > 0"
-                raise optuna.exceptions.TrialPruned(message)
+        if self.hparams.optuna and self.global_step > 20 and loss > 0:
+            message = f"Trial was pruned since loss > 0"
+            raise optuna.exceptions.TrialPruned(message)
 
         return {"loss": loss, "log": tb_log}
 
@@ -159,28 +146,6 @@ class GestureFlow(LightningModule):
         avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
         tb_logs = {"Loss/val": avg_loss}
         save_loss = avg_loss
-
-        mismatched_nll = [
-            x["mismatched_nll"] for x in outputs if x.get("mismatched_nll")
-        ]
-        if mismatched_nll:
-            keys = reduce(
-                lambda x, y: x + y, [[y for y in x.keys()] for x in mismatched_nll]
-            )
-            actual_nll = torch.stack(
-                [x["actual_nll"] for x in mismatched_nll if x.get("actual_nll")]
-            ).mean()
-            for key in keys:
-                bad_nll = torch.stack(
-                    [x[key] for x in mismatched_nll if x.get(key)]
-                ).mean()
-                tb_logs[f"mismatched_nll/{key}"] = bad_nll
-                tb_logs[f"mismatched_nll_ratios/{key}"] = actual_nll - bad_nll
-
-            if self.hparams.Train["use_negative_nll_loss"] and self.global_step > 0:
-                self.last_missmatched_nll = -tb_logs[
-                    f"mismatched_nll/shuffle_batch_{self.missmatched_nll_name}"
-                ]
 
         det_check = [x["det_check"] for x in outputs if x.get("det_check") is not None]
         if det_check:

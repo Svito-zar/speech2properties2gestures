@@ -108,6 +108,11 @@ def _encode_vectors(audio_filename, gesture_filename, text_filename, embedding_m
 
     # Step 4: Align vector length
     min_len = min(len(input_vectors), len(output_vectors), 2 * len(text_encoding))
+
+    # make sure the length is even
+    if min_len % 2 == 1:
+        min_len -= 1
+
     input_vectors, output_vectors = tools.shorten(input_vectors, output_vectors, min_len)
     text_encoding = text_encoding[:int(min_len/2)]
 
@@ -119,6 +124,7 @@ def _encode_vectors(audio_filename, gesture_filename, text_filename, embedding_m
     if not augment_with_context:
         return input_vectors, text_encoding, output_vectors
 
+    # Step 5: add context
     # create a list of sequences with a fixed past and future context length ( overlap them to use data more efficiently)
     # ToDo: make sure the allignment holds
     start_ind = args.past_context
