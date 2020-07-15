@@ -13,7 +13,7 @@ from torch.optim.lr_scheduler import LambdaLR, MultiplicativeLR, StepLR
 from torch.utils.data import DataLoader
 from my_code.flow_pytorch.glow.modules import GaussianDiag
 
-from my_code.flow_pytorch.data.trinity_no_text import SpeechGestureDataset
+from my_code.flow_pytorch.data.trinity_no_text import SpeechGestureDataset, inv_standardize
 
 
 from my_code.flow_pytorch.glow import (
@@ -72,8 +72,8 @@ class GestureFlow(LightningModule):
     def load_datasets(self):
         try:
             self.train_dataset = SpeechGestureDataset(self.hparams.data_root)
-            scalings = self.train_dataset.get_scalers()
-            self.val_dataset = SpeechGestureDataset(self.hparams.data_root, scalings, train=False)
+            self.scalings = self.train_dataset.get_scalers()
+            self.val_dataset = SpeechGestureDataset(self.hparams.data_root, self.scalings, train=False)
         except FileNotFoundError as err:
             abs_data_dir = os.path.abspath(self.hparams.data_dir)
             if not os.path.isdir(abs_data_dir):
@@ -152,8 +152,6 @@ class GestureFlow(LightningModule):
                 produced_poses = curr_output.unsqueeze(1)
             else:
                 produced_poses = torch.cat((produced_poses, curr_output.unsqueeze(1)), 1)
-
-        print("Produced: ", produced_poses.shape)
 
         return produced_poses
 
@@ -267,9 +265,11 @@ class GestureFlow(LightningModule):
             # Save resulting gestures without teacher forcing
             sample_prediction = outputs[0]['gesture_example'][:3].cpu().detach().numpy()
 
+            sample_gesture = inv_standardize(sample_prediction, self.scalings[1])
+
             filename = f"val_result_ep{self.current_epoch + 1}_raw.npy"
             save_path = path.join(self.hparams.val_gest_dir, filename)
-            np.save(save_path, sample_prediction)
+            np.save(save_path, sample_gesture)
 
         return {"save_loss": save_loss, "val_loss": avg_loss, "log": tb_logs}
 
