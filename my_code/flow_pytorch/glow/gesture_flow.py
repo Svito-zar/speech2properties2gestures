@@ -1,6 +1,7 @@
 import random
 from functools import reduce
 import os
+from os import path
 
 import numpy as np
 import optuna
@@ -82,7 +83,7 @@ class GestureFlow(LightningModule):
                 print("ERROR: Missing data in the dataset!")
             exit(-1)
 
-    def create_conditioning(self, batch, time_st):
+    def create_conditioning(self, batch, time_st, train = True):
 
         # take audio with context
         curr_audio = batch["audio"][:, time_st - self.past_context:time_st + self.future_context]
@@ -92,12 +93,23 @@ class GestureFlow(LightningModule):
 
         # Full teacher forcing
         if self.autoregr_hist_length > 0:
-            prev_poses = batch["gesture"][:, time_st - self.autoregr_hist_length:time_st, :]
+            if train:
+                # Take several previous poses for conditioning
+                prev_poses = batch["gesture"][:, time_st - self.autoregr_hist_length:time_st, :]
+            else:
+                # Use mean pose for conditioning
+                # initialize all the previous poses with the mean pose
+                init_poses = np.array([[self.mean_pose for length in range(self.autoregr_hist_length)]
+                                      for it in range(batch["audio"].shape[0])])
+                # we have to put these Tensors to the same device as the model because
+                # numpy arrays are always on the CPU
+                # store the 3 previous poses
+                prev_poses = torch.from_numpy(init_poses).to(batch["audio"].device)
+
         else:
             prev_poses = 0
 
         if self.autoregr_hist_length > 0:
-            # Take several previous poses for conditioning
             if self.autoregr_hist_length == 3:
                 pose_condition_info = torch.cat((prev_poses[:,-1], prev_poses[:,-2],
                                                  prev_poses[:,-3]), 1)
@@ -117,26 +129,33 @@ class GestureFlow(LightningModule):
         return curr_cond
 
 
-    def inference(self, seq_len, data=None):
+    def inference(self, seq_len, batch):
         self.glow.init_rnn_hidden()
 
-        output_shape = torch.zeros_like(data[:, 0, :])
-        prev_poses = []
+        model_output_shape = torch.zeros([batch["audio"].shape[0], self.hparams.Glow["distr_dim"]])
 
-        for time_st in range(0, seq_len):
-            condition =None
+        produced_poses = None
 
-            output, _ = self.glow(
-                condition=condition,
+        for time_st in range(self.past_context + self.autoregr_hist_length, seq_len - self.future_context):
+
+            curr_cond = self.create_conditioning(batch, time_st, train = False)
+
+            curr_output, _ = self.glow(
+                condition=curr_cond,
                 eps_std=self.hparams.Infer["eps"],
                 reverse=True,
-                output_shape=output_shape,
+                output_shape=model_output_shape,
             )
 
-            prev_poses = torch.cat([prev_poses, output.unsqueeze(1)], dim=1)
+            # add current frame to the total motion sequence
+            if produced_poses is None:
+                produced_poses = curr_output.unsqueeze(1)
+            else:
+                produced_poses = torch.cat((produced_poses, curr_output.unsqueeze(1)), 1)
 
+        print("Produced: ", produced_poses.shape)
 
-        return prev_poses
+        return produced_poses
 
     def forward(self, batch):
 
@@ -201,6 +220,9 @@ class GestureFlow(LightningModule):
             if self.hparams.Validation["scale_logging"]:
                 self.log_scales()
 
+        if self.hparams.Validation["inference"]:
+            output["gesture_example"] = self.inference(self.hparams.Infer["seq_len"], batch)
+
         return output
 
     def validation_epoch_end(self, outputs):
@@ -209,6 +231,7 @@ class GestureFlow(LightningModule):
         save_loss = avg_loss
 
         det_check = [x["det_check"] for x in outputs if x.get("det_check") is not None]
+
         if det_check:
             avg_det_check = torch.stack(det_check).mean()
             tb_logs["reconstruction/error_percentage"] = avg_det_check
@@ -238,6 +261,16 @@ class GestureFlow(LightningModule):
                 self.best_jerk = tb_logs[f"jerk/generated_mean"]
             else:
                 save_loss + torch.tensor(np.Inf)
+
+        if self.hparams.Validation["inference"]:
+
+            # Save resulting gestures without teacher forcing
+            sample_prediction = outputs[0]['gesture_example'][:3].cpu().detach().numpy()
+
+            filename = f"val_result_ep{self.current_epoch + 1}_raw.npy"
+            save_path = path.join(self.hparams.val_gest_dir, filename)
+            np.save(save_path, sample_prediction)
+
         return {"save_loss": save_loss, "val_loss": avg_loss, "log": tb_logs}
 
     def configure_optimizers(self):
@@ -329,9 +362,6 @@ class GestureFlow(LightningModule):
             reconstr_seq.append(reconstr.detach())
 
         backward_loss = (backward_loss / len(z_seq)).unsqueeze(-1)
-
-        print("\nBackward: ", backward_loss)
-        print("Forward: ", loss)
 
         error_percentage = (backward_loss - loss) * 100 / loss
 
