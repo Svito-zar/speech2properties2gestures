@@ -1,5 +1,5 @@
 Glow:
-  K: 4
+  K: 6
   L: 1
   LU_decomposed: true
   actnorm_scale: 1.0
@@ -10,7 +10,7 @@ Glow:
   scale_eps: 0.0001
   feature_encoder_dim: 64
   distr_dim: 45
-  cond_dim: 64
+  cond_dim: 346
 Infer:
   eps: 1
   seq_len: 25
@@ -38,15 +38,23 @@ Optim:
       momentum: 0.9
   name: adam
 Train:
-  seq_len: 70
+  seq_len: 10
   use_negative_nll_loss: false
+Cond:
+  Speech:
+    dim: 64
+    prev_context: 10
+    future_context: 20
+    enc_dim: 256
+  Autoregression:
+    history_length: 2
 Validation:
-  check_invertion: false
+  check_invertion: true
   inference: true
   render: false
   scale_logging: false
   seq_len: 230
-  teacher_forced_inference: false
+  teacher_forced_inference: true
 accumulate_grad_batches: 1
 amp_level: O1
 auto_lr_find: false
@@ -56,7 +64,8 @@ batch_size: 256
 benchmark: true
 check_val_every_n_epoch: 1
 checkpoint_callback: true
-data_root: /home/taras/Documents/Datasets/SpeechToMotion/Irish/processed/GestureFlow_July
+data_root: /home/taras/Documents/Datasets/SpeechToMotion/Irish/processed/GestureFlow_small
+dropout: 0.2
 default_root_dir: null
 deterministic: true
 distributed_backend: null

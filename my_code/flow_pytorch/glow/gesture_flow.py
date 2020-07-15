@@ -12,7 +12,7 @@ from torch.optim.lr_scheduler import LambdaLR, MultiplicativeLR, StepLR
 from torch.utils.data import DataLoader
 from my_code.flow_pytorch.glow.modules import GaussianDiag
 
-from my_code.flow_pytorch.data.trinity_taras import SpeechGestureDataset
+from my_code.flow_pytorch.data.trinity_no_text import SpeechGestureDataset
 
 
 from my_code.flow_pytorch.glow import (
