@@ -92,9 +92,6 @@ def _encode_vectors(audio_filename, gesture_filename, text_filename, embedding_m
     ges_str = np.load(gesture_filename)
     output_vectors = ges_str['clips']
 
-    # Subsample motion (from 60 fsp to 20 fps)
-    output_vectors = output_vectors[0::3]
-
     # Step 3: Obtain text transcription:
     if isinstance(embedding_model, BertEmbedding):
         text_encoding = encode_json_transcript_with_bert(text_filename, embedding_model)
@@ -128,7 +125,7 @@ def _encode_vectors(audio_filename, gesture_filename, text_filename, embedding_m
     # create a list of sequences with a fixed past and future context length ( overlap them to use data more efficiently)
     # ToDo: make sure the allignment holds
     start_ind = args.past_context
-    seq_step = 10 # overlap of sequences: 0.5s
+    seq_step = 6 # overlap of sequences: 0.3s
 
     # Test if the context length is appropriate
     assert args.past_context % 2 == 0
