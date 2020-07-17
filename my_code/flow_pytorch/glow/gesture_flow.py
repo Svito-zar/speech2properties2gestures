@@ -83,7 +83,7 @@ class GestureFlow(LightningModule):
                 print("ERROR: Missing data in the dataset!")
             exit(-1)
 
-    def create_conditioning(self, batch, time_st, train = True):
+    def create_conditioning(self, batch, time_st, init = True, autoregr_condition = None):
 
         # take audio with context
         curr_audio = batch["audio"][:, time_st - self.past_context:time_st + self.future_context]
@@ -93,10 +93,7 @@ class GestureFlow(LightningModule):
 
         # Full teacher forcing
         if self.autoregr_hist_length > 0:
-            if train:
-                # Take several previous poses for conditioning
-                prev_poses = batch["gesture"][:, time_st - self.autoregr_hist_length:time_st, :]
-            else:
+            if init:
                 # Use mean pose for conditioning
                 # initialize all the previous poses with the mean pose
                 init_poses = np.array([[self.mean_pose for length in range(self.autoregr_hist_length)]
@@ -105,6 +102,10 @@ class GestureFlow(LightningModule):
                 # numpy arrays are always on the CPU
                 # store the 3 previous poses
                 prev_poses = torch.from_numpy(init_poses).to(batch["audio"].device)
+
+            else:
+                # Take several previous poses for conditioning
+                prev_poses = autoregr_condition[:, -self.autoregr_hist_length:, :]
 
         else:
             prev_poses = 0
@@ -136,9 +137,11 @@ class GestureFlow(LightningModule):
 
         produced_poses = None
 
-        for time_st in range(self.past_context + self.autoregr_hist_length, seq_len - self.future_context):
+        for time_st in range(self.past_context, seq_len - self.future_context):
 
-            curr_cond = self.create_conditioning(batch, time_st, train = False)
+            curr_cond = self.create_conditioning(batch, time_st,
+                                                 init = time_st < self.past_context + self.autoregr_hist_length,
+                                                 autoregr_condition = produced_poses)
 
             curr_output, _ = self.glow(
                 condition=curr_cond,
@@ -166,11 +169,13 @@ class GestureFlow(LightningModule):
         z_seq = []
         losses = []
 
-        for time_st in range(self.past_context + self.autoregr_hist_length, seq_len-self.future_context):
+        for time_st in range(self.past_context, seq_len-self.future_context):
 
             curr_output = batch["gesture"][:, time_st, :]
 
-            curr_cond = self.create_conditioning(batch, time_st)
+            curr_cond = self.create_conditioning(batch, time_st,
+                                                 init = time_st < self.past_context + self.autoregr_hist_length,
+                                                 autoregr_condition = batch["gesture"][:, time_st-3:time_st, :])
 
             z_enc, objective = self.glow(x=curr_output, condition=curr_cond)
             tmp_loss = self.loss(objective, z_enc)
@@ -349,7 +354,7 @@ class GestureFlow(LightningModule):
         backward_loss = 0
 
         for time_st, z_enc in enumerate(z_seq):
-            condition = self.create_conditioning(data,time_st + self.past_context + self.autoregr_hist_length)
+            condition = self.create_conditioning(data,time_st + self.past_context)
 
             reconstr, backward_objective = self.glow(
                 z=z_enc, condition=condition, eps_std=1, reverse=True
