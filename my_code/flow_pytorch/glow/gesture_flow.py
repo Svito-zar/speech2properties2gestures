@@ -90,10 +90,11 @@ class GestureFlow(LightningModule):
 
         speech_concat = torch.flatten(curr_audio, start_dim=1)
         speech_cond_info = self.reduce_speech_enc(speech_concat)
-
+<
         # Full teacher forcing
         if self.autoregr_hist_length > 0:
             if init:
+
                 # Use mean pose for conditioning
                 # initialize all the previous poses with the mean pose
                 init_poses = np.array([[self.mean_pose for length in range(self.autoregr_hist_length)]
@@ -175,7 +176,8 @@ class GestureFlow(LightningModule):
 
             curr_cond = self.create_conditioning(batch, time_st,
                                                  init = time_st < self.past_context + self.autoregr_hist_length,
-                                                 autoregr_condition = batch["gesture"][:, time_st-3:time_st, :])
+                                                 autoregr_condition = batch["gesture"]
+                                                 [:, time_st-self.autoregr_hist_length:time_st, :])
 
             z_enc, objective = self.glow(x=curr_output, condition=curr_cond)
             tmp_loss = self.loss(objective, z_enc)
