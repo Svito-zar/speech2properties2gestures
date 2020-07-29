@@ -18,7 +18,6 @@ class f_seq(nn.Module):
         output_size,
         hidden_size,
         cond_dim,
-        feature_encoder_dim,
         rnn_type,
     ):
         """
@@ -26,7 +25,6 @@ class f_seq(nn.Module):
         output_size:            output channels (ToDo: should be equal to input_size?)
         hidden_size:            size of the hidden layer of the NN
         cond_dim:               final dim. of the conditioning info
-        feature_encoder_dim:    intermediate conditioning info dim. size
         rnn_type:               GRU/LSTM
         """
         super().__init__()
@@ -44,9 +42,9 @@ class f_seq(nn.Module):
                 input_size=input_size + cond_dim, hidden_size=hidden_size,
             )
 
-        self.cond_transform = nn.Sequential(
-            nn.Linear(feature_encoder_dim, cond_dim), nn.LeakyReLU(),
-        )
+        #self.cond_transform = nn.Sequential(
+        #    nn.Linear(feature_encoder_dim, cond_dim), nn.LeakyReLU(),
+        #)
 
         self.final_linear = modules.LinearZeros(hidden_size, output_size)
         self.hidden = None
@@ -95,7 +93,6 @@ class FlowStep(nn.Module):
         K=1,
         scale_eps=1e-6,
         scale_logging=False,
-        feature_encoder_dim=0,
         glow_rnn_type=None,
     ):
         # check configures
@@ -139,7 +136,6 @@ class FlowStep(nn.Module):
                 in_channels - in_channels // 2,
                 hidden_channels,
                 cond_dim,
-                feature_encoder_dim,
                 glow_rnn_type,
             )
         elif flow_coupling == "affine":
@@ -149,7 +145,6 @@ class FlowStep(nn.Module):
                     in_channels,
                     hidden_channels,
                     cond_dim,
-                    feature_encoder_dim,
                     glow_rnn_type,
                 )
             else:
@@ -158,7 +153,6 @@ class FlowStep(nn.Module):
                     in_channels + 1,
                     hidden_channels,
                     cond_dim,
-                    feature_encoder_dim,
                     glow_rnn_type,
                 )
 
@@ -253,7 +247,6 @@ class FlowNet(nn.Module):
         LU_decomposed=False,
         scale_eps=1e-6,
         scale_logging=False,
-        feature_encoder_dim=0,
         glow_rnn_type=None,
     ):
         """
@@ -286,7 +279,6 @@ class FlowNet(nn.Module):
                         K=k,
                         scale_eps=scale_eps,
                         scale_logging=scale_logging,
-                        feature_encoder_dim=feature_encoder_dim,
                         glow_rnn_type=glow_rnn_type,
                     )
                 )
@@ -341,8 +333,7 @@ class Glow(nn.Module):
             LU_decomposed=hparams.Glow["LU_decomposed"],
             scale_eps=hparams.Glow["scale_eps"],
             scale_logging=hparams.Validation["scale_logging"],
-            glow_rnn_type=hparams.Glow["rnn_type"],
-            feature_encoder_dim = hparams.Glow["feature_encoder_dim"]
+            glow_rnn_type=hparams.Glow["rnn_type"]
         )
 
     def forward(
