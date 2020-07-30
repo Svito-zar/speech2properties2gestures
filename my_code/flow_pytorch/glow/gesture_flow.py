@@ -111,13 +111,8 @@ class GestureFlow(LightningModule):
             prev_poses = 0
 
         if self.autoregr_hist_length > 0:
-            if self.autoregr_hist_length == 3:
-                pose_condition_info = torch.cat((prev_poses[:,-1], prev_poses[:,-2],
-                                                 prev_poses[:,-3]), 1)
-            elif self.autoregr_hist_length == 2:
-                pose_condition_info = torch.cat((prev_poses[:,-1], prev_poses[:,-2]), 1)
-            else:
-                pose_condition_info = prev_poses[-1]
+
+            pose_condition_info = prev_poses.reshape([prev_poses.shape[0], -1])
 
             # Todo: encode various conditioning
 
