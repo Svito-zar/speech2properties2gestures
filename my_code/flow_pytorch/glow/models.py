@@ -358,7 +358,7 @@ class Glow(nn.Module):
     def reverse_flow(self, z, condition, eps_std, output_shape):
         with torch.no_grad():
             if z is None:
-                z = modules.GaussianDiag.sample(output_shape, eps_std)
+                z = modules.GaussianDiag.sample(output_shape, eps_std).to(condition.device)
             x, logdet = self.flow(z, condition, eps_std=eps_std, reverse=True)
         return x, logdet
 

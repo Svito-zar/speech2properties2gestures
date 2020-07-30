@@ -145,6 +145,7 @@ dependencies:
     - jsonschema==3.2.0
     - mako==1.1.2
     - markdown==3.2.2
+    - matplotlib==3.2.1
     - moviepy==1.0.3
     - msgpack==0.6.2
     - multidict==4.7.6
@@ -154,6 +155,7 @@ dependencies:
     - nvidia-ml-py3==7.352.0
     - oauthlib==3.1.0
     - optuna==1.4.0
+    - pandas==1.0.5
     - pathspec==0.8.0
     - pbr==5.4.5
     - pdbpp==0.10.2
@@ -188,6 +190,7 @@ dependencies:
     - smplx==0.1.14
     - soupsieve==2.0.1
     - sqlalchemy==1.3.17
+    - scikit-learn==0.23.1
     - starlette==0.13.4
     - stevedore==1.32.0
     - tensorboard==2.2.1
