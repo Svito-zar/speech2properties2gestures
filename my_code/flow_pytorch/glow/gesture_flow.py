@@ -17,7 +17,6 @@ from my_code.flow_pytorch.data.trinity_no_text import SpeechGestureDataset, inv_
 
 
 from my_code.flow_pytorch.glow import (
-    FeatureEncoder,
     Glow,
     calc_jerk,
     get_longest_history
@@ -90,7 +89,7 @@ class GestureFlow(LightningModule):
 
         speech_concat = torch.flatten(curr_audio, start_dim=1)
         speech_cond_info = self.reduce_speech_enc(speech_concat)
-<
+
         # Full teacher forcing
         if self.autoregr_hist_length > 0:
             if init:
