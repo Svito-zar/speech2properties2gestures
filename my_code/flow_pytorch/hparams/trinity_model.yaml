@@ -5,15 +5,14 @@ Glow:
   actnorm_scale: 1.0
   flow_coupling: affine
   flow_permutation: invconv
-  hidden_channels: 64
+  hidden_channels: 256
   rnn_type: gru
   scale_eps: 0.0001
-  feature_encoder_dim: 64
   distr_dim: 45
-  cond_dim: 346
+  cond_dim: 451
 Infer:
-  eps: 1
-  seq_len: 25
+  eps: 0.1
+  seq_len: 70
 Optim:
   Schedule:
     args:
@@ -39,15 +38,14 @@ Optim:
   name: adam
 Train:
   seq_len: 10
-  use_negative_nll_loss: false
 Cond:
   Speech:
     dim: 64
-    prev_context: 10
-    future_context: 20
-    enc_dim: 256
+    prev_context: 4
+    future_context: 2
+    enc_dim: 1
   Autoregression:
-    history_length: 2
+    history_length: 10
 Validation:
   check_invertion: true
   inference: true
@@ -64,7 +62,7 @@ batch_size: 256
 benchmark: true
 check_val_every_n_epoch: 1
 checkpoint_callback: true
-data_root: /home/taras/Documents/Datasets/SpeechToMotion/Irish/processed/GestureFlow_small
+data_root: /home/taras/Documents/Datasets/SpeechToMotion/Irish/processed/GestureFlow_July
 dropout: 0.2
 default_root_dir: null
 deterministic: true
@@ -77,7 +75,7 @@ log_save_interval: 100
 log_root: results/trinity
 logger: true
 lr: 1.0e-05
-max_epochs: 30
+max_epochs: 60
 max_steps: null
 min_epochs: 1
 min_steps: null
@@ -103,6 +101,7 @@ track_grad_norm: -1
 train_percent_check: 1.0
 truncated_bptt_steps: null
 val_check_interval: 1.0
+val_gest_dir: ./results/val/
 val_percent_check: 1.0
 weights_save_path: null
 weights_summary: top
