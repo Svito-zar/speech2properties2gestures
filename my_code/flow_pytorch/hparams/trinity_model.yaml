@@ -74,7 +74,7 @@ log_gpu_memory: null
 log_save_interval: 100
 log_root: results/trinity
 logger: true
-lr: 1.0e-05
+lr: 1.0e-03
 max_epochs: 60
 max_steps: null
 min_epochs: 1

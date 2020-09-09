@@ -192,15 +192,33 @@ class GestureFlow(LightningModule):
         nll = (-log_likelihood) / float(np.log(2.0))
         return nll
 
+
+    def derange_batch(self, batch_data):
+        # Shuffle conditioning info
+        permutation = torch.randperm(batch_data["audio"].size(1))
+
+        mixed_up_batch = {}
+        for modality in ["audio", "gesture"]:
+            mixed_up_batch[modality] = batch_data[modality][:, permutation]
+
+        return mixed_up_batch
+
+
     def training_step(self, batch, batch_idx):
+
         _, loss, _ = self(batch)
-        tb_log = {"Loss/train": loss}
+
+        deranged_batch = self.derange_batch(batch)
+        _, deranged_loss, _ = self(deranged_batch)
+
+        tb_log = {"Loss/train": loss, "Loss/missmatched_nll": deranged_loss}
 
         if self.hparams.optuna and self.global_step > 20 and loss > 0:
             message = f"Trial was pruned since loss > 0"
             raise optuna.exceptions.TrialPruned(message)
 
         return {"loss": loss, "log": tb_log}
+
 
     def validation_step(self, batch, batch_idx):
         z_seq, loss, _ = self(batch)
@@ -328,7 +346,7 @@ class GestureFlow(LightningModule):
 
     def train_dataloader(self):
         loader = torch.utils.data.DataLoader(
-            dataset=self.train_dataset,
+            dataset=self.val_dataset,
             batch_size=self.hparams.batch_size,
             shuffle=True
         )
