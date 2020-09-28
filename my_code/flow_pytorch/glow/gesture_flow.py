@@ -13,7 +13,7 @@ from torch.optim.lr_scheduler import LambdaLR, MultiplicativeLR, StepLR
 from torch.utils.data import DataLoader
 from my_code.flow_pytorch.glow.modules import GaussianDiag
 
-from my_code.flow_pytorch.data.trinity_no_text import SpeechGestureDataset, inv_standardize
+from my_code.flow_pytorch.data.trinity_taras import SpeechGestureDataset, inv_standardize
 
 
 from my_code.flow_pytorch.glow import (
@@ -87,6 +87,8 @@ class GestureFlow(LightningModule):
         # take audio with context
         curr_audio = batch["audio"][:, time_st - self.past_context:time_st + self.future_context]
 
+        curr_text = batch["text"][:, time_st - self.past_context:time_st + self.future_context]
+
         speech_concat = torch.flatten(curr_audio, start_dim=1)
         speech_cond_info = self.reduce_speech_enc(speech_concat)
 
@@ -107,19 +109,11 @@ class GestureFlow(LightningModule):
                 # Take several previous poses for conditioning
                 prev_poses = autoregr_condition[:, -self.autoregr_hist_length:, :]
 
-        else:
-            prev_poses = 0
-
-        if self.autoregr_hist_length > 0:
-
             pose_condition_info = prev_poses.reshape([prev_poses.shape[0], -1])
-
-            # Todo: encode various conditioning
 
             curr_cond = torch.cat((speech_cond_info, pose_condition_info), 1)
 
         else:
-            pose_condition_info = None
             curr_cond = speech_cond_info
 
         return curr_cond
