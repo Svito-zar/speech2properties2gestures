@@ -15,6 +15,8 @@ from my_code.flow_pytorch.glow.modules import GaussianDiag
 
 from my_code.flow_pytorch.data.trinity_taras import SpeechGestureDataset, inv_standardize
 
+import h5py
+
 
 from my_code.flow_pytorch.glow import (
     Glow,
@@ -62,17 +64,13 @@ class GestureFlow(LightningModule):
                                                          self.hparams.Cond["Speech"]["enc_dim"]),
                                                nn.Tanh(), nn.Dropout(self.hparams.dropout))
 
-        self.calculate_mean_pose()
-
-    def calculate_mean_pose(self):
-        self.mean_pose = np.mean(self.val_dataset.gesture, axis=(0, 1))
-        np.save("./glow/utils/mean_pose.npy", self.mean_pose)
+        self.mean_pose = np.zeros([self.hparams.Glow["distr_dim"] ], dtype=np.float)
 
     def load_datasets(self):
         try:
             self.train_dataset = SpeechGestureDataset(self.hparams.data_root)
             self.scalings = self.train_dataset.get_scalers()
-            self.val_dataset = SpeechGestureDataset(self.hparams.data_root, self.scalings, train=False)
+            self.val_dataset = SpeechGestureDataset(self.hparams.data_root, train=False)
         except FileNotFoundError as err:
             abs_data_dir = os.path.abspath(self.hparams.data_dir)
             if not os.path.isdir(abs_data_dir):
@@ -109,7 +107,7 @@ class GestureFlow(LightningModule):
                 # Take several previous poses for conditioning
                 prev_poses = autoregr_condition[:, -self.autoregr_hist_length:, :]
 
-            pose_condition_info = prev_poses.reshape([prev_poses.shape[0], -1])
+            pose_condition_info = prev_poses.reshape([prev_poses.shape[0], -1]).float()
 
             curr_cond = torch.cat((speech_cond_info, pose_condition_info), 1)
 
@@ -192,7 +190,7 @@ class GestureFlow(LightningModule):
         permutation = torch.randperm(batch_data["audio"].size(1))
 
         mixed_up_batch = {}
-        for modality in ["audio", "gesture"]:
+        for modality in ["audio", "text", "gesture"]:
             mixed_up_batch[modality] = batch_data[modality][:, permutation]
 
         return mixed_up_batch
@@ -278,7 +276,7 @@ class GestureFlow(LightningModule):
             # Save resulting gestures without teacher forcing
             sample_prediction = outputs[0]['gesture_example'][:3].cpu().detach().numpy()
 
-            sample_gesture = inv_standardize(sample_prediction, self.scalings[1])
+            sample_gesture = inv_standardize(sample_prediction, self.scalings[-1])
 
             filename = f"val_result_ep{self.current_epoch + 1}_raw.npy"
             save_path = path.join(self.hparams.val_gest_dir, filename)
@@ -340,7 +338,7 @@ class GestureFlow(LightningModule):
 
     def train_dataloader(self):
         loader = torch.utils.data.DataLoader(
-            dataset=self.val_dataset,
+            dataset=self.train_dataset,
             batch_size=self.hparams.batch_size,
             shuffle=True
         )

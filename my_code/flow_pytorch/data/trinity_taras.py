@@ -7,6 +7,9 @@ import matplotlib.pyplot as plt
 from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import StandardScaler
 
+import h5py
+import random
+
 torch.set_default_tensor_type('torch.FloatTensor')
 
 
@@ -35,47 +38,47 @@ def inv_standardize(data, scaler):
 class SpeechGestureDataset(Dataset):
     """Trinity Speech-Gesture Dataset class."""
 
-    def __init__(self, root_dir, scalers=None, train=True):
+    def __init__(self, root_dir, train=True):
         """
         Args:
             root_dir (string): Directory with the datasat.
         """
         self.root_dir = root_dir
-        # Get the data
+
+        # define data file name
         if train:
-            audio = np.load(path.join(root_dir, 'X_train.npy')).astype(np.float32)
-            text = np.load(path.join(root_dir, 'T_train.npy')).astype(np.float32)
-            gesture = np.load(path.join(root_dir, 'Y_train.npy')).astype(np.float32)
+            self.file_name = path.join(root_dir, 'train.hdf5')
+            self.type = "train"
         else:
-            audio = np.load(path.join(root_dir, 'X_dev.npy')).astype(np.float32)
-            text = np.load(path.join(root_dir, 'T_dev.npy')).astype(np.float32)
-            gesture = np.load(path.join(root_dir, 'Y_dev.npy')).astype(np.float32)
+            self.file_name  = path.join(root_dir, 'dev.hdf5')
+            self.type = "dev"
 
-        # upsample text to get the same sampling rate as the audio
-        cols = np.linspace(0, text.shape[1], endpoint=False, num=text.shape[1] * 2, dtype=int)
-        text = text[:, cols, :]
+        scalers_file = root_dir + "/scalers.npy"
+        self.scalers = np.load(scalers_file, allow_pickle=True)
 
-        self.audio_dim = audio.shape[-1]
+        # Define dataset size
+        with h5py.File(self.file_name, "r") as data:
+            audio_data =  data[self.type]["audio"]
+            self.len = len(audio_data)
 
-        # Standartize
-        if train:
-            self.audio, audio_scaler = fit_and_standardize(audio)
-            self.text, text_scaler = fit_and_standardize(text)
-            self.gesture, gesture_scaler = fit_and_standardize(gesture)
-            self.scalers = [audio_scaler, text_scaler, gesture_scaler]
-        else:
-            [audio_scaler, text_scaler, gesture_scaler] = scalers
-            self.audio  = standardize(audio, audio_scaler)
-            self.text  = standardize(text, text_scaler)
-            self.gesture  = standardize(gesture, gesture_scaler)
+
 
     def __len__(self):
-        return len(self.text)
+        return self.len
 
     def __getitem__(self, idx):
-        audio = self.audio[idx]
-        gesture = self.gesture[idx]
-        text = self.text[idx]
+
+        with h5py.File(self.file_name, "r") as data:
+            audio = data[self.type]["audio"][idx]
+            text = data[self.type]["text"][idx]
+            gesture = data[self.type]["gesture"][idx]
+
+            # upsample text to get the same sampling rate as the audio
+            cols = np.linspace(0, text.shape[0], endpoint=False, num=text.shape[0] * 2, dtype=int)
+            text = text[cols, :]
+
+        if len(text) == 0:
+            raise Exception("Missing text!")
 
         sample = {'audio': audio, 'gesture': gesture, 'text': text}
 

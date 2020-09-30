@@ -62,7 +62,7 @@ batch_size: 256
 benchmark: true
 check_val_every_n_epoch: 1
 checkpoint_callback: true
-data_root: /home/taras/Documents/Datasets/SpeechToMotion/Irish/processed/GestureFlow_July
+data_root: /home/taras/Documents/Datasets/SpeechToMotion/Irish/processed/GestureFlow_hdf5
 dropout: 0.2
 default_root_dir: null
 deterministic: true
