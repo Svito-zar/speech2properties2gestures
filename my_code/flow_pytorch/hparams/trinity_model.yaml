@@ -40,10 +40,11 @@ Train:
   seq_len: 70
 Cond:
   Speech:
-    dim: 64
+    dim: 837
+    fr_enc_dim: 128
+    total_enc_dim: 800
     prev_context: 5
     future_context: 20
-    enc_dim: 800
   Autoregression:
     history_length: 10
 Validation:

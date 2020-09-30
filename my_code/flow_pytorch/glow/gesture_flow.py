@@ -58,11 +58,16 @@ class GestureFlow(LightningModule):
         self.future_context = self.hparams.Cond["Speech"]["future_context"]
         self.autoregr_hist_length = self.hparams.Cond["Autoregression"]["history_length"]
 
+        # Encode speech features
+        self.encode_speech = nn.Sequential(nn.Linear(self.hparams.Cond["Speech"]["dim"],
+                                                     self.hparams.Cond["Speech"]["fr_enc_dim"]), nn.LeakyReLU(),
+                                               nn.Dropout(self.hparams.dropout))
+
         # To reduce deminsionality of the speech encoding
-        self.reduce_speech_enc = nn.Sequential(nn.Linear(int(self.hparams.Cond["Speech"]["dim"] * \
+        self.reduce_speech_enc = nn.Sequential(nn.Linear(int(self.hparams.Cond["Speech"]["fr_enc_dim"] * \
                                                              (self.past_context + self.future_context)),
-                                                         self.hparams.Cond["Speech"]["enc_dim"]),
-                                               nn.Tanh(), nn.Dropout(self.hparams.dropout))
+                                                         self.hparams.Cond["Speech"]["total_enc_dim"]),
+                                               nn.LeakyReLU(), nn.Dropout(self.hparams.dropout))
 
         self.mean_pose = np.zeros([self.hparams.Glow["distr_dim"] ], dtype=np.float)
 
@@ -82,13 +87,16 @@ class GestureFlow(LightningModule):
 
     def create_conditioning(self, batch, time_st, init = True, autoregr_condition = None):
 
-        # take audio with context
+        # take current audio and text of the speech
         curr_audio = batch["audio"][:, time_st - self.past_context:time_st + self.future_context]
-
         curr_text = batch["text"][:, time_st - self.past_context:time_st + self.future_context]
+        curr_speech = torch.cat((curr_audio, curr_text), 2)
 
-        speech_concat = torch.flatten(curr_audio, start_dim=1)
-        speech_cond_info = self.reduce_speech_enc(speech_concat)
+        # encode speech
+        speech_encoding_full = self.encode_speech(curr_speech)
+
+        speech_encoding_concat = torch.flatten(speech_encoding_full, start_dim=1)
+        speech_cond_info = self.reduce_speech_enc(speech_encoding_concat)
 
         # Full teacher forcing
         if self.autoregr_hist_length > 0:
