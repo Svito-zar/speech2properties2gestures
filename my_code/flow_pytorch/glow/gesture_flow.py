@@ -15,6 +15,8 @@ from my_code.flow_pytorch.glow.modules import GaussianDiag
 
 from my_code.flow_pytorch.data.trinity_taras import SpeechGestureDataset, inv_standardize
 
+from my_code.data_processing.visualization.motion_visualizer.generate_videos import visualize
+
 import h5py
 
 
@@ -281,16 +283,61 @@ class GestureFlow(LightningModule):
 
         if self.hparams.Validation["inference"]:
 
+
+
             # Save resulting gestures without teacher forcing
             sample_prediction = outputs[0]['gesture_example'][:3].cpu().detach().numpy()
 
             sample_gesture = inv_standardize(sample_prediction, self.scalings[-1])
 
-            filename = f"val_result_ep{self.current_epoch + 1}_raw.npy"
-            save_path = path.join(self.hparams.val_gest_dir, filename)
-            np.save(save_path, sample_gesture)
+            self.save_prediction(sample_gesture, path.join(os.getcwd(),self.hparams.val_gest_dir))
 
         return {"save_loss": save_loss, "val_loss": avg_loss, "log": tb_logs}
+
+
+    def save_prediction(self, gestures, save_dir, raw=False, video=True):
+        """
+        Save the given gestures to the <generated_gestures_dir>/<phase> folder
+        using the formats found in hparams.prediction_save_formats.
+
+        The possible formats are: BVH file, MP4 video and raw numpy array.
+
+        Args:
+            gestures:  The output of the model
+            phase:  Can be "training", "validation" or "test"
+            filename:  The filename of the saved outputs (default: epoch_<current_epoch>.<extension>)
+        """
+
+        data_fps = 20
+
+        npy_filename = path.join(save_dir, "raw/" + f"val_result_ep{self.current_epoch + 1}.npy")
+
+        if video:
+
+            mp4_filename = path.join(save_dir, "videos/" + f"val_result_ep{self.current_epoch + 1}.mp4")
+
+            print("\nos.path-exists()---->",os.path.exists(path.join(save_dir, "videos/")))
+
+            data_pipe = path.join(os.getcwd(), 'glow/utils/data_pipe.sav')
+
+            temp_bvh = path.join(save_dir, 'temp/temp.bvh')
+
+            visualize(
+                gestures,
+                bvh_file=temp_bvh,
+                mp4_file=mp4_filename,
+                npy_file=npy_filename,
+                start_t=0,
+                end_t=data_fps * self.hparams.Validation["seq_len"],
+                data_pipe_dir=data_pipe)
+
+            # Clean up the temporary files
+            os.remove(temp_bvh)
+
+        elif raw:
+            raw_save_path = path.join(self.hparams.val_gest_dir, npy_filename)
+            np.save(raw_save_path, gestures)
+
 
     def configure_optimizers(self):
         lr_params = self.hparams.Optim
@@ -346,7 +393,7 @@ class GestureFlow(LightningModule):
 
     def train_dataloader(self):
         loader = torch.utils.data.DataLoader(
-            dataset=self.train_dataset,
+            dataset=self.val_dataset,
             batch_size=self.hparams.batch_size,
             shuffle=True
         )
