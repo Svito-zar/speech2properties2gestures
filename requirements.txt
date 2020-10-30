@@ -23,9 +23,6 @@ colorama==0.4.3
 colorlog==4.1.0
 comet-git-pure==0.19.16
 comet-ml==3.1.10
-conda==4.8.1
-conda-build==3.18.11
-conda-package-handling==1.6.0
 configobj==5.0.6
 cryptography==2.8
 cycler==0.10.0
@@ -61,9 +58,6 @@ Mako==1.1.2
 Markdown==3.2.2
 MarkupSafe==1.1.1
 matplotlib==3.2.1
-mkl-fft==1.0.15
-mkl-random==1.1.0
-mkl-service==2.3.0
 moviepy==1.0.3
 msgpack==0.6.2
 multidict==4.7.6
