@@ -142,7 +142,7 @@ class GestureFlow(LightningModule):
 
             curr_output, _ = self.glow(
                 condition=curr_cond,
-                eps_std=self.hparams.Infer["eps"],
+                std=self.hparams.Infer["temp"],
                 reverse=True,
                 output_shape=model_output_shape,
             )
@@ -316,8 +316,6 @@ class GestureFlow(LightningModule):
 
             mp4_filename = path.join(save_dir, "videos/" + f"val_result_ep{self.current_epoch + 1}.mp4")
 
-            print("\nos.path-exists()---->",os.path.exists(path.join(save_dir, "videos/")))
-
             data_pipe = path.join(os.getcwd(), 'glow/utils/data_pipe.sav')
 
             temp_bvh = path.join(save_dir, 'temp/temp.bvh')
@@ -418,7 +416,7 @@ class GestureFlow(LightningModule):
             condition = self.create_conditioning(data,time_st + self.past_context)
 
             reconstr, backward_objective = self.glow(
-                z=z_enc, condition=condition, eps_std=1, reverse=True
+                z=z_enc, condition=condition, std=1, reverse=True
             )
 
             backward_loss += torch.mean(

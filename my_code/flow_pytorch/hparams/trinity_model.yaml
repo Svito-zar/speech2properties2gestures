@@ -1,17 +1,17 @@
 Glow:
-  K: 16
+  K: 4
   L: 1
   LU_decomposed: true
   actnorm_scale: 1.0
   flow_coupling: affine
   flow_permutation: invconv
-  hidden_channels: 800
+  hidden_channels: 128
   rnn_type: gru
   scale_eps: 0.0001
   distr_dim: 45
-  cond_dim: 1250
+  cond_dim: 308
 Infer:
-  eps: 0.8
+  temp: 0.8
   seq_len: 120
 Optim:
   Schedule:
@@ -41,12 +41,12 @@ Train:
 Cond:
   Speech:
     dim: 837
-    fr_enc_dim: 128
-    total_enc_dim: 800
+    fr_enc_dim: 32
+    total_enc_dim: 128
     prev_context: 5
-    future_context: 20
+    future_context: 10
   Autoregression:
-    history_length: 10
+    history_length: 4
 Validation:
   check_invertion: true
   inference: true
@@ -73,7 +73,7 @@ fast_dev_run: false
 gradient_clip_val: 20
 log_gpu_memory: null
 log_save_interval: 100
-log_root: results/trinity/style_gestures/
+log_root: results/gesture_flow/log/
 logger: true
 lr: 1.0e-03
 max_epochs: 60
@@ -101,8 +101,8 @@ test_percent_check: 1.0
 track_grad_norm: -1
 train_percent_check: 1.0
 truncated_bptt_steps: null
-val_check_interval: 1.0
-val_gest_dir: ./results/val/style_gestures/
-val_percent_check: 1.0
+val_check_interval: 0.5
+val_gest_dir: results/gesture_flow/val_res/
+val_percent_check: 0.2
 weights_save_path: null
 weights_summary: top

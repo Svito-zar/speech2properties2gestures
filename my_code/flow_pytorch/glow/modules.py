@@ -228,8 +228,8 @@ class GaussianDiag:
         return thops.sum(likelihood, dim=[1])
 
     @staticmethod
-    def sample(output_shape, eps_std=1):
+    def sample(output_shape, std=1):
         return torch.normal(
             mean=torch.zeros_like(output_shape),
-            std=torch.ones_like(output_shape) * eps_std,
+            std=torch.ones_like(output_shape) * std,
         )
