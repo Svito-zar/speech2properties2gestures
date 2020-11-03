@@ -11,7 +11,7 @@ from pytorch_lightning import LightningModule
 from torch.optim import SGD, Adam, RMSprop
 from torch.optim.lr_scheduler import LambdaLR, MultiplicativeLR, StepLR
 from torch.utils.data import DataLoader
-from my_code.flow_pytorch.glow.modules import GaussianDiag
+from my_code.flow_pytorch.glow.modules import GaussianDiag, GeneralGaussian
 
 from my_code.flow_pytorch.data.trinity_taras import SpeechGestureDataset, inv_standardize
 
@@ -176,7 +176,11 @@ class GestureFlow(LightningModule):
                                                  [:, time_st-self.autoregr_hist_length:time_st, :])
 
             z_enc, objective = self.glow(x=curr_output, condition=curr_cond)
-            tmp_loss = self.loss(objective, z_enc)
+
+            log_sigma = mean = torch.zeros_like(curr_output)
+
+            tmp_loss = self.loss(objective, z_enc, mean, log_sigma)
+
             losses.append(tmp_loss.cpu().detach())
             loss += torch.mean(tmp_loss)
 
@@ -184,13 +188,12 @@ class GestureFlow(LightningModule):
 
         return z_seq, (loss / len(z_seq)).unsqueeze(-1), losses
 
-    def loss(self, objective, z):
-        objective += GaussianDiag.logp_simplified(z)
-        nll = (-objective) / float(np.log(2.0))
-        return nll
-
-    def alt_loss(self, objective, z):
-        log_likelihood = objective + GaussianDiag.logp_simplified(z)
+    def loss(self, objective, z, mean, log_sigma):
+        log_likelihood = objective + GeneralGaussian.logp_sum(mean, log_sigma, z)
+        """vers_1 = GaussianDiag.logp_sum_simplified(z)
+        vers_2 = GeneralGaussian.logp_sum(mean, log_sigma, z)
+        print("Diag: ", vers_1[0])
+        print("Non-Diag: ", vers_2[0])"""
         nll = (-log_likelihood) / float(np.log(2.0))
         return nll
 
@@ -419,9 +422,12 @@ class GestureFlow(LightningModule):
                 z=z_enc, condition=condition, std=1, reverse=True
             )
 
+
+            log_sigma = mean = torch.zeros_like(z_enc)
+
             backward_loss += torch.mean(
-                self.loss(-backward_objective, z_enc)
-            )  # , x.size(1)
+                self.loss(-backward_objective, z_enc, mean, log_sigma)
+            )
 
             reconstr_seq.append(reconstr.detach())
 

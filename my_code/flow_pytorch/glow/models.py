@@ -341,24 +341,28 @@ class Glow(nn.Module):
         x=None,
         condition=None,
         z=None,
+        mean=None,
         std=None,
         reverse=False,
         output_shape=None,
     ):
 
         if not reverse:
-            return self.normal_flow(x, condition)
+            return self.normal_flow(x, condition, mean, std)
         else:
-            return self.reverse_flow(z, condition, std, output_shape)
+            return self.reverse_flow(z, condition, mean, std, output_shape)
 
-    def normal_flow(self, x, condition):
+    def normal_flow(self, x, condition, mean, std):
         logdet = torch.zeros_like(x[:, 0])
         return self.flow(x, condition, logdet=logdet, reverse=False)
 
-    def reverse_flow(self, z, condition, std, output_shape):
+    def reverse_flow(self, z, condition, mean, std, output_shape):
         with torch.no_grad():
             if z is None:
-                z = modules.GaussianDiag.sample(output_shape, std).to(condition.device)
+                if mean is None:
+                    z = modules.GaussianDiag.sample_iid(output_shape, std).to(condition.device)
+                else:
+                    z = modules.GeneralGaussian.sample(mean, std).to(condition.device)
             x, logdet = self.flow(z, condition, std=std, reverse=True)
         return x, logdet
 

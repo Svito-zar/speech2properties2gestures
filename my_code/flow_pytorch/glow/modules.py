@@ -198,7 +198,7 @@ class GaussianDiag:
     Log2PI = float(np.log(2 * np.pi))
 
     @staticmethod
-    def likelihood_simplified(x):
+    def log_likelihood_simplified(x):
         """
         lnL = -1/2 * { ln|Var| + ((X - Mu)^T)(Var^-1)(X - Mu) + kln(2*PI) }
               k = 1 (Independent)
@@ -207,29 +207,41 @@ class GaussianDiag:
         return -0.5 * ((x ** 2) + GaussianDiag.Log2PI)
 
     @staticmethod
-    def logp_simplified(x):
-        likelihood = GaussianDiag.likelihood_simplified(x)
+    def logp_sum_simplified(x):
+        likelihood = GaussianDiag.log_likelihood_simplified(x)
         return torch.sum(likelihood, dim=1)
 
     @staticmethod
-    def likelihood(mean, logs, x):
-        """
-        lnL = -1/2 * { ln|Var| + ((X - Mu)^T)(Var^-1)(X - Mu) + kln(2*PI) }
-              k = 1 (Independent)
-              Var = logs ** 2
-        """
-        return -0.5 * (
-            logs * 2.0 + ((x - mean) ** 2) / torch.exp(logs * 2.0) + GaussianDiag.Log2PI
-        )
-
-    @staticmethod
-    def logp(mean, logs, x):
-        likelihood = GaussianDiag.likelihood(mean, logs, x)
-        return thops.sum(likelihood, dim=[1])
-
-    @staticmethod
-    def sample(output_shape, std=1):
+    def sample_iid(output_shape, std=1):
         return torch.normal(
             mean=torch.zeros_like(output_shape),
             std=torch.ones_like(output_shape) * std,
         )
+
+
+class GeneralGaussian:
+    Log2PI = float(np.log(2 * np.pi))
+    eps = 1e-8
+
+    @staticmethod
+    def log_likelihood(mean, log_sigma, x):
+        """
+        lnL = -  ln|sigma|  -1/2 * {((X - Mu)^T)(sigma^-2)(X - Mu) + kln(2*PI) }
+        """
+
+        # Todo: play with different way to implement it:
+        # sigma = eps + sigmoid(activation_out)
+        # sigma = eps + softplus(activation_out, beta)
+
+        sigma = GeneralGaussian.eps + torch.exp(log_sigma)
+
+        return - log_sigma - 0.5 * (((x - mean) ** 2) / sigma + GaussianDiag.Log2PI)
+
+    @staticmethod
+    def logp_sum(mean, logs, x):
+        likelihood = GeneralGaussian.log_likelihood(mean, logs, x)
+        return thops.sum(likelihood, dim=[1])
+
+    @staticmethod
+    def sample(mean, std):
+        return torch.normal(mean,std)
