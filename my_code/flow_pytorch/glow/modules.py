@@ -194,7 +194,7 @@ class InvertibleConv1x1(nn.Module):
             return z, logdet
 
 
-class GaussianDiag:
+class StandardGaussian:
     Log2PI = float(np.log(2 * np.pi))
 
     @staticmethod
@@ -204,11 +204,11 @@ class GaussianDiag:
               k = 1 (Independent)
               Var = logs ** 2
         """
-        return -0.5 * ((x ** 2) + GaussianDiag.Log2PI)
+        return -0.5 * ((x ** 2) + StandardGaussian.Log2PI)
 
     @staticmethod
     def logp_sum_simplified(x):
-        likelihood = GaussianDiag.log_likelihood_simplified(x)
+        likelihood = StandardGaussian.log_likelihood_simplified(x)
         return torch.sum(likelihood, dim=1)
 
     @staticmethod
@@ -219,12 +219,12 @@ class GaussianDiag:
         )
 
 
-class GeneralGaussian:
+class DiagGaussian:
     Log2PI = float(np.log(2 * np.pi))
     eps = 1e-8
 
     @staticmethod
-    def log_likelihood(mean, log_sigma, x):
+    def log_likelihood(mu, log_sigma, x):
         """
         lnL = -  ln|sigma|  -1/2 * {((X - Mu)^T)(sigma^-2)(X - Mu) + kln(2*PI) }
         """
@@ -233,14 +233,13 @@ class GeneralGaussian:
         # sigma = eps + sigmoid(activation_out)
         # sigma = eps + softplus(activation_out, beta)
 
-        sigma = GeneralGaussian.eps + torch.exp(log_sigma)
+        sigma = DiagGaussian.eps + torch.exp(log_sigma)
+        log_sigma = torch.log(sigma)
 
-        return - log_sigma - 0.5 * (((x - mean) ** 2) / sigma + GaussianDiag.Log2PI)
+        likelihood = - log_sigma - 0.5 * (((x - mu) ** 2) / sigma + StandardGaussian.Log2PI)
 
-    @staticmethod
-    def logp_sum(mean, logs, x):
-        likelihood = GeneralGaussian.log_likelihood(mean, logs, x)
         return thops.sum(likelihood, dim=[1])
+
 
     @staticmethod
     def sample(mean, std):

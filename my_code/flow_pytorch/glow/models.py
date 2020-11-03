@@ -360,9 +360,9 @@ class Glow(nn.Module):
         with torch.no_grad():
             if z is None:
                 if mean is None:
-                    z = modules.GaussianDiag.sample_iid(output_shape, std).to(condition.device)
+                    z = modules.StandardGaussian.sample_iid(output_shape, std).to(condition.device)
                 else:
-                    z = modules.GeneralGaussian.sample(mean, std).to(condition.device)
+                    z = modules.DiagGaussian.sample(mean, std).to(condition.device)
             x, logdet = self.flow(z, condition, std=std, reverse=True)
         return x, logdet
 
