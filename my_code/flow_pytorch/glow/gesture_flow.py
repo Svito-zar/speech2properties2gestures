@@ -140,9 +140,13 @@ class GestureFlow(LightningModule):
                                                  init = time_st < self.past_context + self.autoregr_hist_length,
                                                  autoregr_condition = produced_poses)
 
+            sigma = torch.ones_like(model_output_shape)
+            mu = torch.zeros_like(model_output_shape)
+
             curr_output, _ = self.glow(
                 condition=curr_cond,
-                std=self.hparams.Infer["temp"],
+                mean = mu,
+                std= sigma * self.hparams.Infer["temp"],
                 reverse=True,
                 output_shape=model_output_shape,
             )
@@ -177,7 +181,8 @@ class GestureFlow(LightningModule):
 
             z_enc, objective = self.glow(x=curr_output, condition=curr_cond)
 
-            log_sigma = mu = torch.zeros_like(curr_output)
+            log_sigma = torch.zeros_like(curr_output)
+            mu = torch.zeros_like(curr_output)
 
             tmp_loss = self.loss(objective, z_enc, mu, log_sigma)
 
