@@ -8,6 +8,7 @@ import optuna
 import torch
 import torch.nn as nn
 from pytorch_lightning import LightningModule
+from pytorch_lightning.loggers import TensorBoardLogger
 from torch.optim import SGD, Adam, RMSprop
 from torch.optim.lr_scheduler import LambdaLR, MultiplicativeLR, StepLR
 from torch.utils.data import DataLoader
@@ -131,7 +132,7 @@ class GestureFlow(LightningModule):
         self.glow.init_rnn_hidden()
 
         model_output_shape = torch.zeros([batch["audio"].shape[0], self.hparams.Glow["distr_dim"]])
-
+        eps = 1e-4
         produced_poses = None
 
         for time_st in range(self.past_context, seq_len - self.future_context):
@@ -140,8 +141,17 @@ class GestureFlow(LightningModule):
                                                  init = time_st < self.past_context + self.autoregr_hist_length,
                                                  autoregr_condition = produced_poses)
 
-            sigma = torch.ones_like(model_output_shape)
-            mu = torch.zeros_like(model_output_shape)
+            if produced_poses is not None:
+                if produced_poses.shape[1] > 1:
+                    sigma = torch.std(produced_poses[:, -3:], dim=1) + eps
+                    mu = produced_poses[:, -1]
+            else:
+                sigma = torch.ones_like(model_output_shape)
+                mu = torch.zeros_like(model_output_shape)
+
+            # Just for DEBUG!
+            sigma = torch.clamp(sigma, min=1e-4, max=1e8)
+            mu = torch.clamp(mu, min=1e-4, max=1e8)
 
             curr_output, _ = self.glow(
                 condition=curr_cond,
@@ -156,6 +166,7 @@ class GestureFlow(LightningModule):
                 produced_poses = curr_output.unsqueeze(1)
             else:
                 produced_poses = torch.cat((produced_poses, curr_output.unsqueeze(1)), 1)
+            self.log_scales(mu, "test_mu", sigma, "test_sigma")
 
         return produced_poses
 
@@ -165,6 +176,7 @@ class GestureFlow(LightningModule):
         self.glow.init_rnn_hidden()
 
         loss = 0
+        eps = 1e-3
         seq_len = batch["audio"].shape[1]
 
         z_seq = []
@@ -174,15 +186,17 @@ class GestureFlow(LightningModule):
 
             curr_output = batch["gesture"][:, time_st, :]
 
+            curr_history = batch["gesture"][:, time_st-self.autoregr_hist_length:time_st, :]
+
             curr_cond = self.create_conditioning(batch, time_st,
                                                  init = time_st < self.past_context + self.autoregr_hist_length,
-                                                 autoregr_condition = batch["gesture"]
-                                                 [:, time_st-self.autoregr_hist_length:time_st, :])
+                                                 autoregr_condition = curr_history)
 
             z_enc, objective = self.glow(x=curr_output, condition=curr_cond)
 
-            log_sigma = torch.zeros_like(curr_output)
-            mu = torch.zeros_like(curr_output)
+            sigma = torch.std(curr_history, dim=1) + eps
+            log_sigma = torch.log(sigma)
+            mu = curr_history[:,-1]
 
             tmp_loss = self.loss(objective, z_enc, mu, log_sigma)
 
@@ -190,6 +204,8 @@ class GestureFlow(LightningModule):
             loss += torch.mean(tmp_loss)
 
             z_seq.append(z_enc.detach())
+
+            self.log_scales(mu, "mu", sigma, "sigma")
 
         return z_seq, (loss / len(z_seq)).unsqueeze(-1), losses
 
@@ -202,6 +218,20 @@ class GestureFlow(LightningModule):
         nll = (-log_likelihood) / float(np.log(2.0))
         return nll
 
+    def log_histogram(self, x, name):
+        # print(name, x)
+
+        if isinstance(self.logger, TensorBoardLogger):
+            self.logger.experiment.add_histogram(name, x, self.global_step)
+        else:
+            self.logger.experiment.log_histogram_3d(x, name, self.global_step)
+
+    def log_scales(self, mu, mu_name, sigma, sigma_name):
+        if not self.logger:
+            return
+
+        self.log_histogram(mu, mu_name)
+        self.log_histogram(sigma, sigma_name)
 
     def derange_batch(self, batch_data):
         # Shuffle conditioning info
@@ -427,8 +457,8 @@ class GestureFlow(LightningModule):
                 z=z_enc, condition=condition, std=1, reverse=True
             )
 
-
-            log_sigma = mu = torch.zeros_like(z_enc)
+            log_sigma = torch.zeros_like(z_enc)
+            mu = torch.zeros_like(z_enc)
 
             backward_loss += torch.mean(
                 self.loss(-backward_objective, z_enc, mu, log_sigma)
