@@ -142,16 +142,26 @@ class GestureFlow(LightningModule):
                                                  autoregr_condition = produced_poses)
 
             if produced_poses is not None:
-                if produced_poses.shape[1] > 1:
+                if produced_poses.shape[1] > 3:
                     sigma = torch.std(produced_poses[:, -3:], dim=1) + eps
                     mu = produced_poses[:, -1]
             else:
                 sigma = torch.ones_like(model_output_shape)
                 mu = torch.zeros_like(model_output_shape)
 
+
+            sigma = torch.clamp(sigma, min=1e-2, max=1)
+            mu = torch.clamp(mu, min=-1, max=1)
+
+            """
             # Just for DEBUG!
-            sigma = torch.clamp(sigma, min=1e-4, max=1e8)
-            mu = torch.clamp(mu, min=1e-4, max=1e8)
+            if time_st > 35 and time_st < 40:
+                print("\nInference at time-step: ", time_st)
+                print("Max sigma: ", sigma.max())
+                print("Min sigma: ", sigma.min())
+                print("Max mu: ", mu.max())
+                print("Min mu: ", mu.min())
+                print("Mean mu: ", mu.mean())"""
 
             curr_output, _ = self.glow(
                 condition=curr_cond,
@@ -195,8 +205,13 @@ class GestureFlow(LightningModule):
             z_enc, objective = self.glow(x=curr_output, condition=curr_cond)
 
             sigma = torch.std(curr_history, dim=1) + eps
-            log_sigma = torch.log(sigma)
             mu = curr_history[:,-1]
+
+            # Normalize values
+            sigma = torch.clamp(sigma, min=1e-2, max=1)
+            mu = torch.clamp(mu, min=-1, max=1)
+
+            log_sigma = torch.log(sigma)
 
             tmp_loss = self.loss(objective, z_enc, mu, log_sigma)
 
