@@ -12,11 +12,12 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from torch.optim import SGD, Adam, RMSprop
 from torch.optim.lr_scheduler import LambdaLR, MultiplicativeLR, StepLR
 from torch.utils.data import DataLoader
-from my_code.flow_pytorch.glow.modules import StandardGaussian, DiagGaussian
+from my_code.flow_pytorch.glow.modules import StandardGaussian, DiagGaussian, thops
 
 from my_code.flow_pytorch.data.trinity_taras import SpeechGestureDataset, inv_standardize
 
 from my_code.data_processing.visualization.motion_visualizer.generate_videos import visualize
+
 
 import h5py
 
@@ -71,6 +72,8 @@ class GestureFlow(LightningModule):
                                                              (self.past_context + self.future_context)),
                                                          self.hparams.Cond["Speech"]["total_enc_dim"]),
                                                nn.LeakyReLU(), nn.Dropout(self.hparams.dropout))
+
+        self.cond2prior = nn.Linear(self.hparams.Glow["cond_dim"], self.hparams.Glow["distr_dim"]*2)
 
         self.mean_pose = np.zeros([self.hparams.Glow["distr_dim"] ], dtype=np.float)
 
@@ -132,7 +135,7 @@ class GestureFlow(LightningModule):
         self.glow.init_rnn_hidden()
 
         model_output_shape = torch.zeros([batch["audio"].shape[0], self.hparams.Glow["distr_dim"]])
-        eps = 1e-4
+        eps = 1e-3
         produced_poses = None
 
         for time_st in range(self.past_context, seq_len - self.future_context):
@@ -141,17 +144,16 @@ class GestureFlow(LightningModule):
                                                  init = time_st < self.past_context + self.autoregr_hist_length,
                                                  autoregr_condition = produced_poses)
 
-            if produced_poses is not None:
-                if produced_poses.shape[1] > 3:
-                    sigma = torch.std(produced_poses[:, -3:], dim=1) + eps
-                    mu = produced_poses[:, -1]
-            else:
-                sigma = torch.ones_like(model_output_shape)
-                mu = torch.zeros_like(model_output_shape)
+            # Require some conditioning
+            assert curr_cond is not None
 
+            prior_info = self.cond2prior(curr_cond)
 
-            sigma = torch.clamp(sigma, min=1e-2, max=1)
-            mu = torch.clamp(mu, min=-1, max=1)
+            mu, sigma = thops.split_feature(prior_info, "split")
+
+            sigma = torch.sigmoid(sigma) + eps
+            mu = torch.tanh(mu)
+
 
             """
             # Just for DEBUG!
@@ -204,12 +206,13 @@ class GestureFlow(LightningModule):
 
             z_enc, objective = self.glow(x=curr_output, condition=curr_cond)
 
-            sigma = torch.std(curr_history, dim=1) + eps
-            mu = curr_history[:,-1]
+            prior_info = self.cond2prior(curr_cond)
+
+            mu, sigma = thops.split_feature(prior_info, "split")
 
             # Normalize values
-            sigma = torch.clamp(sigma, min=1e-2, max=1)
-            mu = torch.clamp(mu, min=-1, max=1)
+            sigma = torch.sigmoid(sigma) + eps
+            mu = torch.tanh(mu)
 
             log_sigma = torch.log(sigma)
 
