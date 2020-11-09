@@ -271,7 +271,7 @@ class GestureFlow(LightningModule):
 
         tb_log = {"Loss/train": loss, "Loss/missmatched_nll": deranged_loss}
 
-        if self.hparams.optuna and self.global_step > 20 and loss > 0:
+        if self.hparams.optuna and self.global_step > 20 and loss > 1000:
             message = f"Trial was pruned since loss > 0"
             raise optuna.exceptions.TrialPruned(message)
 
@@ -447,7 +447,7 @@ class GestureFlow(LightningModule):
 
     def train_dataloader(self):
         loader = torch.utils.data.DataLoader(
-            dataset=self.val_dataset,
+            dataset=self.train_dataset,
             batch_size=self.hparams.batch_size,
             shuffle=True
         )
@@ -464,6 +464,7 @@ class GestureFlow(LightningModule):
     def test_invertability(self, z_seq, loss, data):
 
         reconstr_seq = []
+        eps = 1e-3
 
         self.glow.init_rnn_hidden()
         backward_loss = 0
@@ -471,12 +472,19 @@ class GestureFlow(LightningModule):
         for time_st, z_enc in enumerate(z_seq):
             condition = self.create_conditioning(data,time_st + self.past_context)
 
-            reconstr, backward_objective = self.glow(
-                z=z_enc, condition=condition, std=1, reverse=True
-            )
+            prior_info = self.cond2prior(condition)
 
-            log_sigma = torch.zeros_like(z_enc)
-            mu = torch.zeros_like(z_enc)
+            mu, sigma = thops.split_feature(prior_info, "split")
+
+            # Normalize values
+            sigma = torch.sigmoid(sigma) + eps
+            mu = torch.tanh(mu)
+
+            log_sigma = torch.log(sigma)
+
+            reconstr, backward_objective = self.glow(
+                z=z_enc, condition=condition, mean =mu, std=sigma, reverse=True
+            )
 
             backward_loss += torch.mean(
                 self.loss(-backward_objective, z_enc, mu, log_sigma)
