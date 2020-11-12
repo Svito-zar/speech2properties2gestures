@@ -12,7 +12,8 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from torch.optim import SGD, Adam, RMSprop
 from torch.optim.lr_scheduler import LambdaLR, MultiplicativeLR, StepLR
 from torch.utils.data import DataLoader
-from my_code.flow_pytorch.glow.modules import StandardGaussian, DiagGaussian, thops
+from my_code.flow_pytorch.glow.modules import DiagGaussian, thops
+from my_code.flow_pytorch.glow.models import Seq_Flow
 
 from my_code.flow_pytorch.data.trinity_taras import SpeechGestureDataset, inv_standardize
 
@@ -55,25 +56,12 @@ class GestureFlow(LightningModule):
         self.val_seq_len = hparams.Validation["seq_len"]
         self.best_jerk = torch.tensor(np.Inf)
 
-        self.glow = Glow(hparams)
+        self.seq_flow = Seq_Flow(hparams)
 
         # read important hparams
         self.past_context = self.hparams.Cond["Speech"]["prev_context"]
         self.future_context = self.hparams.Cond["Speech"]["future_context"]
         self.autoregr_hist_length = self.hparams.Cond["Autoregression"]["history_length"]
-
-        # Encode speech features
-        self.encode_speech = nn.Sequential(nn.Linear(self.hparams.Cond["Speech"]["dim"],
-                                                     self.hparams.Cond["Speech"]["fr_enc_dim"]), nn.LeakyReLU(),
-                                               nn.Dropout(self.hparams.dropout))
-
-        # To reduce deminsionality of the speech encoding
-        self.reduce_speech_enc = nn.Sequential(nn.Linear(int(self.hparams.Cond["Speech"]["fr_enc_dim"] * \
-                                                             (self.past_context + self.future_context)),
-                                                         self.hparams.Cond["Speech"]["total_enc_dim"]),
-                                               nn.LeakyReLU(), nn.Dropout(self.hparams.dropout))
-
-        self.cond2prior = nn.Linear(self.hparams.Glow["cond_dim"], self.hparams.Glow["distr_dim"]*2)
 
         self.mean_pose = np.zeros([self.hparams.Glow["distr_dim"] ], dtype=np.float)
 
@@ -91,148 +79,27 @@ class GestureFlow(LightningModule):
                 print("ERROR: Missing data in the dataset!")
             exit(-1)
 
-    def create_conditioning(self, batch, time_st, init = True, autoregr_condition = None):
-
-        # take current audio and text of the speech
-        curr_audio = batch["audio"][:, time_st - self.past_context:time_st + self.future_context]
-        curr_text = batch["text"][:, time_st - self.past_context:time_st + self.future_context]
-        curr_speech = torch.cat((curr_audio, curr_text), 2)
-
-        # encode speech
-        speech_encoding_full = self.encode_speech(curr_speech)
-
-        speech_encoding_concat = torch.flatten(speech_encoding_full, start_dim=1)
-        speech_cond_info = self.reduce_speech_enc(speech_encoding_concat)
-
-        # Full teacher forcing
-        if self.autoregr_hist_length > 0:
-            if init:
-
-                # Use mean pose for conditioning
-                # initialize all the previous poses with the mean pose
-                init_poses = np.array([[self.mean_pose for length in range(self.autoregr_hist_length)]
-                                      for it in range(batch["audio"].shape[0])])
-                # we have to put these Tensors to the same device as the model because
-                # numpy arrays are always on the CPU
-                # store the 3 previous poses
-                prev_poses = torch.from_numpy(init_poses).to(batch["audio"].device)
-
-            else:
-                # Take several previous poses for conditioning
-                prev_poses = autoregr_condition[:, -self.autoregr_hist_length:, :]
-
-            pose_condition_info = prev_poses.reshape([prev_poses.shape[0], -1]).float()
-
-            curr_cond = torch.cat((speech_cond_info, pose_condition_info), 1)
-
-        else:
-            curr_cond = speech_cond_info
-
-        return curr_cond
-
 
     def inference(self, seq_len, batch):
-        self.glow.init_rnn_hidden()
 
         model_output_shape = torch.zeros([batch["audio"].shape[0], self.hparams.Glow["distr_dim"]])
         eps = 1e-3
-        produced_poses = None
+        produced_poses, _ = self.seq_flow(batch, reverse=True, output_shape=model_output_shape)
 
-        for time_st in range(self.past_context, seq_len - self.future_context):
-
-            curr_cond = self.create_conditioning(batch, time_st,
-                                                 init = time_st < self.past_context + self.autoregr_hist_length,
-                                                 autoregr_condition = produced_poses)
-
-            # Require some conditioning
-            assert curr_cond is not None
-
-            prior_info = self.cond2prior(curr_cond)
-
-            mu, sigma = thops.split_feature(prior_info, "split")
-
-            sigma = torch.sigmoid(sigma) + eps
-            mu = torch.tanh(mu)
-
-
-            """
-            # Just for DEBUG!
-            if time_st > 35 and time_st < 40:
-                print("\nInference at time-step: ", time_st)
-                print("Max sigma: ", sigma.max())
-                print("Min sigma: ", sigma.min())
-                print("Max mu: ", mu.max())
-                print("Min mu: ", mu.min())
-                print("Mean mu: ", mu.mean())"""
-
-            curr_output, _ = self.glow(
-                condition=curr_cond,
-                mean = mu,
-                std= sigma * self.hparams.Infer["temp"],
-                reverse=True,
-                output_shape=model_output_shape,
-            )
-
-            # add current frame to the total motion sequence
-            if produced_poses is None:
-                produced_poses = curr_output.unsqueeze(1)
-            else:
-                produced_poses = torch.cat((produced_poses, curr_output.unsqueeze(1)), 1)
-            self.log_scales(mu, "test_mu", sigma, "test_sigma")
+        # self.log_scales(mu, "test_mu", sigma, "test_sigma")
 
         return produced_poses
 
     def forward(self, batch):
 
-        # Initialize and read main variables
-        self.glow.init_rnn_hidden()
+        z_seq, loss = self.seq_flow(batch)
 
-        loss = 0
-        eps = 1e-3
-        seq_len = batch["audio"].shape[1]
+        #self.log_scales(mu, "mu", sigma, "sigma")
 
-        z_seq = []
-        losses = []
-
-        for time_st in range(self.past_context, seq_len-self.future_context):
-
-            curr_output = batch["gesture"][:, time_st, :]
-
-            curr_history = batch["gesture"][:, time_st-self.autoregr_hist_length:time_st, :]
-
-            curr_cond = self.create_conditioning(batch, time_st,
-                                                 init = time_st < self.past_context + self.autoregr_hist_length,
-                                                 autoregr_condition = curr_history)
-
-            z_enc, objective = self.glow(x=curr_output, condition=curr_cond)
-
-            prior_info = self.cond2prior(curr_cond)
-
-            mu, sigma = thops.split_feature(prior_info, "split")
-
-            # Normalize values
-            sigma = torch.sigmoid(sigma) + eps
-            mu = torch.tanh(mu)
-
-            log_sigma = torch.log(sigma)
-
-            tmp_loss = self.loss(objective, z_enc, mu, log_sigma)
-
-            losses.append(tmp_loss.cpu().detach())
-            loss += torch.mean(tmp_loss)
-
-            z_seq.append(z_enc.detach())
-
-            self.log_scales(mu, "mu", sigma, "sigma")
-
-        return z_seq, (loss / len(z_seq)).unsqueeze(-1), losses
+        return z_seq, (loss / len(z_seq)).unsqueeze(-1)
 
     def loss(self, objective, z, mu, log_sigma):
         log_likelihood = objective + DiagGaussian.log_likelihood(mu, log_sigma, z)
-        """vers_1 = StandardGaussian.logp_sum_simplified(z)
-        vers_2 = DiagGaussian.log_likelihood(mu, log_sigma, z)
-        print("Diag: ", vers_1[0])
-        print("Non-Diag: ", vers_2[0])"""
         nll = (-log_likelihood) / float(np.log(2.0))
         return nll
 
@@ -264,12 +131,12 @@ class GestureFlow(LightningModule):
 
     def training_step(self, batch, batch_idx):
 
-        _, loss, _ = self(batch)
+        _, loss = self(batch)
 
-        deranged_batch = self.derange_batch(batch)
-        _, deranged_loss, _ = self(deranged_batch)
+        #deranged_batch = self.derange_batch(batch)
+        #_, deranged_loss, _ = self(deranged_batch)
 
-        tb_log = {"Loss/train": loss, "Loss/missmatched_nll": deranged_loss}
+        tb_log = {"Loss/train": loss} #, "Loss/missmatched_nll": deranged_loss}
 
         if self.hparams.optuna and self.global_step > 20 and loss > 1000:
             message = f"Trial was pruned since loss > 0"
@@ -279,7 +146,7 @@ class GestureFlow(LightningModule):
 
 
     def validation_step(self, batch, batch_idx):
-        z_seq, loss, _ = self(batch)
+        z_seq, loss = self(batch)
         if self.hparams.optuna and self.global_step > 20 and loss > 0:
             message = f"Trial was pruned since loss > 0"
             raise optuna.exceptions.TrialPruned(message)
@@ -466,7 +333,6 @@ class GestureFlow(LightningModule):
         reconstr_seq = []
         eps = 1e-3
 
-        self.glow.init_rnn_hidden()
         backward_loss = 0
 
         for time_st, z_enc in enumerate(z_seq):
@@ -482,7 +348,7 @@ class GestureFlow(LightningModule):
 
             log_sigma = torch.log(sigma)
 
-            reconstr, backward_objective = self.glow(
+            reconstr, backward_objective = self.seq_flow(
                 z=z_enc, condition=condition, mean =mu, std=sigma, reverse=True
             )
 

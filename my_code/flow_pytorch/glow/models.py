@@ -6,6 +6,8 @@ from tqdm import tqdm
 
 from my_code.flow_pytorch.glow import modules, thops, utils
 
+from my_code.flow_pytorch.glow.modules import DiagGaussian
+
 
 class f_seq(nn.Module):
     """
@@ -31,43 +33,20 @@ class f_seq(nn.Module):
         self.hidden_size = hidden_size
         self.input_size = input_size
         self.output_size = output_size
-        self.rnn_type = rnn_type
-
-        if rnn_type == "gru":
-            self.rnn = nn.GRUCell(
-                input_size=input_size + cond_dim, hidden_size=hidden_size,
-            )
-        elif rnn_type == "lstm":
-            self.rnn = nn.LSTMCell(
-                input_size=input_size + cond_dim, hidden_size=hidden_size,
-            )
 
         #self.cond_transform = nn.Sequential(
         #    nn.Linear(feature_encoder_dim, cond_dim), nn.LeakyReLU(),
         #)
 
+        self.input_hidden = nn.Sequential(nn.Linear(input_size + cond_dim, hidden_size), nn.LeakyReLU(), nn.Dropout(0.2))
+
         self.final_linear = modules.LinearZeros(hidden_size, output_size)
         self.hidden = None
         self.cell = None
 
-    def init_rnn_hidden(self):
-        """
-        Setting it to None is the same as zeros, 
-        except now we don't need to know any sizes
-        """
-        self.hidden = None
-        self.cell = None
-
     def forward(self, z, condition):
-        if self.rnn_type == "gru":
-            self.hidden = self.rnn(
-                torch.cat((z, condition), dim=1), self.hidden
-                #torch.cat((z, self.cond_transform(condition)), dim=1), self.hidden
-            )
-        elif self.rnn_type == "lstm":
-            self.hidden, self.cell = self.rnn(
-                torch.cat((z, self.cond_transform(condition)), dim=1),
-                (self.hidden, self.cell),
+        self.hidden= self.input_hidden(
+            torch.cat((z, condition), dim=1)
             )
         return self.final_linear(self.hidden)
 
@@ -373,3 +352,173 @@ class Glow(nn.Module):
 
     def init_rnn_hidden(self):
         self.flow.init_rnn_hidden()
+
+
+class Seq_Flow(nn.Module):
+    def __init__(self, hparams):
+        super().__init__()
+        self.flow = FlowNet(
+            C=hparams.Glow["distr_dim"],
+            hidden_channels=hparams.Glow["hidden_channels"],
+            cond_dim=hparams.Glow["cond_dim"],
+            K=hparams.Glow["K"],
+            L=hparams.Glow["L"],
+            actnorm_scale=hparams.Glow["actnorm_scale"],
+            flow_permutation=hparams.Glow["flow_permutation"],
+            flow_coupling=hparams.Glow["flow_coupling"],
+            LU_decomposed=hparams.Glow["LU_decomposed"],
+            scale_eps=hparams.Glow["scale_eps"],
+            scale_logging=hparams.Validation["scale_logging"],
+            glow_rnn_type=hparams.Glow["rnn_type"]
+        )
+
+        self.hparams = hparams
+
+        self.past_context = hparams.Cond["Speech"]["prev_context"]
+        self.future_context = hparams.Cond["Speech"]["future_context"]
+        self.autoregr_hist_length = hparams.Cond["Autoregression"]["history_length"]
+
+        # Encode speech features
+        self.encode_speech = nn.Sequential(nn.Linear(hparams.Cond["Speech"]["dim"],
+                                                     hparams.Cond["Speech"]["fr_enc_dim"]), nn.LeakyReLU(),
+                                           nn.Dropout(hparams.dropout))
+
+        # To reduce deminsionality of the speech encoding
+        self.reduce_speech_enc = nn.Sequential(nn.Linear(int(hparams.Cond["Speech"]["fr_enc_dim"] * \
+                                                             (self.past_context + self.future_context)),
+                                                         hparams.Cond["Speech"]["total_enc_dim"]),
+                                               nn.LeakyReLU(), nn.Dropout(hparams.dropout))
+
+        self.cond2prior = nn.Linear(hparams.Glow["cond_dim"], hparams.Glow["distr_dim"]*2)
+
+    def forward(
+        self,
+        all_the_batch_data,
+        z_seq=None,
+        mean=None,
+        std=None,
+        reverse=False,
+        output_shape=None,
+    ):
+
+        if not reverse:
+            return self.normal_flow(all_the_batch_data)
+        else:
+            return self.reverse_flow(z_seq, all_the_batch_data, mean, std)
+
+    def normal_flow(self,  all_the_batch_data):
+
+        x_seq = all_the_batch_data["gesture"]
+        speech_batch_data = dict(all_the_batch_data)
+        del speech_batch_data["gesture"]
+
+        logdet = torch.zeros_like(all_the_batch_data["audio"][:, 0, 0])
+        z_seq = []
+        seq_len = speech_batch_data["audio"].shape[1]
+        eps = 1e-4
+        total_loss = 0
+
+        for time_st in range(self.past_context, seq_len - self.future_context):
+
+            curr_output = x_seq[:, time_st, :]
+
+            curr_cond = self.create_conditioning(speech_batch_data, time_st)
+
+            z_enc, objective = self.flow(curr_output, curr_cond,  logdet=logdet, reverse=False)
+
+            prior_info = self.cond2prior(curr_cond)
+
+            mu, sigma = thops.split_feature(prior_info, "split")
+
+            # Normalize values
+            sigma = torch.sigmoid(sigma) + eps
+            mu = torch.tanh(mu)
+
+            log_sigma = torch.log(sigma)
+
+            tmp_loss = self.loss(objective, z_enc, mu, log_sigma)
+
+            total_loss += torch.mean(tmp_loss)
+
+            z_seq.append(z_enc.detach())
+
+        return z_seq, total_loss
+
+    def reverse_flow(self, z_seq, all_the_batch_data, mean, std):
+        with torch.no_grad():
+
+            eps = 1e-3
+            produced_poses = None
+            condition = dict(all_the_batch_data)
+            del condition["gesture"]
+            seq_len = condition["audio"].shape[1]
+            log_det_sum = 0
+
+            for time_st in range(self.past_context, seq_len - self.future_context):
+
+                curr_cond = self.create_conditioning(condition, time_st)
+
+                # Define prior parameters
+                if mean is None:
+
+                    # Require some conditioning
+                    assert curr_cond is not None
+
+                    prior_info = self.cond2prior(curr_cond)
+
+                    mu, sigma = thops.split_feature(prior_info, "split")
+
+                    sigma = torch.sigmoid(sigma) + eps
+                    mu = torch.tanh(mu)
+
+                else:
+                    mu = mean
+                    sigma = std
+
+                # Sample , if needed
+                if z_seq is None:
+                    curr_z = modules.DiagGaussian.sample(mu, sigma).to(curr_cond.device)
+                else:
+                    curr_z = z_seq[:,time_st]
+
+                # Backward flow
+                curr_output, curr_log_det = self.flow(curr_z, curr_cond, logdet=0.0, reverse=True, std=sigma * self.hparams.Infer["temp"])
+
+                log_det_sum += curr_log_det
+
+                # add current frame to the total motion sequence
+                if produced_poses is None:
+                    produced_poses = curr_output.unsqueeze(1)
+                else:
+                    produced_poses = torch.cat((produced_poses, curr_output.unsqueeze(1)), 1)
+
+        return produced_poses, log_det_sum
+
+
+    def set_actnorm_init(self, inited=True):
+        for name, m in self.named_modules():
+            if m.__class__.__name__.find("ActNorm") >= 0:
+                m.inited = inited
+
+
+    def create_conditioning(self, batch, time_st):
+
+        # take current audio and text of the speech
+        curr_audio = batch["audio"][:, time_st - self.past_context:time_st + self.future_context]
+        curr_text = batch["text"][:, time_st - self.past_context:time_st + self.future_context]
+        curr_speech = torch.cat((curr_audio, curr_text), 2)
+
+        # encode speech
+        speech_encoding_full = self.encode_speech(curr_speech)
+
+        speech_encoding_concat = torch.flatten(speech_encoding_full, start_dim=1)
+        speech_cond_info = self.reduce_speech_enc(speech_encoding_concat)
+
+        curr_cond = speech_cond_info
+
+        return curr_cond
+
+    def loss(self, objective, z, mu, log_sigma):
+        log_likelihood = objective + DiagGaussian.log_likelihood(mu, log_sigma, z)
+        nll = (-log_likelihood) / float(np.log(2.0))
+        return nll
