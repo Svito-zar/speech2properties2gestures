@@ -23,13 +23,6 @@ from my_code.data_processing.visualization.motion_visualizer.generate_videos imp
 import h5py
 
 
-from my_code.flow_pytorch.glow import (
-    Glow,
-    calc_jerk,
-    get_longest_history
-)
-
-
 class GestureFlow(LightningModule):
     def __init__(self, hparams, dataset_root=None, test=None):
         super().__init__()

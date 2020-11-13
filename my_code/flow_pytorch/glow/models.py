@@ -263,13 +263,13 @@ class FlowNet(nn.Module):
                 )
                 self.output_shapes.append([-1, C])
 
-    def forward(self, input_, condition, logdet=0.0, reverse=False, std=None):
+    def forward(self, input_, condition, logdet=0.0, reverse=False):
         # audio_features = self.conditionNet(audio_features)  # Spectrogram
 
         if not reverse:
             return self.encode(input_, condition, logdet)
         else:
-            return self.decode(input_, condition, std)
+            return self.decode(input_, condition)
 
     def encode(self, z, condition, logdet=0.0):
         """
@@ -280,7 +280,7 @@ class FlowNet(nn.Module):
             z, logdet = layer(z, condition, logdet, reverse=False)
         return z, logdet
 
-    def decode(self, z, condition, std=None):
+    def decode(self, z, condition):
         """
         Backward path
         """
@@ -295,63 +295,6 @@ class FlowNet(nn.Module):
         for layer in self.layers:
             if isinstance(layer, FlowStep):
                 layer.init_rnn_hidden()
-
-
-class Glow(nn.Module):
-    def __init__(self, hparams):
-        super().__init__()
-        self.flow = FlowNet(
-            C=hparams.Glow["distr_dim"],
-            hidden_channels=hparams.Glow["hidden_channels"],
-            cond_dim=hparams.Glow["cond_dim"],
-            K=hparams.Glow["K"],
-            L=hparams.Glow["L"],
-            actnorm_scale=hparams.Glow["actnorm_scale"],
-            flow_permutation=hparams.Glow["flow_permutation"],
-            flow_coupling=hparams.Glow["flow_coupling"],
-            LU_decomposed=hparams.Glow["LU_decomposed"],
-            scale_eps=hparams.Glow["scale_eps"],
-            scale_logging=hparams.Validation["scale_logging"],
-            glow_rnn_type=hparams.Glow["rnn_type"]
-        )
-
-    def forward(
-        self,
-        x=None,
-        condition=None,
-        z=None,
-        mean=None,
-        std=None,
-        reverse=False,
-        output_shape=None,
-    ):
-
-        if not reverse:
-            return self.normal_flow(x, condition, mean, std)
-        else:
-            return self.reverse_flow(z, condition, mean, std, output_shape)
-
-    def normal_flow(self, x, condition, mean, std):
-        logdet = torch.zeros_like(x[:, 0])
-        return self.flow(x, condition, logdet=logdet, reverse=False)
-
-    def reverse_flow(self, z, condition, mean, std, output_shape):
-        with torch.no_grad():
-            if z is None:
-                if mean is None:
-                    z = modules.StandardGaussian.sample_iid(output_shape, std).to(condition.device)
-                else:
-                    z = modules.DiagGaussian.sample(mean, std).to(condition.device)
-            x, logdet = self.flow(z, condition, std=std, reverse=True)
-        return x, logdet
-
-    def set_actnorm_init(self, inited=True):
-        for name, m in self.named_modules():
-            if m.__class__.__name__.find("ActNorm") >= 0:
-                m.inited = inited
-
-    def init_rnn_hidden(self):
-        self.flow.init_rnn_hidden()
 
 
 class Seq_Flow(nn.Module):
@@ -482,7 +425,7 @@ class Seq_Flow(nn.Module):
                     curr_z = z_seq[:,time_st]
 
                 # Backward flow
-                curr_output, curr_log_det = self.flow(curr_z, curr_cond, logdet=0.0, reverse=True, std=sigma * self.hparams.Infer["temp"])
+                curr_output, curr_log_det = self.flow(curr_z, curr_cond, logdet=0.0, reverse=True) #, std=sigma * self.hparams.Infer["temp"])
 
                 log_det_sum += curr_log_det
 
