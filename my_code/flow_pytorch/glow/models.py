@@ -204,9 +204,6 @@ class FlowStep(nn.Module):
         z, logdet = self.actnorm(z, logdet=logdet, reverse=True)
         return z, logdet
 
-    def init_rnn_hidden(self):
-        self.f.init_rnn_hidden()
-
 
 class FlowNet(nn.Module):
     """
@@ -276,7 +273,7 @@ class FlowNet(nn.Module):
         Forward path
         """
 
-        for layer, shape in zip(self.layers, self.output_shapes):
+        for layer in self.layers:
             z, logdet = layer(z, condition, logdet, reverse=False)
         return z, logdet
 
@@ -290,11 +287,6 @@ class FlowNet(nn.Module):
         for layer in reversed(self.layers):
             z, logdet = layer(z, condition, logdet, reverse=True)
         return z, logdet
-
-    def init_rnn_hidden(self):
-        for layer in self.layers:
-            if isinstance(layer, FlowStep):
-                layer.init_rnn_hidden()
 
 
 class Seq_Flow(nn.Module):

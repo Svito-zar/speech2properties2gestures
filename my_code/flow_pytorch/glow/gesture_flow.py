@@ -93,11 +93,9 @@ class GestureFlow(LightningModule):
 
     def loss(self, objective, z, mu, log_sigma):
         log_likelihood = objective + DiagGaussian.log_likelihood(mu, log_sigma, z)
-        nll = (-log_likelihood) / float(np.log(2.0))
-        return nll
+        return -log_likelihood
 
     def log_histogram(self, x, name):
-        # print(name, x)
 
         if isinstance(self.logger, TensorBoardLogger):
             self.logger.experiment.add_histogram(name, x, self.global_step)
