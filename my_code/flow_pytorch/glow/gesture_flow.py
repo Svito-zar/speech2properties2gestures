@@ -87,9 +87,11 @@ class GestureFlow(LightningModule):
 
         z_seq, loss = self.seq_flow(batch)
 
+        mean_loss = torch.mean(loss).unsqueeze(-1)
+
         #self.log_scales(mu, "mu", sigma, "sigma")
 
-        return z_seq, (loss / len(z_seq)).unsqueeze(-1)
+        return z_seq, mean_loss
 
     def loss(self, objective, z, mu, log_sigma):
         log_likelihood = objective + DiagGaussian.log_likelihood(mu, log_sigma, z)

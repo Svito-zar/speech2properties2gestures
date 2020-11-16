@@ -64,6 +64,7 @@ class FlowStep(nn.Module):
         in_channels,
         hidden_channels,
         cond_dim,
+        hparams,
         actnorm_scale=1.0,
         flow_permutation="shuffle",
         flow_coupling="additive",
@@ -94,6 +95,12 @@ class FlowStep(nn.Module):
         self.scale_eps = scale_eps
         self.L = L  # Which multiscale layer this module is in
         self.K = K  # Which step of flow in self.L
+
+        # About sequence processing
+        self.past_context = hparams.Cond["Speech"]["prev_context"]
+        self.future_context = hparams.Cond["Speech"]["future_context"]
+
+        # Helpers for conditioning info
 
         # 1. actnorm
         self.actnorm = modules.ActNorm2d(in_channels, actnorm_scale)
@@ -135,11 +142,55 @@ class FlowStep(nn.Module):
                     glow_rnn_type,
                 )
 
-    def forward(self, input_, audio_features, logdet=None, reverse=False):
+
+    def forward(self, input_seq_, speech_cond_seq, logdet=None, reverse=False):
+
         if not reverse:
-            return self.normal_flow(input_, audio_features, logdet)
+
+            if logdet is None:
+                logdet = torch.zeros_like(input_seq_[:, 0, 0])
+            z_seq = None
+            seq_len = input_seq_.shape[1]
+
+            for time_st in range(seq_len):
+                curr_output = input_seq_[:, time_st, :]
+
+                curr_cond = speech_cond_seq[:, time_st, :]
+
+                curr_z, logdet  = self.normal_flow(curr_output, curr_cond, logdet)
+                # ToDo: should it be one log_det for the whole sequence?
+
+                # Add current encoding "z" to the sequence of encodings
+                if z_seq is None:
+                    z_seq = curr_z.unsqueeze(dim=1).detach()
+                else:
+                    z_seq = torch.cat((z_seq, curr_z.unsqueeze(dim=1).detach()), 1)
+
+            return z_seq, logdet
+
         else:
-            return self.reverse_flow(input_, audio_features, logdet)
+
+            assert input_seq_ is not None
+
+            logdet = torch.zeros_like(input_seq_[:, 0, 0])
+            z_seq = None
+            seq_len = input_seq_.shape[1]
+
+            for time_st in range(seq_len):
+                    curr_output = input_seq_[:, time_st, :]
+
+                    curr_cond = speech_cond_seq[:, time_st, :]
+
+                    curr_z, logdet = self.reverse_flow(curr_output, curr_cond, logdet)
+                    # ToDo: should it be one log_det for the whole sequence?
+
+                    # Add z into the sequence
+                    if z_seq is None:
+                        z_seq = curr_z.unsqueeze(dim=1).detach()
+                    else:
+                        z_seq = torch.cat((z_seq, curr_z.unsqueeze(dim=1).detach()), 1)
+
+            return z_seq, logdet
 
     def normal_flow(self, input_, condition, logdet):
         """
@@ -205,7 +256,7 @@ class FlowStep(nn.Module):
         return z, logdet
 
 
-class FlowNet(nn.Module):
+class SeqFlowNet(nn.Module):
     """
     The whole flow as visualized below
     """
@@ -217,6 +268,7 @@ class FlowNet(nn.Module):
         cond_dim,
         K,
         L,
+        hparams,
         actnorm_scale=1.0,
         flow_permutation="invconv",
         flow_coupling="additive",
@@ -238,6 +290,24 @@ class FlowNet(nn.Module):
         self.K = K
         self.L = L
 
+        # About sequence processing
+        self.past_context = hparams.Cond["Speech"]["prev_context"]
+        self.future_context = hparams.Cond["Speech"]["future_context"]
+
+        # Encode speech features
+        self.encode_speech = nn.Sequential(nn.Linear(hparams.Cond["Speech"]["dim"],
+                                                     hparams.Cond["Speech"]["fr_enc_dim"]), nn.LeakyReLU(),
+                                           nn.Dropout(hparams.dropout))
+
+        # To reduce deminsionality of the speech encoding
+        self.reduce_speech_enc = nn.Sequential(nn.Linear(int(hparams.Cond["Speech"]["fr_enc_dim"] * \
+                                                             (self.past_context + self.future_context)),
+                                                         hparams.Cond["Speech"]["total_enc_dim"]),
+                                               nn.LeakyReLU(), nn.Dropout(hparams.dropout))
+
+        # Map conditioning to prior
+        self.cond2prior = nn.Linear(hparams.Glow["cond_dim"], hparams.Glow["distr_dim"]*2)
+
         for l in range(L):
 
             # 2. K FlowStep
@@ -247,6 +317,7 @@ class FlowNet(nn.Module):
                         in_channels=C,
                         hidden_channels=hidden_channels,
                         cond_dim=cond_dim,
+                        hparams=hparams,
                         actnorm_scale=actnorm_scale,
                         flow_permutation=flow_permutation,
                         flow_coupling=flow_coupling,
@@ -260,183 +331,19 @@ class FlowNet(nn.Module):
                 )
                 self.output_shapes.append([-1, C])
 
-    def forward(self, input_, condition, logdet=0.0, reverse=False):
-        # audio_features = self.conditionNet(audio_features)  # Spectrogram
-
-        if not reverse:
-            return self.encode(input_, condition, logdet)
-        else:
-            return self.decode(input_, condition)
-
-    def encode(self, z, condition, logdet=0.0):
-        """
-        Forward path
-        """
-
-        for layer in self.layers:
-            z, logdet = layer(z, condition, logdet, reverse=False)
-        return z, logdet
-
-    def decode(self, z, condition):
-        """
-        Backward path
-        """
-
-        logdet = 0.0
-
-        for layer in reversed(self.layers):
-            z, logdet = layer(z, condition, logdet, reverse=True)
-        return z, logdet
-
-
-class Seq_Flow(nn.Module):
-    def __init__(self, hparams):
-        super().__init__()
-        self.flow = FlowNet(
-            C=hparams.Glow["distr_dim"],
-            hidden_channels=hparams.Glow["hidden_channels"],
-            cond_dim=hparams.Glow["cond_dim"],
-            K=hparams.Glow["K"],
-            L=hparams.Glow["L"],
-            actnorm_scale=hparams.Glow["actnorm_scale"],
-            flow_permutation=hparams.Glow["flow_permutation"],
-            flow_coupling=hparams.Glow["flow_coupling"],
-            LU_decomposed=hparams.Glow["LU_decomposed"],
-            scale_eps=hparams.Glow["scale_eps"],
-            scale_logging=hparams.Validation["scale_logging"],
-            glow_rnn_type=hparams.Glow["rnn_type"]
-        )
-
-        self.hparams = hparams
-
-        self.past_context = hparams.Cond["Speech"]["prev_context"]
-        self.future_context = hparams.Cond["Speech"]["future_context"]
-        self.autoregr_hist_length = hparams.Cond["Autoregression"]["history_length"]
-
-        # Encode speech features
-        self.encode_speech = nn.Sequential(nn.Linear(hparams.Cond["Speech"]["dim"],
-                                                     hparams.Cond["Speech"]["fr_enc_dim"]), nn.LeakyReLU(),
-                                           nn.Dropout(hparams.dropout))
-
-        # To reduce deminsionality of the speech encoding
-        self.reduce_speech_enc = nn.Sequential(nn.Linear(int(hparams.Cond["Speech"]["fr_enc_dim"] * \
-                                                             (self.past_context + self.future_context)),
-                                                         hparams.Cond["Speech"]["total_enc_dim"]),
-                                               nn.LeakyReLU(), nn.Dropout(hparams.dropout))
-
-        self.cond2prior = nn.Linear(hparams.Glow["cond_dim"], hparams.Glow["distr_dim"]*2)
-
-    def forward(
-        self,
-        all_the_batch_data,
-        z_seq=None,
-        mean=None,
-        std=None,
-        reverse=False,
-        output_shape=None,
-    ):
-
-        if not reverse:
-            return self.normal_flow(all_the_batch_data)
-        else:
-            return self.reverse_flow(z_seq, all_the_batch_data, mean, std)
-
-    def normal_flow(self,  all_the_batch_data):
-
-        x_seq = all_the_batch_data["gesture"]
-        speech_batch_data = dict(all_the_batch_data)
-        del speech_batch_data["gesture"]
-
-        logdet = torch.zeros_like(all_the_batch_data["audio"][:, 0, 0])
-        z_seq = []
-        seq_len = speech_batch_data["audio"].shape[1]
-        eps = 1e-4
-        total_loss = 0
-
-        for time_st in range(self.past_context, seq_len - self.future_context):
-
-            curr_output = x_seq[:, time_st, :]
-
-            curr_cond = self.create_conditioning(speech_batch_data, time_st)
-
-            z_enc, objective = self.flow(curr_output, curr_cond,  logdet=logdet, reverse=False)
-
-            prior_info = self.cond2prior(curr_cond)
-
-            mu, sigma = thops.split_feature(prior_info, "split")
-
-            # Normalize values
-            sigma = torch.sigmoid(sigma) + eps
-            mu = torch.tanh(mu)
-
-            log_sigma = torch.log(sigma)
-
-            tmp_loss = self.loss(objective, z_enc, mu, log_sigma)
-
-            total_loss += torch.mean(tmp_loss)
-
-            z_seq.append(z_enc.detach())
-
-        return z_seq, total_loss
-
-    def reverse_flow(self, z_seq, all_the_batch_data, mean, std):
-        with torch.no_grad():
-
-            eps = 1e-3
-            produced_poses = None
-            condition = dict(all_the_batch_data)
-            del condition["gesture"]
-            seq_len = condition["audio"].shape[1]
-            log_det_sum = 0
-
-            for time_st in range(self.past_context, seq_len - self.future_context):
-
-                curr_cond = self.create_conditioning(condition, time_st)
-
-                # Define prior parameters
-                if mean is None:
-
-                    # Require some conditioning
-                    assert curr_cond is not None
-
-                    prior_info = self.cond2prior(curr_cond)
-
-                    mu, sigma = thops.split_feature(prior_info, "split")
-
-                    sigma = torch.sigmoid(sigma) + eps
-                    mu = torch.tanh(mu)
-
-                else:
-                    mu = mean
-                    sigma = std
-
-                # Sample , if needed
-                if z_seq is None:
-                    curr_z = modules.DiagGaussian.sample(mu, sigma).to(curr_cond.device)
-                else:
-                    curr_z = z_seq[:,time_st]
-
-                # Backward flow
-                curr_output, curr_log_det = self.flow(curr_z, curr_cond, logdet=0.0, reverse=True) #, std=sigma * self.hparams.Infer["temp"])
-
-                log_det_sum += curr_log_det
-
-                # add current frame to the total motion sequence
-                if produced_poses is None:
-                    produced_poses = curr_output.unsqueeze(1)
-                else:
-                    produced_poses = torch.cat((produced_poses, curr_output.unsqueeze(1)), 1)
-
-        return produced_poses, log_det_sum
-
-
-    def set_actnorm_init(self, inited=True):
-        for name, m in self.named_modules():
-            if m.__class__.__name__.find("ActNorm") >= 0:
-                m.inited = inited
-
 
     def create_conditioning(self, batch, time_st):
+        """
+        Pre-calculates a sequence of conditioning information for a given batch
+
+        Args:
+            batch:     current training batch (input features only)
+            time_st:   current time step
+
+        Returns:
+            curr_cond: sequence of conditioning information
+
+        """
 
         # take current audio and text of the speech
         curr_audio = batch["audio"][:, time_st - self.past_context:time_st + self.future_context]
@@ -453,7 +360,206 @@ class Seq_Flow(nn.Module):
 
         return curr_cond
 
-    def loss(self, objective, z, mu, log_sigma):
-        log_likelihood = objective + DiagGaussian.log_likelihood(mu, log_sigma, z)
-        nll = (-log_likelihood) / float(np.log(2.0))
-        return nll
+
+    def forward(self, input_seq_, condition_speech_info, logdet=0.0, reverse=False):
+
+        # First create all the conditioning info
+        cond_seq = None
+        seq_len = condition_speech_info["audio"].shape[1]
+
+        for time_st in range(self.past_context, seq_len - self.future_context):
+
+            curr_cond = self.create_conditioning(condition_speech_info, time_st)
+
+            if cond_seq is None:
+                cond_seq = curr_cond.unsqueeze(dim=1).detach()
+            else:
+                cond_seq = torch.cat((cond_seq, curr_cond.unsqueeze(dim=1).detach()), 1)
+
+        speech_cond_seq = cond_seq
+
+        if not reverse:
+            # Remove info which has no conditioning
+            input_seq_cropped = input_seq_[:, self.past_context:-self.future_context]
+
+            return self.encode(input_seq_cropped, speech_cond_seq, logdet)
+        else:
+
+            return self.decode(input_seq_, speech_cond_seq)
+
+    def encode(self, z_seq, condition_seq, logdet=0.0):
+        """
+        Forward path
+        """
+
+        for layer in self.layers:
+            z_seq, logdet = layer(z_seq, condition_seq, logdet, reverse=False)
+
+        # Add prior log likelihood
+        logdet += self.calc_prior_nll(z_seq, condition_seq)
+
+        return z_seq, logdet
+
+    def decode(self, z_seq, condition_seq):
+        """
+        Backward path
+        """
+
+        # Sample z's, if needed
+        if z_seq is None:
+            z_seq, logdet = self.sample_n_calc_nll(condition_seq)
+        else:
+            logdet = self.calc_prior_nll(z_seq, condition_seq)
+
+        # backward path
+        for layer in reversed(self.layers):
+            z_seq, logdet = layer(z_seq, condition_seq, logdet, reverse=True)
+
+        return z_seq, logdet
+
+
+    def calc_prior_nll(self, z_seq, cond_info_seq):
+        """
+        Calculate log likelihood for the z_enc accordingly to the prior
+        Args:
+            z_seq:            sequence of z_enc values
+            cond_info_seq:    sequence of conditioning information
+
+        Returns:
+            total_nll:        negative log likelihood for the given "z" sequence under prior given by the conditioning
+
+        """
+        seq_len = cond_info_seq.shape[1]
+        eps = 1e-5
+        total_nll = 0
+
+        for time_st in range(seq_len):
+
+            curr_z = z_seq[:, time_st]
+            curr_cond = cond_info_seq[:, time_st]
+
+            prior_info = self.cond2prior(curr_cond)
+
+            mu, sigma = thops.split_feature(prior_info, "split")
+
+            # Normalize values
+            sigma = torch.sigmoid(sigma) + eps
+            mu = torch.tanh(mu)
+
+            log_sigma = torch.log(sigma)
+
+            nll = -DiagGaussian.log_likelihood(mu, log_sigma, curr_z)
+
+            total_nll += torch.mean(nll)
+
+        return total_nll
+
+
+    def sample_n_calc_nll(self, cond_info_seq):
+        """
+        Sample z's from the prior given by the conditioning
+        and calculate log likelihood for the z_seq accordingly to the prior
+        Args:
+            cond_info_seq:    sequence of conditioning information
+
+        Returns:
+            z_seq:            samples sequence in latent space
+            total_nll:        negative log likelihood for the given "z" sequence under prior given by the conditioning
+
+        """
+        seq_len = cond_info_seq.shape[1]
+        eps = 1e-5
+        total_nll = 0
+        z_seq = None
+
+        for time_st in range(seq_len):
+
+            curr_cond = cond_info_seq[:, time_st]
+
+            prior_info = self.cond2prior(curr_cond)
+
+            mu, sigma = thops.split_feature(prior_info, "split")
+
+            # Normalize values
+            sigma = torch.sigmoid(sigma) + eps
+            mu = torch.tanh(mu)
+
+            log_sigma = torch.log(sigma)
+
+            # sample
+            curr_z = modules.DiagGaussian.sample(mu, sigma).to(curr_cond.device)
+
+            # get nll
+            nll = -DiagGaussian.log_likelihood(mu, log_sigma, curr_z)
+
+            total_nll += nll
+
+            # Add z into the sequence
+            if z_seq is None:
+                z_seq = curr_z.unsqueeze(dim=1).detach()
+            else:
+                z_seq = torch.cat((z_seq, curr_z.unsqueeze(dim=1).detach()), 1)
+
+        return z_seq, total_nll
+
+
+class Seq_Flow(nn.Module):
+    def __init__(self, hparams):
+        super().__init__()
+        self.flow = SeqFlowNet(
+            C=hparams.Glow["distr_dim"],
+            hidden_channels=hparams.Glow["hidden_channels"],
+            cond_dim=hparams.Glow["cond_dim"],
+            hparams=hparams,
+            K=hparams.Glow["K"],
+            L=hparams.Glow["L"],
+            actnorm_scale=hparams.Glow["actnorm_scale"],
+            flow_permutation=hparams.Glow["flow_permutation"],
+            flow_coupling=hparams.Glow["flow_coupling"],
+            LU_decomposed=hparams.Glow["LU_decomposed"],
+            scale_eps=hparams.Glow["scale_eps"],
+            scale_logging=hparams.Validation["scale_logging"],
+            glow_rnn_type=hparams.Glow["rnn_type"]
+        )
+
+        self.hparams = hparams
+
+        self.past_context = hparams.Cond["Speech"]["prev_context"]
+        self.future_context = hparams.Cond["Speech"]["future_context"]
+
+    def forward(
+        self,
+        all_the_batch_data,
+        z_seq=None,
+        reverse=False,
+    ):
+
+        if not reverse:
+            return self.normal_flow(all_the_batch_data)
+        else:
+            return self.reverse_flow(z_seq, all_the_batch_data)
+
+    def normal_flow(self,  all_the_batch_data):
+
+        x_seq = all_the_batch_data["gesture"]
+        speech_batch_data = dict(all_the_batch_data)
+        del speech_batch_data["gesture"]
+
+        logdet = torch.zeros_like(all_the_batch_data["audio"][:, 0, 0])
+
+        return self.flow(x_seq, speech_batch_data, logdet=logdet, reverse=False)
+
+    def reverse_flow(self, z_seq, all_the_batch_data):
+        with torch.no_grad():
+
+            speech_condition = dict(all_the_batch_data)
+            del speech_condition["gesture"]
+
+            # Backward flow
+            return self.flow(z_seq, speech_condition, logdet=None, reverse=True)
+
+
+    def set_actnorm_init(self, inited=True):
+        for name, m in self.named_modules():
+            if m.__class__.__name__.find("ActNorm") >= 0:
+                m.inited = inited
