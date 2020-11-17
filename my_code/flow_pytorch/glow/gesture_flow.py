@@ -73,11 +73,9 @@ class GestureFlow(LightningModule):
             exit(-1)
 
 
-    def inference(self, seq_len, batch):
+    def inference(self, batch):
 
-        model_output_shape = torch.zeros([batch["audio"].shape[0], self.hparams.Glow["distr_dim"]])
-        eps = 1e-3
-        produced_poses, _ = self.seq_flow(batch, reverse=True, output_shape=model_output_shape)
+        produced_poses, _ = self.seq_flow(batch, reverse=True)
 
         # self.log_scales(mu, "test_mu", sigma, "test_sigma")
 
@@ -87,15 +85,12 @@ class GestureFlow(LightningModule):
 
         z_seq, loss = self.seq_flow(batch)
 
-        mean_loss = torch.mean(loss).unsqueeze(-1)
+        mean_loss = torch.mean(loss).unsqueeze(-1) / batch["audio"].shape[1]
 
         #self.log_scales(mu, "mu", sigma, "sigma")
 
         return z_seq, mean_loss
 
-    def loss(self, objective, z, mu, log_sigma):
-        log_likelihood = objective + DiagGaussian.log_likelihood(mu, log_sigma, z)
-        return -log_likelihood
 
     def log_histogram(self, x, name):
 
@@ -156,7 +151,7 @@ class GestureFlow(LightningModule):
                 self.log_scales()
 
         if self.hparams.Validation["inference"]:
-            output["gesture_example"] = self.inference(self.hparams.Infer["seq_len"], batch)
+            output["gesture_example"] = self.inference(batch)
 
         return output
 
