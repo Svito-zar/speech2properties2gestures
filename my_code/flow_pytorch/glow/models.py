@@ -398,6 +398,12 @@ class SeqFlowNet(nn.Module):
         # Add prior log likelihood
         logdet += self.calc_prior_nll(z_seq, condition_seq)
 
+        # DEBUG
+        """print("\nEncode\n")
+        print("Z_seq shape: ", z_seq.shape)
+        print("Z_seq: ", z_seq[:3,:3,:3])
+        print("Prior logdet: ", self.calc_prior_nll(z_seq, condition_seq))"""
+
         return z_seq, logdet
 
     def decode(self, z_seq, condition_seq):
@@ -410,6 +416,12 @@ class SeqFlowNet(nn.Module):
             z_seq, logdet = self.sample_n_calc_nll(condition_seq)
         else:
             logdet = self.calc_prior_nll(z_seq, condition_seq)
+
+        # DEBUG
+        """ print("\nDecode\n")
+        print("Z_seq shape: ", z_seq.shape)
+        print("Z_seq: ", z_seq[:3, :3, :3])
+        print("Prior logdet: ", logdet) """
 
         # backward path
         for layer in reversed(self.layers):
@@ -448,9 +460,15 @@ class SeqFlowNet(nn.Module):
 
             log_sigma = torch.log(sigma)
 
+            if False:
+
+                print("\nCalc Pior\n")
+                print("mu : ", mu[:3, :3])
+                print("log_sigma: ", log_sigma[:3, :3])
+
             nll = -DiagGaussian.log_likelihood(mu, log_sigma, curr_z)
 
-            total_nll += torch.mean(nll)
+            total_nll += nll
 
         return total_nll
 
@@ -485,6 +503,11 @@ class SeqFlowNet(nn.Module):
             mu = torch.tanh(mu)
 
             log_sigma = torch.log(sigma)
+
+            if False: #time_st == 5:
+                print("\nCalc Pior\n")
+                print("mu : ", mu[:3, :3])
+                print("log_sigma: ", log_sigma[:3, :3])
 
             # sample
             curr_z = modules.DiagGaussian.sample(mu, sigma).to(curr_cond.device)

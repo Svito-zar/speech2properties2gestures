@@ -144,6 +144,7 @@ class GestureFlow(LightningModule):
             output["jerk"] = {}
 
             if self.hparams.Validation["check_invertion"]:
+                print("\n TESTING INVERTABILITY !")
                 # Test if the Flow works correctly
                 output["det_check"] = self.test_invertability(z_seq, loss, batch)
 
@@ -316,38 +317,16 @@ class GestureFlow(LightningModule):
         )
         return loader
 
-    def test_invertability(self, z_seq, loss, data):
+    def test_invertability(self, z_seq, loss, batch_data):
 
-        reconstr_seq = []
-        eps = 1e-3
+        reconstructed_poses, backward_loss = self.seq_flow(batch_data, z_seq, reverse=True) # reverse should be true!
 
-        backward_loss = 0
+        mean_backward_loss = torch.mean(backward_loss).unsqueeze(-1) / batch_data["audio"].shape[1]
 
-        for time_st, z_enc in enumerate(z_seq):
-            condition = self.create_conditioning(data,time_st + self.past_context)
+        error_percentage = (mean_backward_loss - loss) * 100 / loss
 
-            prior_info = self.cond2prior(condition)
-
-            mu, sigma = thops.split_feature(prior_info, "split")
-
-            # Normalize values
-            sigma = torch.sigmoid(sigma) + eps
-            mu = torch.tanh(mu)
-
-            log_sigma = torch.log(sigma)
-
-            reconstr, backward_objective = self.seq_flow(
-                z=z_enc, condition=condition, mean =mu, std=sigma, reverse=True
-            )
-
-            backward_loss += torch.mean(
-                self.loss(-backward_objective, z_enc, mu, log_sigma)
-            )
-
-            reconstr_seq.append(reconstr.detach())
-
-        backward_loss = (backward_loss / len(z_seq)).unsqueeze(-1)
-
-        error_percentage = (backward_loss - loss) * 100 / loss
+        # DEBUG
+        print("\nLoss: ", loss)
+        print("Bakcward Loss: ", mean_backward_loss)
 
         return torch.abs(error_percentage)
