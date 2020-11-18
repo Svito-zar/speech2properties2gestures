@@ -172,7 +172,8 @@ class FlowStep(nn.Module):
 
             assert input_seq_ is not None
 
-            logdet = torch.zeros_like(input_seq_[:, 0, 0])
+            if logdet is None:
+                logdet = torch.zeros_like(input_seq_[:, 0, 0])
             z_seq = None
             seq_len = input_seq_.shape[1]
 
@@ -400,14 +401,6 @@ class SeqFlowNet(nn.Module):
 
         nll = logdet + prior_nll
 
-        # DEBUG
-        debug = False
-        if debug:
-            print("\nEncode\n")
-            print("Z_seq shape: ", z_seq.shape)
-            print("Z_seq: ", z_seq[:3,:3,:3])
-            print("Prior logdet: ", self.calc_prior_nll(z_seq, condition_seq))
-
         return z_seq, nll
 
     def decode(self, z_seq, condition_seq):
@@ -421,20 +414,12 @@ class SeqFlowNet(nn.Module):
         else:
             prior_nll = self.calc_prior_nll(z_seq, condition_seq)
 
-        # DEBUG
-        debug = False
-        if debug:
-            print("\nDecode\n")
-            print("Z_seq shape: ", z_seq.shape)
-            print("Z_seq: ", z_seq[:3, :3, :3])
-            print("Prior logdet: ", prior_nll)
-
         # backward path
         logdet = 0.0
         for layer in reversed(self.layers):
             z_seq, logdet = layer(z_seq, condition_seq, logdet, reverse=True)
 
-        nll = logdet + prior_nll
+        nll = logdet - prior_nll
 
         return z_seq, nll
 
@@ -468,12 +453,6 @@ class SeqFlowNet(nn.Module):
             mu = torch.tanh(mu)
 
             log_sigma = torch.log(sigma)
-
-            if time_st == 5:
-
-                print("\nCalc Pior\n")
-                print("mu : ", mu[:3, :3])
-                print("log_sigma: ", log_sigma[:3, :3])
 
             nll = -DiagGaussian.log_likelihood(mu, log_sigma, curr_z)
 
@@ -512,11 +491,6 @@ class SeqFlowNet(nn.Module):
             mu = torch.tanh(mu)
 
             log_sigma = torch.log(sigma)
-
-            if time_st == 5:
-                print("\nCalc Pior\n")
-                print("mu : ", mu[:3, :3])
-                print("log_sigma: ", log_sigma[:3, :3])
 
             # sample
             curr_z = modules.DiagGaussian.sample(mu, sigma).to(curr_cond.device)

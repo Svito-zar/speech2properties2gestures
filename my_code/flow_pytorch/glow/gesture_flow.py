@@ -144,7 +144,6 @@ class GestureFlow(LightningModule):
             output["jerk"] = {}
 
             if self.hparams.Validation["check_invertion"]:
-                print("\n TESTING INVERTABILITY !")
                 # Test if the Flow works correctly
                 output["det_check"] = self.test_invertability(z_seq, loss, batch)
 
@@ -323,10 +322,19 @@ class GestureFlow(LightningModule):
 
         mean_backward_loss = torch.mean(backward_loss).unsqueeze(-1) / batch_data["audio"].shape[1]
 
-        error_percentage = (mean_backward_loss - loss) * 100 / loss
+        error_percentage = (mean_backward_loss + loss) * 100 / loss
 
         # DEBUG
-        print("\nLoss: ", loss)
-        print("Bakcward Loss: ", mean_backward_loss)
+        debug = False
+        if debug:
+            print("\nX origin: ", batch_data["gesture"][:3,self.past_context :self.past_context+3,:3])
+            print("\nX reconstr: ", reconstructed_poses[:3, :3, :3])
+
+            print("\nLoss: ", loss)
+            print("Bakcward Loss: ", mean_backward_loss)
+
+            print("Error: ", error_percentage)
+
+            exit(0)
 
         return torch.abs(error_percentage)
