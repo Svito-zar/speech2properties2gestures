@@ -396,15 +396,19 @@ class SeqFlowNet(nn.Module):
             z_seq, logdet = layer(z_seq, condition_seq, logdet, reverse=False)
 
         # Add prior log likelihood
-        logdet += self.calc_prior_nll(z_seq, condition_seq)
+        prior_nll = self.calc_prior_nll(z_seq, condition_seq)
+
+        nll = logdet + prior_nll
 
         # DEBUG
-        """print("\nEncode\n")
-        print("Z_seq shape: ", z_seq.shape)
-        print("Z_seq: ", z_seq[:3,:3,:3])
-        print("Prior logdet: ", self.calc_prior_nll(z_seq, condition_seq))"""
+        debug = False
+        if debug:
+            print("\nEncode\n")
+            print("Z_seq shape: ", z_seq.shape)
+            print("Z_seq: ", z_seq[:3,:3,:3])
+            print("Prior logdet: ", self.calc_prior_nll(z_seq, condition_seq))
 
-        return z_seq, logdet
+        return z_seq, nll
 
     def decode(self, z_seq, condition_seq):
         """
@@ -413,21 +417,26 @@ class SeqFlowNet(nn.Module):
 
         # Sample z's, if needed
         if z_seq is None:
-            z_seq, logdet = self.sample_n_calc_nll(condition_seq)
+            z_seq, prior_nll = self.sample_n_calc_nll(condition_seq)
         else:
-            logdet = self.calc_prior_nll(z_seq, condition_seq)
+            prior_nll = self.calc_prior_nll(z_seq, condition_seq)
 
         # DEBUG
-        """ print("\nDecode\n")
-        print("Z_seq shape: ", z_seq.shape)
-        print("Z_seq: ", z_seq[:3, :3, :3])
-        print("Prior logdet: ", logdet) """
+        debug = False
+        if debug:
+            print("\nDecode\n")
+            print("Z_seq shape: ", z_seq.shape)
+            print("Z_seq: ", z_seq[:3, :3, :3])
+            print("Prior logdet: ", prior_nll)
 
         # backward path
+        logdet = 0.0
         for layer in reversed(self.layers):
             z_seq, logdet = layer(z_seq, condition_seq, logdet, reverse=True)
 
-        return z_seq, logdet
+        nll = logdet + prior_nll
+
+        return z_seq, nll
 
 
     def calc_prior_nll(self, z_seq, cond_info_seq):
@@ -460,7 +469,7 @@ class SeqFlowNet(nn.Module):
 
             log_sigma = torch.log(sigma)
 
-            if False:
+            if time_st == 5:
 
                 print("\nCalc Pior\n")
                 print("mu : ", mu[:3, :3])
@@ -504,7 +513,7 @@ class SeqFlowNet(nn.Module):
 
             log_sigma = torch.log(sigma)
 
-            if False: #time_st == 5:
+            if time_st == 5:
                 print("\nCalc Pior\n")
                 print("mu : ", mu[:3, :3])
                 print("log_sigma: ", log_sigma[:3, :3])
