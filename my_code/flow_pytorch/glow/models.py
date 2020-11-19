@@ -399,7 +399,7 @@ class SeqFlowNet(nn.Module):
         # Add prior log likelihood
         prior_nll,  mu, sigma = self.calc_prior_nll(z_seq, condition_seq)
 
-        nll = logdet + prior_nll
+        nll = -logdet + prior_nll
 
         return z_seq, nll,  mu, sigma
 
@@ -419,7 +419,7 @@ class SeqFlowNet(nn.Module):
         for layer in reversed(self.layers):
             z_seq, logdet = layer(z_seq, condition_seq, logdet, reverse=True)
 
-        nll = logdet - prior_nll
+        nll = -logdet + prior_nll
 
         return z_seq, nll,  mu, sigma
 
@@ -456,7 +456,11 @@ class SeqFlowNet(nn.Module):
 
             log_sigma = torch.log(sigma)
 
-            nll = -DiagGaussian.log_likelihood(mu, log_sigma, curr_z)
+            # For DEBUG use zeros
+            sigma = torch.zeros_like(sigma)
+            mu = torch.zeros_like(mu)
+
+            nll = - DiagGaussian.log_likelihood(mu, log_sigma, curr_z)
 
             total_nll += nll
 
@@ -493,6 +497,10 @@ class SeqFlowNet(nn.Module):
             mu = torch.tanh(mu)
 
             log_sigma = torch.log(sigma)
+
+            # For DEBUG use zeros
+            sigma = torch.zeros_like(sigma)
+            mu = torch.zeros_like(mu)
 
             # sample
             curr_z = modules.DiagGaussian.sample(mu, sigma).to(curr_cond.device)
