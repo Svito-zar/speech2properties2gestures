@@ -145,7 +145,7 @@ class GestureFlow(LightningModule):
 
             if self.hparams.Validation["check_invertion"]:
                 # Test if the Flow works correctly
-                output["det_check"] = self.test_invertability(z_seq, loss, batch)
+                output["det_check"], output["reconstr_check"] = self.test_invertability(z_seq, loss, batch)
 
             if self.hparams.Validation["scale_logging"]:
                 self.log_scales()
@@ -164,7 +164,13 @@ class GestureFlow(LightningModule):
 
         if det_check:
             avg_det_check = torch.stack(det_check).mean()
-            tb_logs["reconstruction/error_percentage"] = avg_det_check
+            tb_logs["reconstruction/nll_error_percentage"] = avg_det_check
+
+        reconstr_check = [x["reconstr_check"] for x in outputs if x.get("reconstr_check") is not None]
+
+        if reconstr_check:
+            avg_reconstr_check = torch.stack(reconstr_check).mean()
+            tb_logs["reconstruction/reconstr_error_percentage"] = avg_reconstr_check
 
         jerk = [x["jerk"] for x in outputs if x.get("jerk")]
         if jerk:
@@ -322,7 +328,7 @@ class GestureFlow(LightningModule):
 
         mean_backward_loss = torch.mean(backward_loss).unsqueeze(-1) / batch_data["audio"].shape[1]
 
-        error_percentage = (mean_backward_loss + loss) * 100 / loss
+        nll_error_percentage = (mean_backward_loss + loss) * 100 / loss
 
         # DEBUG
         debug = False
@@ -337,4 +343,9 @@ class GestureFlow(LightningModule):
 
             exit(0)
 
-        return torch.abs(error_percentage)
+        X_origin = batch_data["gesture"][:3, self.past_context:self.past_context + 3, :3]
+        X_reconstr = reconstructed_poses[:3, :3, :3]
+
+        X_error = torch.mean(X_origin - X_reconstr)
+
+        return torch.abs(nll_error_percentage), torch.abs(X_error)
