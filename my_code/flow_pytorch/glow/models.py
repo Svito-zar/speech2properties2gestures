@@ -401,6 +401,12 @@ class SeqFlowNet(nn.Module):
 
         nll = -logdet + prior_nll
 
+        debug = False
+        if debug:
+            print("\nEncode\n")
+            print("Prior logdet: ", prior_nll)
+            print("Logdet: ", logdet)
+
         return z_seq, nll,  mu, sigma
 
     def decode(self, z_seq, condition_seq):
@@ -419,7 +425,14 @@ class SeqFlowNet(nn.Module):
         for layer in reversed(self.layers):
             z_seq, logdet = layer(z_seq, condition_seq, logdet, reverse=True)
 
-        nll = -logdet + prior_nll
+        nll = logdet + prior_nll
+
+        debug = False
+        if debug:
+            print("\nDecode\n")
+            print("Prior logdet: ", prior_nll)
+            print("Logdet: ", logdet)
+
 
         return z_seq, nll,  mu, sigma
 
@@ -457,7 +470,7 @@ class SeqFlowNet(nn.Module):
             log_sigma = torch.log(sigma)
 
             # For DEBUG use zeros
-            sigma = torch.zeros_like(sigma)
+            log_sigma = torch.zeros_like(sigma)
             mu = torch.zeros_like(mu)
 
             nll = - DiagGaussian.log_likelihood(mu, log_sigma, curr_z)
@@ -499,8 +512,9 @@ class SeqFlowNet(nn.Module):
             log_sigma = torch.log(sigma)
 
             # For DEBUG use zeros
-            sigma = torch.zeros_like(sigma)
+            log_sigma = torch.zeros_like(sigma)
             mu = torch.zeros_like(mu)
+            sigma = torch.ones_like(sigma)
 
             # sample
             curr_z = modules.DiagGaussian.sample(mu, sigma).to(curr_cond.device)
