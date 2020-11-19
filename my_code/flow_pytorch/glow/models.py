@@ -397,11 +397,11 @@ class SeqFlowNet(nn.Module):
             z_seq, logdet = layer(z_seq, condition_seq, logdet, reverse=False)
 
         # Add prior log likelihood
-        prior_nll = self.calc_prior_nll(z_seq, condition_seq)
+        prior_nll,  mu, sigma = self.calc_prior_nll(z_seq, condition_seq)
 
         nll = logdet + prior_nll
 
-        return z_seq, nll
+        return z_seq, nll,  mu, sigma
 
     def decode(self, z_seq, condition_seq):
         """
@@ -410,9 +410,9 @@ class SeqFlowNet(nn.Module):
 
         # Sample z's, if needed
         if z_seq is None:
-            z_seq, prior_nll = self.sample_n_calc_nll(condition_seq)
+            z_seq, prior_nll,  mu, sigma = self.sample_n_calc_nll(condition_seq)
         else:
-            prior_nll = self.calc_prior_nll(z_seq, condition_seq)
+            prior_nll,  mu, sigma = self.calc_prior_nll(z_seq, condition_seq)
 
         # backward path
         logdet = 0.0
@@ -421,7 +421,7 @@ class SeqFlowNet(nn.Module):
 
         nll = logdet - prior_nll
 
-        return z_seq, nll
+        return z_seq, nll,  mu, sigma
 
 
     def calc_prior_nll(self, z_seq, cond_info_seq):
@@ -433,6 +433,8 @@ class SeqFlowNet(nn.Module):
 
         Returns:
             total_nll:        negative log likelihood for the given "z" sequence under prior given by the conditioning
+            mu:               mean of the prior distribution
+            sigma:            variance of the prior distributuion
 
         """
         seq_len = cond_info_seq.shape[1]
@@ -458,7 +460,7 @@ class SeqFlowNet(nn.Module):
 
             total_nll += nll
 
-        return total_nll
+        return total_nll,  mu, sigma
 
 
     def sample_n_calc_nll(self, cond_info_seq):
@@ -506,7 +508,7 @@ class SeqFlowNet(nn.Module):
             else:
                 z_seq = torch.cat((z_seq, curr_z.unsqueeze(dim=1).detach()), 1)
 
-        return z_seq, total_nll
+        return z_seq, total_nll, mu, sigma
 
 
 class Seq_Flow(nn.Module):

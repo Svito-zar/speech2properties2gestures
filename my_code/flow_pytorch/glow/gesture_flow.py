@@ -75,19 +75,19 @@ class GestureFlow(LightningModule):
 
     def inference(self, batch):
 
-        produced_poses, _ = self.seq_flow(batch, reverse=True)
+        produced_poses, mu, sigma, _ = self.seq_flow(batch, reverse=True)
 
-        # self.log_scales(mu, "test_mu", sigma, "test_sigma")
+        self.log_scales(torch.mean(mu, dim=0), "test_mu", torch.mean(sigma,dim=0), "test_sigma")
 
         return produced_poses
 
     def forward(self, batch):
 
-        z_seq, loss = self.seq_flow(batch)
+        z_seq, loss, mu, sigma = self.seq_flow(batch)
 
         mean_loss = torch.mean(loss).unsqueeze(-1) / batch["audio"].shape[1]
 
-        #self.log_scales(mu, "mu", sigma, "sigma")
+        self.log_scales(torch.mean(mu, dim=0), "mu", torch.mean(sigma,dim=0), "sigma")
 
         return z_seq, mean_loss
 
@@ -324,7 +324,7 @@ class GestureFlow(LightningModule):
 
     def test_invertability(self, z_seq, loss, batch_data):
 
-        reconstructed_poses, backward_loss = self.seq_flow(batch_data, z_seq, reverse=True) # reverse should be true!
+        reconstructed_poses, backward_loss,  _, _ = self.seq_flow(batch_data, z_seq, reverse=True) # reverse should be true!
 
         mean_backward_loss = torch.mean(backward_loss).unsqueeze(-1) / batch_data["audio"].shape[1]
 
@@ -337,7 +337,7 @@ class GestureFlow(LightningModule):
             print("\nX reconstr: ", reconstructed_poses[:3, :3, :3])
 
             print("\nLoss: ", loss)
-            print("Bakcward Loss: ", mean_backward_loss)
+            print("Backward Loss: ", mean_backward_loss)
 
             print("Error: ", error_percentage)
 
