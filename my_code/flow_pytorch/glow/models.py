@@ -399,15 +399,13 @@ class SeqFlowNet(nn.Module):
         # Add prior log likelihood
         prior_nll,  mu, sigma = self.calc_prior_nll(z_seq, condition_seq)
 
-        nll = -logdet + prior_nll
-
         debug = False
         if debug:
             print("\nEncode\n")
             print("Prior logdet: ", prior_nll)
             print("Logdet: ", logdet)
 
-        return z_seq, nll,  mu, sigma
+        return z_seq, logdet, prior_nll,  mu, sigma
 
     def decode(self, z_seq, condition_seq):
         """
@@ -434,7 +432,7 @@ class SeqFlowNet(nn.Module):
             print("Logdet: ", logdet)
 
 
-        return z_seq, nll,  mu, sigma
+        return z_seq, logdet, prior_nll,  mu, sigma
 
 
     def calc_prior_nll(self, z_seq, cond_info_seq):

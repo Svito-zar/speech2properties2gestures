@@ -75,7 +75,7 @@ class GestureFlow(LightningModule):
 
     def inference(self, batch):
 
-        produced_poses, _, mu, sigma, = self.seq_flow(batch, reverse=True)
+        produced_poses, _, _ , mu, sigma, = self.seq_flow(batch, reverse=True)
 
         self.log_scales(torch.mean(mu, dim=0), "test_mu", torch.mean(sigma,dim=0), "test_sigma")
 
@@ -83,13 +83,11 @@ class GestureFlow(LightningModule):
 
     def forward(self, batch):
 
-        z_seq, loss, mu, sigma = self.seq_flow(batch)
-
-        mean_loss = torch.mean(loss).unsqueeze(-1) / batch["audio"].shape[1]
+        z_seq, logdet, prior_nll, mu, sigma = self.seq_flow(batch)
 
         self.log_scales(torch.mean(mu, dim=0), "mu", torch.mean(sigma,dim=0), "sigma")
 
-        return z_seq, mean_loss
+        return z_seq, logdet, prior_nll
 
 
     def log_histogram(self, x, name):
@@ -119,22 +117,31 @@ class GestureFlow(LightningModule):
 
     def training_step(self, batch, batch_idx):
 
-        _, loss = self(batch)
+        _, logdet, prior_nll = self(batch)
+
+        loss_array = -logdet + prior_nll
+
+        loss_val = torch.mean(loss_array).unsqueeze(-1) / batch["audio"].shape[1]
+        logdet_val = torch.mean(logdet).unsqueeze(-1) / batch["audio"].shape[1]
+        prior_val = torch.mean(prior_nll).unsqueeze(-1) / batch["audio"].shape[1]
 
         #deranged_batch = self.derange_batch(batch)
         #_, deranged_loss, _ = self(deranged_batch)
 
-        tb_log = {"Loss/train": loss} #, "Loss/missmatched_nll": deranged_loss}
+        tb_log = {"Train/loss": loss_val, "Train/logdet":logdet_val, "Train/prior_nll": prior_val} #, "Loss/missmatched_nll": deranged_loss}
 
-        if self.hparams.optuna and self.global_step > 20 and loss > 1000:
+        if self.hparams.optuna and self.global_step > 20 and loss_val > 1000:
             message = f"Trial was pruned since loss > 1000"
             raise optuna.exceptions.TrialPruned(message)
 
-        return {"loss": loss, "log": tb_log}
+        return {"loss": loss_val, "log": tb_log}
 
 
     def validation_step(self, batch, batch_idx):
-        z_seq, loss = self(batch)
+        z_seq, logdet, prior_nll = self(batch)
+        loss_array = -logdet + prior_nll
+        loss = torch.mean(loss_array).unsqueeze(-1) / batch["audio"].shape[1]
+
         if self.hparams.optuna and self.global_step > 20 and loss > 1000:
             message = f"Trial was pruned since loss > 1000"
             raise optuna.exceptions.TrialPruned(message)
@@ -324,7 +331,9 @@ class GestureFlow(LightningModule):
 
     def test_invertability(self, z_seq, loss, batch_data):
 
-        reconstructed_poses, backward_loss,  _, _ = self.seq_flow(batch_data, z_seq, reverse=True) # reverse should be true!
+        reconstructed_poses, back_logdet, prior_nll , _, _ = self.seq_flow(batch_data, z_seq, reverse=True) # reverse should be true!
+
+        backward_loss = back_logdet + prior_nll
 
         mean_backward_loss = torch.mean(backward_loss).unsqueeze(-1) / batch_data["audio"].shape[1]
 
