@@ -75,7 +75,7 @@ class GestureFlow(LightningModule):
 
     def inference(self, batch):
 
-        produced_poses, mu, sigma, _ = self.seq_flow(batch, reverse=True)
+        produced_poses, _, mu, sigma, = self.seq_flow(batch, reverse=True)
 
         self.log_scales(torch.mean(mu, dim=0), "test_mu", torch.mean(sigma,dim=0), "test_sigma")
 
@@ -127,7 +127,7 @@ class GestureFlow(LightningModule):
         tb_log = {"Loss/train": loss} #, "Loss/missmatched_nll": deranged_loss}
 
         if self.hparams.optuna and self.global_step > 20 and loss > 1000:
-            message = f"Trial was pruned since loss > 0"
+            message = f"Trial was pruned since loss > 1000"
             raise optuna.exceptions.TrialPruned(message)
 
         return {"loss": loss, "log": tb_log}
@@ -135,8 +135,8 @@ class GestureFlow(LightningModule):
 
     def validation_step(self, batch, batch_idx):
         z_seq, loss = self(batch)
-        if self.hparams.optuna and self.global_step > 20 and loss > 0:
-            message = f"Trial was pruned since loss > 0"
+        if self.hparams.optuna and self.global_step > 20 and loss > 1000:
+            message = f"Trial was pruned since loss > 1000"
             raise optuna.exceptions.TrialPruned(message)
         output = {"val_loss": loss}
 
@@ -308,7 +308,7 @@ class GestureFlow(LightningModule):
 
     def train_dataloader(self):
         loader = torch.utils.data.DataLoader(
-            dataset=self.train_dataset,
+            dataset=self.val_dataset,
             batch_size=self.hparams.batch_size,
             shuffle=True
         )
@@ -328,24 +328,25 @@ class GestureFlow(LightningModule):
 
         mean_backward_loss = torch.mean(backward_loss).unsqueeze(-1) / batch_data["audio"].shape[1]
 
-        nll_error_percentage = (mean_backward_loss + loss) * 100 / loss
+        nll_error_percentage = (mean_backward_loss - loss) * 100 / loss
 
-        # DEBUG
-        debug = False
-        if debug:
-            print("\nX origin: ", batch_data["gesture"][:3,self.past_context :self.past_context+3,:3])
-            print("\nX reconstr: ", reconstructed_poses[:3, :3, :3])
-
-            print("\nLoss: ", loss)
-            print("Backward Loss: ", mean_backward_loss)
-
-            print("Error: ", error_percentage)
-
-            exit(0)
 
         X_origin = batch_data["gesture"][:3, self.past_context:self.past_context + 3, :3]
         X_reconstr = reconstructed_poses[:3, :3, :3]
 
         X_error = torch.mean(X_origin - X_reconstr)
+
+
+        # DEBUG
+        debug = False
+        if debug:
+            # print("\nX origin: ", batch_data["gesture"][:3,self.past_context :self.past_context+3,:3])
+            # print("\nX reconstr: ", reconstructed_poses[:3, :3, :3])
+            print("X error: ", X_error)
+
+            print("\nLoss: ", loss)
+            print("Backward Loss: ", mean_backward_loss)
+
+            print("Error: ", nll_error_percentage)
 
         return torch.abs(nll_error_percentage), torch.abs(X_error)
