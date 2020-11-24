@@ -121,20 +121,29 @@ class GestureFlow(LightningModule):
 
         loss_array = -logdet + prior_nll
 
-        loss_val = torch.mean(loss_array).unsqueeze(-1) / batch["audio"].shape[1]
-        logdet_val = torch.mean(logdet).unsqueeze(-1) / batch["audio"].shape[1]
-        prior_val = torch.mean(prior_nll).unsqueeze(-1) / batch["audio"].shape[1]
+        loss_value = torch.mean(loss_array).unsqueeze(-1) / batch["audio"].shape[1]
+
+        logdet_mean = torch.mean(logdet).unsqueeze(-1) / batch["audio"].shape[1]
+        logdet_std = torch.std(logdet).unsqueeze(-1) / batch["audio"].shape[1]
+
+        prior_norm = prior_nll / batch["audio"].shape[1]
+        prior_mean = torch.mean(prior_norm).unsqueeze(-1)
+        prior_std = torch.std(prior_norm).unsqueeze(-1)
+        prior_min = torch.min(prior_norm).unsqueeze(-1)
+        prior_max = torch.max(prior_norm).unsqueeze(-1)
 
         #deranged_batch = self.derange_batch(batch)
         #_, deranged_loss, _ = self(deranged_batch)
 
-        tb_log = {"Train/loss": loss_val, "Train/logdet":logdet_val, "Train/prior_nll": prior_val} #, "Loss/missmatched_nll": deranged_loss}
+        tb_log = {"Loss/train": loss_value, "Training_log/logdet_mean": logdet_mean, "Training_log/prior_nll_mean": prior_mean,
+                  "Training_log/prior_nll_min": prior_min, "Training_log/prior_nll_max": prior_max,
+                  "Training_log/logdet_std": logdet_std, "Training_log/prior_nll_std": prior_std} #, "Loss/missmatched_nll": deranged_loss}
 
-        if self.hparams.optuna and self.global_step > 20 and loss_val > 1000:
-            message = f"Trial was pruned since loss > 1000"
+        if self.hparams.optuna and self.global_step > 20 and loss_value > 1000:
+            message = f"Trial was pruned since training loss > 1000"
             raise optuna.exceptions.TrialPruned(message)
 
-        return {"loss": loss_val, "log": tb_log}
+        return {"loss": loss_value, "log": tb_log}
 
 
     def validation_step(self, batch, batch_idx):
@@ -142,7 +151,7 @@ class GestureFlow(LightningModule):
         loss_array = -logdet + prior_nll
         loss = torch.mean(loss_array).unsqueeze(-1) / batch["audio"].shape[1]
 
-        if self.hparams.optuna and self.global_step > 20 and loss > 1000:
+        if self.hparams.optuna and self.global_step > 20 and loss > 10000:
             message = f"Trial was pruned since loss > 1000"
             raise optuna.exceptions.TrialPruned(message)
         output = {"val_loss": loss}

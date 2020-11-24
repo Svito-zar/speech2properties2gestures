@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from tqdm import tqdm
+import random
 
 from my_code.flow_pytorch.glow import modules, thops, utils
 
@@ -218,6 +219,13 @@ class FlowStep(nn.Module):
             h = self.f(z1, condition)
             shift, scale = thops.split_feature(h, "cross")
             scale = torch.sigmoid(scale + 2.0).clamp(self.scale_eps)
+
+            # DEBUG
+            if random.randint(0, 1000) == 1:
+                print(shift)
+                print(scale)
+
+
             if self.scale_logging:
                 self.scale = scale
             z2 = z2 + shift
@@ -470,6 +478,7 @@ class SeqFlowNet(nn.Module):
             # For DEBUG use zeros
             log_sigma = torch.zeros_like(sigma)
             mu = torch.zeros_like(mu)
+            sigma = torch.ones_like(sigma)
 
             nll = - DiagGaussian.log_likelihood(mu, log_sigma, curr_z)
 
