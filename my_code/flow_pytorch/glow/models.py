@@ -221,7 +221,7 @@ class FlowStep(nn.Module):
             scale = torch.sigmoid(scale + 2.0).clamp(self.scale_eps)
 
             # DEBUG
-            if random.randint(0, 1000) == 1:
+            if random.randint(0, 15000) == 1:
                 print(shift)
                 print(scale)
 
