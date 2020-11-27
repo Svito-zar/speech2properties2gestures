@@ -57,9 +57,8 @@ class ActNorm2d(nn.Module):
         if logdet is not None:
             """
             logs is log_std of `mean of channels`
-            so we need to multiply on the channel length
             """
-            dlogdet = thops.sum(logs) * input.size(1)
+            dlogdet = thops.sum(logs)
             if reverse:
                 dlogdet *= -1
             logdet = logdet + dlogdet
