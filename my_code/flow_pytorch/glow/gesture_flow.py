@@ -86,7 +86,8 @@ class GestureFlow(LightningModule):
 
         z_seq, logdet, prior_nll, mu, sigma = self.seq_flow(batch)
 
-        self.log_scales(torch.mean(mu, dim=0), "mu", torch.mean(sigma,dim=0), "sigma")
+        if self.hparams.Validation["scale_logging"]:
+            self.log_scales(torch.mean(mu, dim=0), "mu", torch.mean(sigma,dim=0), "sigma")
 
         return z_seq, logdet, prior_nll
 
@@ -120,7 +121,7 @@ class GestureFlow(LightningModule):
 
         _, logdet, prior_nll = self(batch)
 
-        loss_array = -logdet + prior_nll
+        loss_array = prior_nll -logdet
 
         loss_value = torch.mean(loss_array).unsqueeze(-1) / batch["audio"].shape[1]
 
@@ -137,8 +138,8 @@ class GestureFlow(LightningModule):
         #_, deranged_loss, _ = self(deranged_batch)
 
         if random.randint(0, 5) == 1:
-            self.log_histogram(prior_nll, "tr_logs/prior_nll")
-            self.log_histogram(logdet, "tr_logs/logdet")
+            self.log_histogram(prior_nll / batch["audio"].shape[1], "tr_logs/prior_nll")
+            self.log_histogram(logdet / batch["audio"].shape[1], "tr_logs/logdet")
 
         tb_log = {"Loss/train": loss_value}
                  #, "Training_log/logdet_mean": logdet_mean, "Training_log/prior_nll_mean": prior_mean,

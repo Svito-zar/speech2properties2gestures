@@ -220,12 +220,6 @@ class FlowStep(nn.Module):
             shift, scale = thops.split_feature(h, "cross")
             scale = torch.sigmoid(scale + 2.0).clamp(self.scale_eps)
 
-            # DEBUG
-            if random.randint(0, 15000) == 1:
-                print(shift)
-                print(scale)
-
-
             if self.scale_logging:
                 self.scale = scale
             z2 = z2 + shift
@@ -475,11 +469,6 @@ class SeqFlowNet(nn.Module):
 
             log_sigma = torch.log(sigma)
 
-            # For DEBUG use zeros
-            log_sigma = torch.zeros_like(sigma)
-            mu = torch.zeros_like(mu)
-            sigma = torch.ones_like(sigma)
-
             nll = - DiagGaussian.log_likelihood(mu, log_sigma, curr_z)
 
             total_nll += nll
@@ -517,11 +506,6 @@ class SeqFlowNet(nn.Module):
             mu = torch.tanh(mu)
 
             log_sigma = torch.log(sigma)
-
-            # For DEBUG use zeros
-            log_sigma = torch.zeros_like(sigma)
-            mu = torch.zeros_like(mu)
-            sigma = torch.ones_like(sigma)
 
             # sample
             curr_z = modules.DiagGaussian.sample(mu, sigma).to(curr_cond.device)
