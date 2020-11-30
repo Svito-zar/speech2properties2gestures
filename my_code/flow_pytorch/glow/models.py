@@ -163,9 +163,9 @@ class FlowStep(nn.Module):
 
                 # Add current encoding "z" to the sequence of encodings
                 if z_seq is None:
-                    z_seq = curr_z.unsqueeze(dim=1).detach()
+                    z_seq = curr_z.unsqueeze(dim=1)
                 else:
-                    z_seq = torch.cat((z_seq, curr_z.unsqueeze(dim=1).detach()), 1)
+                    z_seq = torch.cat((z_seq, curr_z.unsqueeze(dim=1)), 1)
 
             return z_seq, logdet
 
@@ -381,9 +381,9 @@ class SeqFlowNet(nn.Module):
             curr_cond = self.create_conditioning(condition_speech_info, time_st)
 
             if cond_seq is None:
-                cond_seq = curr_cond.unsqueeze(dim=1).detach()
+                cond_seq = curr_cond.unsqueeze(dim=1)
             else:
-                cond_seq = torch.cat((cond_seq, curr_cond.unsqueeze(dim=1).detach()), 1)
+                cond_seq = torch.cat((cond_seq, curr_cond.unsqueeze(dim=1)), 1)
 
         speech_cond_seq = cond_seq
 
