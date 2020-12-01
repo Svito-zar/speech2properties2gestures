@@ -283,7 +283,7 @@ class FlowStep(nn.Module):
             assert curr_cond is not None
 
             if self.flow_coupling == "additive":
-                z2 = z2 + self.f(z1, curr_cond)
+                z2 = z2 - self.f(z1, curr_cond)
             elif self.flow_coupling == "affine":
                 h = self.f(z1, curr_cond)
                 shift, scale = thops.split_feature(h, "cross")
@@ -291,9 +291,9 @@ class FlowStep(nn.Module):
 
                 if self.scale_logging:
                     self.scale = scale
-                z2 = z2 + shift
-                z2 = z2 * scale
-                logdet = thops.sum(torch.log(scale), dim=[1]) + logdet
+                z2 = z2 / scale
+                z2 = z2 - shift
+                logdet = -thops.sum(torch.log(scale), dim=[1]) + logdet
 
             curr_z3 = thops.cat_feature(z1, z2)
 
@@ -309,7 +309,7 @@ class FlowStep(nn.Module):
             curr_z3 = z3_seq[:, time_st, :]
 
             curr_z2, logdet = FlowStep.FlowPermutation[self.flow_permutation](
-                self, curr_z3.float(), logdet, False
+                self, curr_z3.float(), logdet, True
             )
 
             # Add current encoding "z" to the sequence of encodings
@@ -322,7 +322,7 @@ class FlowStep(nn.Module):
         for time_st in range(seq_len):
             curr_z2 = z2_seq[:, time_st, :]
 
-            z, logdet = self.actnorm(curr_z2, logdet=logdet, reverse=False)
+            z, logdet = self.actnorm(curr_z2, logdet=logdet, reverse=True)
 
             curr_z1 = z
 
@@ -499,8 +499,6 @@ class SeqFlowNet(nn.Module):
         logdet = 0.0
         for layer in reversed(self.layers):
             z_seq, logdet = layer(z_seq, condition_seq, logdet, reverse=True)
-
-        nll = logdet + prior_nll
 
         debug = False
         if debug:
