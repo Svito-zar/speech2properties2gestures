@@ -172,30 +172,54 @@ class FlowStep(nn.Module):
             logdet:       log determinant of the Jacobian from the previous operations
 
         Returns:
-            z_seq:        output sequence in "Z" space
+            z3_seq:       output sequence in "Z" space
             logdet:       new value of log determinant of the Jacobian
         """
 
-        z_seq = None
+        z1_seq = None
+        z2_seq = None
+        z3_seq = None
         seq_len = input_seq.shape[1]
 
+        #### Go though each steps of the flow separately for the whole sequence
+
+        # 1. actnorm
         for time_st in range(seq_len):
             curr_output = input_seq[:, time_st, :]
 
-            curr_cond = sp_cond_seq[:, time_st, :]
-
-            #### Go though all the steps of the flow
-
-            # 1. actnorm
             z, logdet = self.actnorm(curr_output, logdet=logdet, reverse=False)
 
-            # 2. permute
-            z, logdet = FlowStep.FlowPermutation[self.flow_permutation](
-                self, z.float(), logdet, False
+            curr_z1 = z
+
+            # Add current encoding "z" to the sequence of encodings of the 1st operation
+            if z1_seq is None:
+                z1_seq = curr_z1.unsqueeze(dim=1)
+            else:
+                z1_seq = torch.cat((z1_seq, curr_z1.unsqueeze(dim=1)), 1)
+
+        # 2. permute
+        for time_st in range(seq_len):
+
+            curr_z1 = z1_seq[:, time_st, :]
+
+            curr_z2, logdet = FlowStep.FlowPermutation[self.flow_permutation](
+                self, curr_z1.float(), logdet, False
             )
 
-            # 3. coupling
-            z1, z2 = thops.split_feature(z, "split")
+            # Add current encoding "z" to the sequence of encodings
+            if z2_seq is None:
+                z2_seq = curr_z2.unsqueeze(dim=1)
+            else:
+                z2_seq = torch.cat((z2_seq, curr_z2.unsqueeze(dim=1)), 1)
+
+        # 3. coupling
+        for time_st in range(seq_len):
+
+            curr_z2  = z2_seq[:, time_st, :]
+
+            curr_cond = sp_cond_seq[:, time_st, :]
+
+            z1, z2 = thops.split_feature(curr_z2, "split")
 
             # Require some conditioning
             assert curr_cond is not None
@@ -215,15 +239,15 @@ class FlowStep(nn.Module):
 
             z = thops.cat_feature(z1, z2)
 
-            curr_z = z
+            final_z = z
 
             # Add current encoding "z" to the sequence of encodings
-            if z_seq is None:
-                z_seq = curr_z.unsqueeze(dim=1)
+            if z3_seq is None:
+                z3_seq = final_z.unsqueeze(dim=1)
             else:
-                z_seq = torch.cat((z_seq, curr_z.unsqueeze(dim=1)), 1)
+                z3_seq = torch.cat((z3_seq, final_z.unsqueeze(dim=1)), 1)
 
-        return z_seq, logdet
+        return z3_seq, logdet
 
     def reverse_flow(self, input_seq, cond_seq, logdet):
         """
@@ -235,54 +259,80 @@ class FlowStep(nn.Module):
             logdet:       log determinant of the Jacobian from the previous operations
 
         Returns:
-            z_seq:        output sequence in "X" space
+            z1_seq:       output sequence in "X" space
             logdet:       new value of log determinant of the Jacobian
         """
 
-        z_seq = None
+        z1_seq = None
+        z2_seq = None
+        z3_seq = None
         seq_len = input_seq.shape[1]
 
+        #### Go though each steps of the flow separately for the whole sequence
+
+        # 3. coupling
         for time_st in range(seq_len):
+
             curr_output = input_seq[:, time_st, :]
 
             curr_cond = cond_seq[:, time_st, :]
 
-
-            ######## Go through all the steps of the flow:
-
-            # 1.coupling
             z1, z2 = thops.split_feature(curr_output, "split")
 
             # Require some conditioning
             assert curr_cond is not None
 
             if self.flow_coupling == "additive":
-                z2 = z2 - self.f(z1, curr_cond)
+                z2 = z2 + self.f(z1, curr_cond)
             elif self.flow_coupling == "affine":
                 h = self.f(z1, curr_cond)
                 shift, scale = thops.split_feature(h, "cross")
                 scale = torch.sigmoid(scale + 2.0).clamp(self.scale_eps)
-                z2 = z2 / scale
-                z2 = z2 - shift
 
-                logdet = -thops.sum(torch.log(scale), dim=[1]) + logdet
-            z = thops.cat_feature(z1, z2)
-            # 2. permute
-            z, logdet = FlowStep.FlowPermutation[self.flow_permutation](
-                self, z, logdet, True
-            )
-            # 3. actnorm
-            z, logdet = self.actnorm(z, logdet=logdet, reverse=True)
+                if self.scale_logging:
+                    self.scale = scale
+                z2 = z2 + shift
+                z2 = z2 * scale
+                logdet = thops.sum(torch.log(scale), dim=[1]) + logdet
 
-            curr_z = z
+            curr_z3 = thops.cat_feature(z1, z2)
 
-            # Add z into the sequence
-            if z_seq is None:
-                z_seq = curr_z.unsqueeze(dim=1).detach()
+            # Add current encoding "z" to the sequence of encodings
+            if z3_seq is None:
+                z3_seq = curr_z3.unsqueeze(dim=1)
             else:
-                z_seq = torch.cat((z_seq, curr_z.unsqueeze(dim=1).detach()), 1)
+                z3_seq = torch.cat((z3_seq, curr_z3.unsqueeze(dim=1)), 1)
 
-        return z_seq, logdet
+        # 2. permute
+        for time_st in range(seq_len):
+
+            curr_z3 = z3_seq[:, time_st, :]
+
+            curr_z2, logdet = FlowStep.FlowPermutation[self.flow_permutation](
+                self, curr_z3.float(), logdet, False
+            )
+
+            # Add current encoding "z" to the sequence of encodings
+            if z2_seq is None:
+                z2_seq = curr_z2.unsqueeze(dim=1)
+            else:
+                z2_seq = torch.cat((z2_seq, curr_z2.unsqueeze(dim=1)), 1)
+
+        # 1. actnorm
+        for time_st in range(seq_len):
+            curr_z2 = z2_seq[:, time_st, :]
+
+            z, logdet = self.actnorm(curr_z2, logdet=logdet, reverse=False)
+
+            curr_z1 = z
+
+            # Add current encoding "z" to the sequence of encodings of the 1st operation
+            if z1_seq is None:
+                z1_seq = curr_z1.unsqueeze(dim=1)
+            else:
+                z1_seq = torch.cat((z1_seq, curr_z1.unsqueeze(dim=1)), 1)
+
+        return z1_seq, logdet
 
 class SeqFlowNet(nn.Module):
     """
