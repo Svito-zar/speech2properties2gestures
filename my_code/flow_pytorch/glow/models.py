@@ -150,24 +150,8 @@ class FlowStep(nn.Module):
 
             if logdet is None:
                 logdet = torch.zeros_like(input_seq_[:, 0, 0])
-            z_seq = None
-            seq_len = input_seq_.shape[1]
 
-            for time_st in range(seq_len):
-                curr_output = input_seq_[:, time_st, :]
-
-                curr_cond = speech_cond_seq[:, time_st, :]
-
-                curr_z, logdet  = self.normal_flow(curr_output, curr_cond, logdet)
-                # ToDo: should it be one log_det for the whole sequence?
-
-                # Add current encoding "z" to the sequence of encodings
-                if z_seq is None:
-                    z_seq = curr_z.unsqueeze(dim=1)
-                else:
-                    z_seq = torch.cat((z_seq, curr_z.unsqueeze(dim=1)), 1)
-
-            return z_seq, logdet
+            return self.normal_flow(input_seq_, speech_cond_seq, logdet)
 
         else:
 
@@ -175,89 +159,130 @@ class FlowStep(nn.Module):
 
             if logdet is None:
                 logdet = torch.zeros_like(input_seq_[:, 0, 0])
-            z_seq = None
-            seq_len = input_seq_.shape[1]
 
-            for time_st in range(seq_len):
-                    curr_output = input_seq_[:, time_st, :]
+            return self.reverse_flow(input_seq_, speech_cond_seq, logdet)
 
-                    curr_cond = speech_cond_seq[:, time_st, :]
-
-                    curr_z, logdet = self.reverse_flow(curr_output, curr_cond, logdet)
-                    # ToDo: should it be one log_det for the whole sequence?
-
-                    # Add z into the sequence
-                    if z_seq is None:
-                        z_seq = curr_z.unsqueeze(dim=1).detach()
-                    else:
-                        z_seq = torch.cat((z_seq, curr_z.unsqueeze(dim=1).detach()), 1)
-
-            return z_seq, logdet
-
-    def normal_flow(self, input_, condition, logdet):
+    def normal_flow(self, input_seq, sp_cond_seq, logdet):
         """
         Forward path
+
+        Args:
+            input_seq:    input sequence in "X" space
+            sp_cond_seq:  sequence with speech conditioning
+            logdet:       log determinant of the Jacobian from the previous operations
+
+        Returns:
+            z_seq:        output sequence in "Z" space
+            logdet:       new value of log determinant of the Jacobian
         """
 
-        # 1. actnorm
-        z, logdet = self.actnorm(input_, logdet=logdet, reverse=False)
+        z_seq = None
+        seq_len = input_seq.shape[1]
 
-        # 2. permute
-        z, logdet = FlowStep.FlowPermutation[self.flow_permutation](
-            self, z.float(), logdet, False
-        )
+        for time_st in range(seq_len):
+            curr_output = input_seq[:, time_st, :]
 
-        # 3. coupling
-        z1, z2 = thops.split_feature(z, "split")
+            curr_cond = sp_cond_seq[:, time_st, :]
 
-        # Require some conditioning
-        assert condition is not None
+            #### Go though all the steps of the flow
 
-        if self.flow_coupling == "additive":
-            z2 = z2 + self.f(z1, condition)
-        elif self.flow_coupling == "affine":
-            h = self.f(z1, condition)
-            shift, scale = thops.split_feature(h, "cross")
-            scale = torch.sigmoid(scale + 2.0).clamp(self.scale_eps)
+            # 1. actnorm
+            z, logdet = self.actnorm(curr_output, logdet=logdet, reverse=False)
 
-            if self.scale_logging:
-                self.scale = scale
-            z2 = z2 + shift
-            z2 = z2 * scale
-            logdet = thops.sum(torch.log(scale), dim=[1]) + logdet
-        z = thops.cat_feature(z1, z2)
-        return z, logdet
+            # 2. permute
+            z, logdet = FlowStep.FlowPermutation[self.flow_permutation](
+                self, z.float(), logdet, False
+            )
 
-    def reverse_flow(self, input_, condition, logdet):
+            # 3. coupling
+            z1, z2 = thops.split_feature(z, "split")
+
+            # Require some conditioning
+            assert curr_cond is not None
+
+            if self.flow_coupling == "additive":
+                z2 = z2 + self.f(z1, curr_cond)
+            elif self.flow_coupling == "affine":
+                h = self.f(z1, curr_cond)
+                shift, scale = thops.split_feature(h, "cross")
+                scale = torch.sigmoid(scale + 2.0).clamp(self.scale_eps)
+
+                if self.scale_logging:
+                    self.scale = scale
+                z2 = z2 + shift
+                z2 = z2 * scale
+                logdet = thops.sum(torch.log(scale), dim=[1]) + logdet
+
+            z = thops.cat_feature(z1, z2)
+
+            curr_z = z
+
+            # Add current encoding "z" to the sequence of encodings
+            if z_seq is None:
+                z_seq = curr_z.unsqueeze(dim=1)
+            else:
+                z_seq = torch.cat((z_seq, curr_z.unsqueeze(dim=1)), 1)
+
+        return z_seq, logdet
+
+    def reverse_flow(self, input_seq, cond_seq, logdet):
         """
         Backward path
+
+        Args:
+            input_seq:    input sequence in "Z" space
+            cond_seq:     sequence with conditioning information
+            logdet:       log determinant of the Jacobian from the previous operations
+
+        Returns:
+            z_seq:        output sequence in "X" space
+            logdet:       new value of log determinant of the Jacobian
         """
 
-        # 1.coupling
-        z1, z2 = thops.split_feature(input_, "split")
+        z_seq = None
+        seq_len = input_seq.shape[1]
 
-        # Require some conditioning
-        assert condition is not None
+        for time_st in range(seq_len):
+            curr_output = input_seq[:, time_st, :]
 
-        if self.flow_coupling == "additive":
-            z2 = z2 - self.f(z1, condition)
-        elif self.flow_coupling == "affine":
-            h = self.f(z1, condition)
-            shift, scale = thops.split_feature(h, "cross")
-            scale = torch.sigmoid(scale + 2.0).clamp(self.scale_eps)
-            z2 = z2 / scale
-            z2 = z2 - shift
+            curr_cond = cond_seq[:, time_st, :]
 
-            logdet = -thops.sum(torch.log(scale), dim=[1]) + logdet
-        z = thops.cat_feature(z1, z2)
-        # 2. permute
-        z, logdet = FlowStep.FlowPermutation[self.flow_permutation](
-            self, z, logdet, True
-        )
-        # 3. actnorm
-        z, logdet = self.actnorm(z, logdet=logdet, reverse=True)
-        return z, logdet
 
+            ######## Go through all the steps of the flow:
+
+            # 1.coupling
+            z1, z2 = thops.split_feature(curr_output, "split")
+
+            # Require some conditioning
+            assert curr_cond is not None
+
+            if self.flow_coupling == "additive":
+                z2 = z2 - self.f(z1, curr_cond)
+            elif self.flow_coupling == "affine":
+                h = self.f(z1, curr_cond)
+                shift, scale = thops.split_feature(h, "cross")
+                scale = torch.sigmoid(scale + 2.0).clamp(self.scale_eps)
+                z2 = z2 / scale
+                z2 = z2 - shift
+
+                logdet = -thops.sum(torch.log(scale), dim=[1]) + logdet
+            z = thops.cat_feature(z1, z2)
+            # 2. permute
+            z, logdet = FlowStep.FlowPermutation[self.flow_permutation](
+                self, z, logdet, True
+            )
+            # 3. actnorm
+            z, logdet = self.actnorm(z, logdet=logdet, reverse=True)
+
+            curr_z = z
+
+            # Add z into the sequence
+            if z_seq is None:
+                z_seq = curr_z.unsqueeze(dim=1).detach()
+            else:
+                z_seq = torch.cat((z_seq, curr_z.unsqueeze(dim=1).detach()), 1)
+
+        return z_seq, logdet
 
 class SeqFlowNet(nn.Module):
     """
