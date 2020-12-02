@@ -20,26 +20,27 @@ class f_seq(nn.Module):
         input_size,
         output_size,
         hidden_size,
-        cond_dim,
-        rnn_type,
+        sp_cond_dim,
+        temporal_cond_dim,
     ):
         """
         input_size:             (glow) channels
         output_size:            output channels (ToDo: should be equal to input_size?)
         hidden_size:            size of the hidden layer of the NN
-        cond_dim:               final dim. of the conditioning info
-        rnn_type:               GRU/LSTM
+        sp_cond_dim:            dim. of the speech conditioning info
+        temporal_cond_dim:      dim. of the temporal conditioning info (from neighbouring flow steps)
         """
         super().__init__()
         self.hidden_size = hidden_size
         self.input_size = input_size
         self.output_size = output_size
+        self.cond_dim = sp_cond_dim + temporal_cond_dim
 
         #self.cond_transform = nn.Sequential(
         #    nn.Linear(feature_encoder_dim, cond_dim), nn.LeakyReLU(),
         #)
 
-        self.input_hidden = nn.Sequential(nn.Linear(input_size + cond_dim, hidden_size), nn.LeakyReLU(), nn.Dropout(0.2))
+        self.input_hidden = nn.Sequential(nn.Linear(input_size + self.cond_dim, hidden_size), nn.LeakyReLU(), nn.Dropout(0.2))
 
         self.final_linear = modules.LinearZeros(hidden_size, output_size)
         self.hidden = None
@@ -89,6 +90,7 @@ class FlowStep(nn.Module):
 
         self.flow_permutation = flow_permutation
         self.flow_coupling = flow_coupling
+        self.temp_conf_window = hparams.Glow["conv_seq_len"]
 
         # Custom
         self.scale = None
@@ -116,14 +118,17 @@ class FlowStep(nn.Module):
         else:
             self.reverse = modules.Permute2d(in_channels, shuffle=False)
 
+
+
         # 3. coupling
+        temp_cond_length = hparams.Glow["distr_dim"] // 2 * (hparams.Glow["conv_seq_len"] * 2 + 1)
         if flow_coupling == "additive":
             self.f = f_seq(
                 in_channels // 2,
                 in_channels - in_channels // 2,
                 hidden_channels,
                 cond_dim,
-                glow_rnn_type,
+                temp_cond_length,
             )
         elif flow_coupling == "affine":
             if in_channels % 2 == 0:
@@ -132,7 +137,7 @@ class FlowStep(nn.Module):
                     in_channels,
                     hidden_channels,
                     cond_dim,
-                    glow_rnn_type,
+                    temp_cond_length,
                 )
             else:
                 self.f = f_seq(
@@ -140,9 +145,42 @@ class FlowStep(nn.Module):
                     in_channels + 1,
                     hidden_channels,
                     cond_dim,
-                    glow_rnn_type,
+                    temp_cond_length,
                 )
 
+
+    def from_z_sequence_to_cond(self, z_seq, seqlen, z_val, time_st):
+        """
+        Obtain z sequence conditioning info with padding if needed
+        Args:
+            z_seq:   full sequence of z_low values
+            seqlen:  sequence length
+            z_val:   current z_low value in the sequence
+            time_st: current time-step
+
+        Returns:
+            flow_conv_cond:   feature vector corresponding to the conditioning info
+
+        """
+
+        # For the first few frames - pad with repeating current frame
+        if time_st < self.temp_conf_window:
+            future_cond = torch.flatten(z_seq[:, :time_st + self.temp_conf_window + 1, :], start_dim=1, end_dim=2)
+            padding = z_val.tile(self.temp_conf_window - time_st, 1)
+            flow_conv_cond = torch.cat((padding, future_cond), dim=1)
+
+        # For the last few frames - pad with repeating current frame
+        elif time_st >= seqlen - self.temp_conf_window:
+            past_cond = torch.flatten(z_seq[:, time_st - self.temp_conf_window:, :], start_dim=1, end_dim=2)
+            padding = z_val.tile(self.temp_conf_window + seqlen - time_st - 1, 1)
+            flow_conv_cond = torch.cat((past_cond, padding), dim=1)
+
+        else:
+            flow_conv_cond = torch.flatten(
+                z_seq[:, time_st - self.temp_conf_window:time_st + self.temp_conf_window + 1, :],
+                start_dim=1,end_dim=2)
+
+        return flow_conv_cond
 
     def forward(self, input_seq_, speech_cond_seq, logdet=None, reverse=False):
 
@@ -188,9 +226,7 @@ class FlowStep(nn.Module):
         for time_st in range(seq_len):
             curr_output = input_seq[:, time_st, :]
 
-            z, logdet = self.actnorm(curr_output, logdet=logdet, reverse=False)
-
-            curr_z1 = z
+            curr_z1, logdet = self.actnorm(curr_output, logdet=logdet, reverse=False)
 
             # Add current encoding "z" to the sequence of encodings of the 1st operation
             if z1_seq is None:
@@ -206,7 +242,6 @@ class FlowStep(nn.Module):
             curr_z2, logdet = FlowStep.FlowPermutation[self.flow_permutation](
                 self, curr_z1.float(), logdet, False
             )
-
 
             # 3.1 split on upper and lower
 
@@ -230,7 +265,11 @@ class FlowStep(nn.Module):
             curr_z2_l = z2_l_seq[:, time_st, :]
             curr_z2_u = z2_u_seq[:, time_st, :]
 
-            curr_cond = sp_cond_seq[:, time_st, :]
+            speech_cond = sp_cond_seq[:, time_st, :]
+
+            flow_conv_cond = self.from_z_sequence_to_cond(z2_l_seq, seq_len, curr_z2_l, time_st)
+
+            curr_cond = torch.cat((speech_cond, flow_conv_cond), dim=1)
 
             # Require some conditioning
             assert curr_cond is not None
@@ -305,10 +344,14 @@ class FlowStep(nn.Module):
         # 3.2 coupling
         for time_st in range(seq_len):
 
-            curr_cond = cond_seq[:, time_st, :]
-
             zl = input_l_seq[:, time_st, :]
             zu = input_u_seq[:, time_st, :]
+
+            speech_cond = cond_seq[:, time_st, :]
+
+            flow_conv_cond = self.from_z_sequence_to_cond(input_l_seq, seq_len, zl, time_st)
+
+            curr_cond = torch.cat((speech_cond, flow_conv_cond), dim=1)
 
             # Require some conditioning
             assert curr_cond is not None
@@ -415,7 +458,7 @@ class SeqFlowNet(nn.Module):
                                                nn.LeakyReLU(), nn.Dropout(hparams.dropout))
 
         # Map conditioning to prior
-        self.cond2prior = nn.Linear(hparams.Glow["cond_dim"], hparams.Glow["distr_dim"]*2)
+        self.cond2prior = nn.Linear(hparams.Glow["speech_cond_dim"], hparams.Glow["distr_dim"]*2)
 
         for l in range(L):
 
@@ -634,7 +677,7 @@ class Seq_Flow(nn.Module):
         self.flow = SeqFlowNet(
             C=hparams.Glow["distr_dim"],
             hidden_channels=hparams.Glow["hidden_channels"],
-            cond_dim=hparams.Glow["cond_dim"],
+            cond_dim=hparams.Glow["speech_cond_dim"],
             hparams=hparams,
             K=hparams.Glow["K"],
             L=hparams.Glow["L"],
