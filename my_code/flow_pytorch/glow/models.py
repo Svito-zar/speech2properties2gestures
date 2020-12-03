@@ -149,13 +149,12 @@ class FlowStep(nn.Module):
                 )
 
 
-    def from_z_sequence_to_cond(self, z_seq, seqlen, z_val, time_st):
+    def from_z_sequence_to_cond(self, z_seq, seqlen, time_st):
         """
         Obtain z sequence conditioning info with padding if needed
         Args:
             z_seq:   full sequence of z_low values
             seqlen:  sequence length
-            z_val:   current z_low value in the sequence
             time_st: current time-step
 
         Returns:
@@ -165,14 +164,16 @@ class FlowStep(nn.Module):
 
         # For the first few frames - pad with repeating current frame
         if time_st < self.temp_conf_window:
+            z_pad = z_seq[:, 0,:]
             future_cond = torch.flatten(z_seq[:, :time_st + self.temp_conf_window + 1, :], start_dim=1, end_dim=2)
-            padding = z_val.tile(self.temp_conf_window - time_st, 1)
+            padding = z_pad.tile(1, self.temp_conf_window - time_st)
             flow_conv_cond = torch.cat((padding, future_cond), dim=1)
 
         # For the last few frames - pad with repeating current frame
         elif time_st >= seqlen - self.temp_conf_window:
+            z_pad = z_seq[:, -1, :]
             past_cond = torch.flatten(z_seq[:, time_st - self.temp_conf_window:, :], start_dim=1, end_dim=2)
-            padding = z_val.tile(self.temp_conf_window + seqlen - time_st - 1, 1)
+            padding = z_pad.tile(1, self.temp_conf_window - (seqlen - time_st - 1))
             flow_conv_cond = torch.cat((past_cond, padding), dim=1)
 
         else:
@@ -267,7 +268,7 @@ class FlowStep(nn.Module):
 
             speech_cond = sp_cond_seq[:, time_st, :]
 
-            flow_conv_cond = self.from_z_sequence_to_cond(z2_l_seq, seq_len, curr_z2_l, time_st)
+            flow_conv_cond = self.from_z_sequence_to_cond(z2_l_seq, seq_len, time_st)
 
             curr_cond = torch.cat((speech_cond, flow_conv_cond), dim=1)
 
@@ -349,7 +350,7 @@ class FlowStep(nn.Module):
 
             speech_cond = cond_seq[:, time_st, :]
 
-            flow_conv_cond = self.from_z_sequence_to_cond(input_l_seq, seq_len, zl, time_st)
+            flow_conv_cond = self.from_z_sequence_to_cond(input_l_seq, seq_len, time_st)
 
             curr_cond = torch.cat((speech_cond, flow_conv_cond), dim=1)
 
