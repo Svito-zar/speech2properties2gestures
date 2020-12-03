@@ -599,7 +599,7 @@ class SeqFlowNet(nn.Module):
 
         """
         seq_len = cond_info_seq.shape[1]
-        eps = 1e-5
+        eps = 0.3
         total_nll = 0
 
         for time_st in range(seq_len):
@@ -637,7 +637,7 @@ class SeqFlowNet(nn.Module):
 
         """
         seq_len = cond_info_seq.shape[1]
-        eps = 1e-5
+        eps = 0.3
         total_nll = 0
         z_seq = None
 
