@@ -58,7 +58,7 @@ class FlowStep(nn.Module):
     FlowPermutation = {
         "reverse": lambda obj, z, logdet, rev: (obj.reverse(z, rev), logdet),
         "shuffle": lambda obj, z, logdet, rev: (obj.shuffle(z, rev), logdet),
-        "invconv": lambda obj, z, logdet, rev: obj.invconv(z, logdet, rev),
+        "invconv": lambda obj, z, logdet, seq_len, rev: obj.invconv(z, logdet, seq_len,  rev),
     }
 
     def __init__(
@@ -215,7 +215,6 @@ class FlowStep(nn.Module):
             logdet:       new value of log determinant of the Jacobian
         """
 
-        z1_seq = None
         z2_l_seq = None
         z2_u_seq = None
         z3_seq = None
@@ -223,26 +222,24 @@ class FlowStep(nn.Module):
 
         #### Go though each steps of the flow separately for the whole sequence
 
+        # 0. flatten
+        tensor_shape = input_seq.shape
+        flatten_input = torch.flatten(input_seq, start_dim=0, end_dim=1)
+
         # 1. actnorm
-        for time_st in range(seq_len):
-            curr_output = input_seq[:, time_st, :]
-
-            curr_z1, logdet = self.actnorm(curr_output, logdet=logdet, reverse=False)
-
-            # Add current encoding "z" to the sequence of encodings of the 1st operation
-            if z1_seq is None:
-                z1_seq = curr_z1.unsqueeze(dim=1)
-            else:
-                z1_seq = torch.cat((z1_seq, curr_z1.unsqueeze(dim=1)), 1)
+        flatten_z1_seq, logdet = self.actnorm(flatten_input, logdet=logdet, seq_len = seq_len, reverse=False)
 
         # 2. permute
+        flatten_z2_seq, logdet = FlowStep.FlowPermutation[self.flow_permutation](
+                self, flatten_z1_seq.float(), logdet, seq_len, False
+            )
+
+        # reshape
+        seq_z2 = torch.reshape(flatten_z2_seq, tensor_shape)
+
         for time_st in range(seq_len):
 
-            curr_z1 = z1_seq[:, time_st, :]
-
-            curr_z2, logdet = FlowStep.FlowPermutation[self.flow_permutation](
-                self, curr_z1.float(), logdet, False
-            )
+            curr_z2 = seq_z2[:, time_st, :]
 
             # 3.1 split on upper and lower
 
@@ -312,8 +309,6 @@ class FlowStep(nn.Module):
             logdet:       new value of log determinant of the Jacobian
         """
 
-        z1_seq = None
-        z2_seq = None
         z3_seq = None
         input_u_seq = None
         input_l_seq = None
@@ -378,34 +373,19 @@ class FlowStep(nn.Module):
             else:
                 z3_seq = torch.cat((z3_seq, curr_z3.unsqueeze(dim=1)), 1)
 
+        # flatten
+        tensor_shape = z3_seq.shape
+        flatten_z3_seq = torch.flatten(z3_seq, start_dim=0, end_dim=1)
+
         # 2. permute
-        for time_st in range(seq_len):
-
-            curr_z3 = z3_seq[:, time_st, :]
-
-            curr_z2, logdet = FlowStep.FlowPermutation[self.flow_permutation](
-                self, curr_z3.float(), logdet, True
-            )
-
-            # Add current encoding "z" to the sequence of encodings
-            if z2_seq is None:
-                z2_seq = curr_z2.unsqueeze(dim=1)
-            else:
-                z2_seq = torch.cat((z2_seq, curr_z2.unsqueeze(dim=1)), 1)
+        flatten_z2_seq, logdet = FlowStep.FlowPermutation[self.flow_permutation](
+                self, flatten_z3_seq.float(), logdet, seq_len, True)
 
         # 1. actnorm
-        for time_st in range(seq_len):
-            curr_z2 = z2_seq[:, time_st, :]
+        flatten_z1_seq, logdet = self.actnorm(flatten_z2_seq, logdet=logdet, seq_len=seq_len, reverse=True)
 
-            z, logdet = self.actnorm(curr_z2, logdet=logdet, reverse=True)
-
-            curr_z1 = z
-
-            # Add current encoding "z" to the sequence of encodings of the 1st operation
-            if z1_seq is None:
-                z1_seq = curr_z1.unsqueeze(dim=1)
-            else:
-                z1_seq = torch.cat((z1_seq, curr_z1.unsqueeze(dim=1)), 1)
+        # reshape
+        z1_seq = torch.reshape(flatten_z1_seq, tensor_shape)
 
         return z1_seq, logdet
 

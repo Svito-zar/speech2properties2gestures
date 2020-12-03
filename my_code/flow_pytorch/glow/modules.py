@@ -48,7 +48,7 @@ class ActNorm2d(nn.Module):
         else:
             return input - self.bias
 
-    def _scale(self, input, logdet=None, reverse=False):
+    def _scale(self, input, logdet=None, seq_len =1,  reverse=False):
         logs = self.logs
         if not reverse:
             input = input * torch.exp(logs)
@@ -61,20 +61,20 @@ class ActNorm2d(nn.Module):
             dlogdet = thops.sum(logs)
             if reverse:
                 dlogdet *= -1
-            logdet = logdet + dlogdet
+            logdet = logdet + dlogdet * seq_len
         return input, logdet
 
-    def forward(self, input, logdet=None, reverse=False):
+    def forward(self, input, logdet=None, seq_len=1,  reverse=False):
         if not self.inited:
             self.initialize_parameters(input)
         # no need to permute dims as old version
         if not reverse:
             # center and scale
             input = self._center(input, reverse)
-            input, logdet = self._scale(input, logdet, reverse)
+            input, logdet = self._scale(input, logdet, seq_len, reverse)
         else:
             # scale and center
-            input, logdet = self._scale(input, logdet, reverse)
+            input, logdet = self._scale(input, logdet, seq_len, reverse)
             input = self._center(input, reverse)
         return input, logdet
 
@@ -176,20 +176,20 @@ class InvertibleConv1x1(nn.Module):
                 w = torch.matmul(u, torch.matmul(l, self.p.inverse()))
             return w.view(w_shape[0], w_shape[1]), dlogdet
 
-    def forward(self, input, logdet=None, reverse=False):
+    def forward(self, input, logdet=None, seq_len=1, reverse=False):
         """
-        log-det = log|abs(|W|)| * pixels
+        log-det = log|abs(|W|)| * sequence_length
         """
         weight, dlogdet = self.get_weight(input, reverse)
         if not reverse:
             z = torch.matmul(input, weight)
             if logdet is not None:
-                logdet = logdet + dlogdet
+                logdet = logdet + dlogdet * seq_len
             return z, logdet
         else:
             z = torch.matmul(input, weight)
             if logdet is not None:
-                logdet = logdet - dlogdet
+                logdet = logdet - dlogdet * seq_len
             return z, logdet
 
 
