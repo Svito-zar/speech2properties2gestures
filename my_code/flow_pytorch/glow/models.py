@@ -10,9 +10,11 @@ from my_code.flow_pytorch.glow import modules, thops, utils
 from my_code.flow_pytorch.glow.modules import DiagGaussian
 
 
-class f_seq(nn.Module):
+class f_conv(nn.Module):
     """
     Transformation to be used in a coupling layer
+
+    Convolution over time in the BxTxD tensor
     """
 
     def __init__(
@@ -31,26 +33,19 @@ class f_seq(nn.Module):
         temporal_cond_dim:      dim. of the temporal conditioning info (from neighbouring flow steps)
         """
         super().__init__()
-        self.hidden_size = hidden_size
-        self.input_size = input_size
-        self.output_size = output_size
-        self.cond_dim = sp_cond_dim + temporal_cond_dim
 
-        #self.cond_transform = nn.Sequential(
-        #    nn.Linear(feature_encoder_dim, cond_dim), nn.LeakyReLU(),
-        #)
+        self.conv = nn.Conv1d(in_channels=input_size, out_channels=output_size, kernel_size=5, padding=2)
 
-        self.input_hidden = nn.Sequential(nn.Linear(input_size + self.cond_dim, hidden_size), nn.LeakyReLU(), nn.Dropout(0.2))
 
-        self.final_linear = modules.LinearZeros(hidden_size, output_size)
-        self.hidden = None
-        self.cell = None
+    def forward(self, z_seq):
+        # reshape
+        input = torch.transpose(z_seq, dim0=2, dim1=1)
 
-    def forward(self, z, condition):
-        self.hidden= self.input_hidden(
-            torch.cat((z, condition), dim=1)
-            )
-        return self.final_linear(self.hidden)
+        # apply 1d cnn
+        output = self.conv(input)
+
+        # reshape
+        return torch.transpose(output, dim0=2, dim1=1)
 
 
 class FlowStep(nn.Module):
@@ -123,7 +118,7 @@ class FlowStep(nn.Module):
         # 3. coupling
         temp_cond_length = hparams.Glow["distr_dim"] // 2 * (hparams.Glow["conv_seq_len"] * 2 + 1)
         if flow_coupling == "additive":
-            self.f = f_seq(
+            self.f = f_conv(
                 in_channels // 2,
                 in_channels - in_channels // 2,
                 hidden_channels,
@@ -132,7 +127,7 @@ class FlowStep(nn.Module):
             )
         elif flow_coupling == "affine":
             if in_channels % 2 == 0:
-                self.f = f_seq(
+                self.f = f_conv(
                     in_channels // 2,
                     in_channels,
                     hidden_channels,
@@ -140,7 +135,7 @@ class FlowStep(nn.Module):
                     temp_cond_length,
                 )
             else:
-                self.f = f_seq(
+                self.f = f_conv(
                     in_channels // 2,
                     in_channels + 1,
                     hidden_channels,
@@ -217,7 +212,6 @@ class FlowStep(nn.Module):
 
         z2_l_seq = None
         z2_u_seq = None
-        z3_seq = None
         seq_len = input_seq.shape[1]
 
         #### Go though each steps of the flow separately for the whole sequence
@@ -237,61 +231,25 @@ class FlowStep(nn.Module):
         # reshape
         seq_z2 = torch.reshape(flatten_z2_seq, tensor_shape)
 
-        for time_st in range(seq_len):
+        # split
+        z2_l_seq, z2_u_seq = thops.split_feature_3d(seq_z2, "split")
 
-            curr_z2 = seq_z2[:, time_st, :]
+        # 3 coupling
 
-            # 3.1 split on upper and lower
-
-            z2_l, z2_u = thops.split_feature(curr_z2, "split")
-
-            # Add current encodings "z_l" to the sequence of lower encodings
-            if z2_l_seq is None:
-                z2_l_seq = z2_l.unsqueeze(dim=1)
-            else:
-                z2_l_seq = torch.cat((z2_l_seq, z2_l.unsqueeze(dim=1)), 1)
-
-            # Add current encodings "z_u" to the sequence of upper encodings
-            if z2_u_seq is None:
-                z2_u_seq = z2_u.unsqueeze(dim=1)
-            else:
-                z2_u_seq = torch.cat((z2_u_seq, z2_u.unsqueeze(dim=1)), 1)
-
-        # 3.2 coupling
-        for time_st in range(seq_len):
-
-            curr_z2_l = z2_l_seq[:, time_st, :]
-            curr_z2_u = z2_u_seq[:, time_st, :]
-
-            speech_cond = sp_cond_seq[:, time_st, :]
-
-            flow_conv_cond = self.from_z_sequence_to_cond(z2_l_seq, seq_len, time_st)
-
-            curr_cond = torch.cat((speech_cond, flow_conv_cond), dim=1)
-
-            # Require some conditioning
-            assert curr_cond is not None
-
-            if self.flow_coupling == "additive":
-                curr_z2_u = curr_z2_u + self.f(curr_z2_l, curr_cond)
-            elif self.flow_coupling == "affine":
-                h = self.f(curr_z2_l, curr_cond)
-                shift, scale = thops.split_feature(h, "cross")
+        if self.flow_coupling == "additive":
+                z2_u_seq = z2_u_seq + self.f(z2_l_seq)
+        elif self.flow_coupling == "affine":
+                h = self.f(z2_l_seq)
+                shift, scale = thops.split_feature_3d(h, "cross")
                 scale = torch.sigmoid(scale + 2.0).clamp(self.scale_eps)
 
                 if self.scale_logging:
                     self.scale = scale
-                curr_z2_u = curr_z2_u + shift
-                curr_z2_u = curr_z2_u * scale
-                logdet = thops.sum(torch.log(scale), dim=[1]) + logdet
+                z2_u_seq = z2_u_seq + shift
+                z2_u_seq = z2_u_seq * scale
+                logdet = thops.sum(torch.log(scale), dim=[1, 2]) + logdet
 
-            final_z = thops.cat_feature(curr_z2_l, curr_z2_u)
-
-            # Add current encoding "z" to the sequence of encodings
-            if z3_seq is None:
-                z3_seq = final_z.unsqueeze(dim=1)
-            else:
-                z3_seq = torch.cat((z3_seq, final_z.unsqueeze(dim=1)), 1)
+        z3_seq = torch.cat((z2_l_seq, z2_u_seq), dim=2)
 
         return z3_seq, logdet
 
@@ -309,69 +267,30 @@ class FlowStep(nn.Module):
             logdet:       new value of log determinant of the Jacobian
         """
 
-        z3_seq = None
-        input_u_seq = None
-        input_l_seq = None
-
         seq_len = input_seq.shape[1]
 
         #### Go though each steps of the flow separately for the whole sequence
 
         # 3.1 split on upper and lower
 
-        for time_st in range(seq_len):
-
-            curr_input = input_seq[:, time_st, :]
-
-            in_l, in_u = thops.split_feature(curr_input, "split")
-
-            # Add current encodings "z" to the sequence of encodings
-            if input_l_seq is None:
-                input_l_seq = in_l.unsqueeze(dim=1)
-            else:
-                input_l_seq = torch.cat((input_l_seq, in_l.unsqueeze(dim=1)), 1)
-
-            # Add current encodings "z" to the sequence of encodings
-            if input_u_seq is None:
-                input_u_seq = in_u.unsqueeze(dim=1)
-            else:
-                input_u_seq = torch.cat((input_u_seq, in_u.unsqueeze(dim=1)), 1)
+        z2_l_seq, z2_u_seq = thops.split_feature_3d(input_seq, "split")
 
         # 3.2 coupling
-        for time_st in range(seq_len):
 
-            zl = input_l_seq[:, time_st, :]
-            zu = input_u_seq[:, time_st, :]
+        if self.flow_coupling == "additive":
+            z2_u_seq = z2_u_seq - self.f(z2_l_seq)
+        elif self.flow_coupling == "affine":
+            h = self.f(z2_l_seq)
+            shift, scale = thops.split_feature_3d(h, "cross")
+            scale = torch.sigmoid(scale + 2.0).clamp(self.scale_eps)
 
-            speech_cond = cond_seq[:, time_st, :]
+            if self.scale_logging:
+                self.scale = scale
+            z2_u_seq = z2_u_seq / scale
+            z2_u_seq = z2_u_seq - shift
+            logdet = -thops.sum(torch.log(scale), dim=[1, 2]) + logdet
 
-            flow_conv_cond = self.from_z_sequence_to_cond(input_l_seq, seq_len, time_st)
-
-            curr_cond = torch.cat((speech_cond, flow_conv_cond), dim=1)
-
-            # Require some conditioning
-            assert curr_cond is not None
-
-            if self.flow_coupling == "additive":
-                zu = zu - self.f(zl, curr_cond)
-            elif self.flow_coupling == "affine":
-                h = self.f(zl, curr_cond)
-                shift, scale = thops.split_feature(h, "cross")
-                scale = torch.sigmoid(scale + 2.0).clamp(self.scale_eps)
-
-                if self.scale_logging:
-                    self.scale = scale
-                zu = zu / scale
-                zu = zu - shift
-                logdet = -thops.sum(torch.log(scale), dim=[1]) + logdet
-
-            curr_z3 = thops.cat_feature(zl, zu)
-
-            # Add current encoding "z" to the sequence of encodings
-            if z3_seq is None:
-                z3_seq = curr_z3.unsqueeze(dim=1)
-            else:
-                z3_seq = torch.cat((z3_seq, curr_z3.unsqueeze(dim=1)), 1)
+        z3_seq = torch.cat((z2_l_seq, z2_u_seq), dim=2)
 
         # flatten
         tensor_shape = z3_seq.shape

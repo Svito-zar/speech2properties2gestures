@@ -43,6 +43,16 @@ def split_feature(tensor, type="split"):
     elif type == "cross":
         return tensor[:, 0::2, ...], tensor[:, 1::2, ...]
 
+def split_feature_3d(tensor, type="split"):
+    """
+    type = ["split", "cross"]
+    """
+    C = tensor.size(2)
+    if type == "split":
+        return tensor[:, :, :C // 2, ...], tensor[:, :, C // 2:, ...]
+    elif type == "cross":
+        return tensor[:, :,  0::2, ...], tensor[:, :, 1::2, ...]
+
 
 def cat_feature(tensor_a, tensor_b):
     return torch.cat((tensor_a, tensor_b), dim=1)
