@@ -125,26 +125,18 @@ class GestureFlow(LightningModule):
 
         loss_value = torch.mean(loss_array).unsqueeze(-1) / batch["audio"].shape[1]
 
-        """logdet_mean = torch.mean(logdet).unsqueeze(-1) / batch["audio"].shape[1]
-        logdet_std = torch.std(logdet).unsqueeze(-1) / batch["audio"].shape[1]
+        deranged_batch = self.derange_batch(batch)
+        _, deranged_log_det, deranged_pr_nll = self(deranged_batch)
+        deranged_loss = torch.mean(deranged_pr_nll - deranged_log_det).unsqueeze(-1) / batch["audio"].shape[1]
 
-        prior_norm = prior_nll / batch["audio"].shape[1]
-        prior_mean = torch.mean(prior_norm).unsqueeze(-1)
-        prior_std = torch.std(prior_norm).unsqueeze(-1)
-        prior_min = torch.min(prior_norm).unsqueeze(-1)
-        prior_max = torch.max(prior_norm).unsqueeze(-1)"""
-
-        #deranged_batch = self.derange_batch(batch)
-        #_, deranged_loss, _ = self(deranged_batch)
 
         if random.randint(0, 5) == 1:
             self.log_histogram(prior_nll / batch["audio"].shape[1], "tr_logs/prior_nll")
             self.log_histogram(logdet / batch["audio"].shape[1], "tr_logs/logdet")
 
-        tb_log = {"Loss/train": loss_value}
-                 #, "Training_log/logdet_mean": logdet_mean, "Training_log/prior_nll_mean": prior_mean,
-                 # "Training_log/prior_nll_min": prior_min, "Training_log/prior_nll_max": prior_max,
-                 # "Training_log/logdet_std": logdet_std, "Training_log/prior_nll_std": prior_std} #, "Loss/missmatched_nll": deranged_loss}
+        tb_log = {"Loss/train": loss_value,
+		  "Loss/missmatched_nll": deranged_loss,
+		  "Loss/mismatched_diff": loss_value - deranged_loss}
 
         if self.hparams.optuna and self.global_step > 20 and loss_value > 1000:
             message = f"Trial was pruned since training loss > 1000"
@@ -328,7 +320,7 @@ class GestureFlow(LightningModule):
 
     def train_dataloader(self):
         loader = torch.utils.data.DataLoader(
-            dataset=self.val_dataset,
+            dataset=self.train_dataset,
             batch_size=self.hparams.batch_size,
             shuffle=True
         )
