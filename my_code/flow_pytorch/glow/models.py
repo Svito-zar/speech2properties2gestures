@@ -34,18 +34,24 @@ class f_conv(nn.Module):
         """
         super().__init__()
 
-        self.conv = nn.Conv1d(in_channels=input_size, out_channels=output_size, kernel_size=5, padding=2)
+        self.conv1 = nn.Conv1d(in_channels=input_size, out_channels=hidden_size, kernel_size=9, padding=4, padding_mode='reflect')
+        self.conv2 = nn.Conv1d(in_channels=hidden_size, out_channels=hidden_size, kernel_size=9, padding=4, padding_mode='reflect')
 
+        self.final_linear = modules.LinearZeros(hidden_size, output_size)
 
     def forward(self, z_seq):
         # reshape
-        input = torch.transpose(z_seq, dim0=2, dim1=1)
+        input_ = torch.transpose(z_seq, dim0=2, dim1=1)
 
         # apply 1d cnn
-        output = self.conv(input)
-
+        hidden_tr_1 = self.conv1(input_)
+        hidden_tr_2 = self.conv2(hidden_tr_1)
         # reshape
-        return torch.transpose(output, dim0=2, dim1=1)
+        hidden = torch.transpose(hidden_tr_2, dim0=2, dim1=1)
+        # linear layer
+        output = self.final_linear(hidden)
+
+        return output
 
 
 class FlowStep(nn.Module):
@@ -513,8 +519,13 @@ class SeqFlowNet(nn.Module):
             # Normalize values
             sigma = torch.sigmoid(sigma) + eps
             mu = torch.tanh(mu)
-
             log_sigma = torch.log(sigma)
+
+            # For DEBUG use zeros
+            log_sigma = torch.zeros_like(sigma)
+            mu = torch.zeros_like(mu)
+            sigma = torch.ones_like(sigma)
+
 
             nll = - DiagGaussian.log_likelihood(mu, log_sigma, curr_z)
 
@@ -551,8 +562,12 @@ class SeqFlowNet(nn.Module):
             # Normalize values
             sigma = torch.sigmoid(sigma) + eps
             mu = torch.tanh(mu)
-
             log_sigma = torch.log(sigma)
+
+            # For DEBUG use zeros
+            log_sigma = torch.zeros_like(sigma)
+            mu = torch.zeros_like(mu)
+            sigma = torch.ones_like(sigma)
 
             # sample
             curr_z = modules.DiagGaussian.sample(mu, sigma).to(curr_cond.device)
