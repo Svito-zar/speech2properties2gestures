@@ -34,10 +34,19 @@ class f_conv(nn.Module):
         """
         super().__init__()
 
-        self.conv1 = nn.Conv1d(in_channels=input_size+sp_cond_dim, out_channels=hidden_size, kernel_size=9, padding=4, padding_mode='reflect')
-        self.conv2 = nn.Conv1d(in_channels=hidden_size, out_channels=hidden_size, kernel_size=9, padding=4, padding_mode='reflect')
+        # first conv
+        conv1 = nn.Conv1d(in_channels=input_size+sp_cond_dim, out_channels=hidden_size, kernel_size=9, padding=4, padding_mode='reflect')
 
-        self.final_linear = modules.LinearZeros(hidden_size, output_size)
+        # Apply weight normalization
+        self.conv1  = torch.nn.utils.weight_norm(conv1, name='weight')
+
+        # final convolution
+        self.final_conv = nn.Conv1d(in_channels=hidden_size, out_channels=output_size, kernel_size=9, padding=4, padding_mode='reflect')
+
+        # Initializing last layer to 0 makes the affine coupling layers
+        # do nothing at first.  This helps with training stability
+        self.final_conv.weight.data.zero_()
+        self.final_conv.bias.data.zero_()
 
     def forward(self, z_seq, cond_seq):
 
@@ -49,11 +58,9 @@ class f_conv(nn.Module):
 
         # apply 1d cnn
         hidden_tr_1 = self.conv1(input_seq_tr)
-        hidden_tr_2 = self.conv2(hidden_tr_1)
+        output_tr = self.final_conv(hidden_tr_1)
         # reshape
-        hidden = torch.transpose(hidden_tr_2, dim0=2, dim1=1)
-        # linear layer
-        output = self.final_linear(hidden)
+        output = torch.transpose(output_tr, dim0=2, dim1=1)
 
         return output
 
