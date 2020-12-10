@@ -34,17 +34,21 @@ class f_conv(nn.Module):
         """
         super().__init__()
 
-        self.conv1 = nn.Conv1d(in_channels=input_size, out_channels=hidden_size, kernel_size=9, padding=4, padding_mode='reflect')
+        self.conv1 = nn.Conv1d(in_channels=input_size+sp_cond_dim, out_channels=hidden_size, kernel_size=9, padding=4, padding_mode='reflect')
         self.conv2 = nn.Conv1d(in_channels=hidden_size, out_channels=hidden_size, kernel_size=9, padding=4, padding_mode='reflect')
 
         self.final_linear = modules.LinearZeros(hidden_size, output_size)
 
-    def forward(self, z_seq):
+    def forward(self, z_seq, cond_seq):
+
+        # add (concat) speech conditioning
+        input_seq = torch.cat((z_seq, cond_seq), dim=2)
+
         # reshape
-        input_ = torch.transpose(z_seq, dim0=2, dim1=1)
+        input_seq_tr = torch.transpose(input_seq, dim0=2, dim1=1)
 
         # apply 1d cnn
-        hidden_tr_1 = self.conv1(input_)
+        hidden_tr_1 = self.conv1(input_seq_tr)
         hidden_tr_2 = self.conv2(hidden_tr_1)
         # reshape
         hidden = torch.transpose(hidden_tr_2, dim0=2, dim1=1)
@@ -216,8 +220,6 @@ class FlowStep(nn.Module):
             logdet:       new value of log determinant of the Jacobian
         """
 
-        z2_l_seq = None
-        z2_u_seq = None
         seq_len = input_seq.shape[1]
 
         #### Go though each steps of the flow separately for the whole sequence
@@ -243,9 +245,9 @@ class FlowStep(nn.Module):
         # 3 coupling
 
         if self.flow_coupling == "additive":
-                z2_u_seq = z2_u_seq + self.f(z2_l_seq)
+                z2_u_seq = z2_u_seq + self.f(z2_l_seq, sp_cond_seq)
         elif self.flow_coupling == "affine":
-                h = self.f(z2_l_seq)
+                h = self.f(z2_l_seq, sp_cond_seq)
                 shift, scale = thops.split_feature_3d(h, "cross")
                 scale = torch.sigmoid(scale + 2.0).clamp(self.scale_eps)
 
@@ -284,9 +286,9 @@ class FlowStep(nn.Module):
         # 3.2 coupling
 
         if self.flow_coupling == "additive":
-            z2_u_seq = z2_u_seq - self.f(z2_l_seq)
+            z2_u_seq = z2_u_seq - self.f(z2_l_seq, cond_seq)
         elif self.flow_coupling == "affine":
-            h = self.f(z2_l_seq)
+            h = self.f(z2_l_seq, cond_seq)
             shift, scale = thops.split_feature_3d(h, "cross")
             scale = torch.sigmoid(scale + 2.0).clamp(self.scale_eps)
 
