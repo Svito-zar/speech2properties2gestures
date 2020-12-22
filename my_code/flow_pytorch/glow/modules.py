@@ -49,6 +49,7 @@ class ActNorm2d(nn.Module):
             return input - self.bias
 
     def _scale(self, input, logdet=None, seq_len =1,  reverse=False):
+
         logs = self.logs
         if not reverse:
             input = input * torch.exp(logs)
@@ -65,6 +66,7 @@ class ActNorm2d(nn.Module):
         return input, logdet
 
     def forward(self, input, logdet=None, seq_len=1,  reverse=False):
+
         if not self.inited:
             self.initialize_parameters(input)
         # no need to permute dims as old version
@@ -98,7 +100,7 @@ class Permute2d(nn.Module):
     def __init__(self, num_channels, shuffle):
         super().__init__()
         self.num_channels = num_channels
-        self.indices = np.arange(self.num_channels - 1).astype(np.long)
+        self.indices = np.arange(self.num_channels).astype(np.long)
         self.indices_inverse = np.zeros((self.num_channels), dtype=np.long)
         for i in range(self.num_channels):
             self.indices_inverse[self.indices[i]] = i
@@ -111,7 +113,7 @@ class Permute2d(nn.Module):
             self.indices_inverse[self.indices[i]] = i
 
     def forward(self, input, reverse=False):
-        assert len(input.size()) == 4
+        assert len(input.size()) == 2
         if not reverse:
             return input[:, self.indices]
         else:
@@ -180,6 +182,7 @@ class InvertibleConv1x1(nn.Module):
         """
         log-det = log|abs(|W|)| * sequence_length
         """
+
         weight, dlogdet = self.get_weight(input, reverse)
         if not reverse:
             z = torch.matmul(input, weight)

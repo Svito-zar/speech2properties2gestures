@@ -68,8 +68,8 @@ class f_conv(nn.Module):
 class FlowStep(nn.Module):
     FlowCoupling = ["additive", "affine"]
     FlowPermutation = {
-        "reverse": lambda obj, z, logdet, rev: (obj.reverse(z, rev), logdet),
-        "shuffle": lambda obj, z, logdet, rev: (obj.shuffle(z, rev), logdet),
+        "reverse": lambda obj, z, logdet, seq_len, rev: (obj.reverse(z, rev), logdet),
+        "shuffle": lambda obj, z, logdet, seq_len, rev: (obj.shuffle(z, rev), logdet),
         "invconv": lambda obj, z, logdet, seq_len, rev: obj.invconv(z, logdet, seq_len,  rev),
     }
 
@@ -227,6 +227,12 @@ class FlowStep(nn.Module):
             logdet:       new value of log determinant of the Jacobian
         """
 
+        debug = False
+        if random.randint(0, 500) == 1:
+            #debug = True
+            old_lodget = logdet
+            #print("\n LOGGING! \n")
+
         seq_len = input_seq.shape[1]
 
         #### Go though each steps of the flow separately for the whole sequence
@@ -238,10 +244,22 @@ class FlowStep(nn.Module):
         # 1. actnorm
         flatten_z1_seq, logdet = self.actnorm(flatten_input, logdet=logdet, seq_len = seq_len, reverse=False)
 
+        if debug:
+            print("ActNorm contribution: ", logdet - old_lodget)
+            old_lodget = logdet
+
         # 2. permute
         flatten_z2_seq, logdet = FlowStep.FlowPermutation[self.flow_permutation](
                 self, flatten_z1_seq.float(), logdet, seq_len, False
             )
+
+        if debug:
+            print("FlowPermutation contribution: ", logdet - old_lodget)
+            old_lodget = logdet
+
+            print("\nBefore FlowPermutation - values were ", flatten_z1_seq.mean().item() , " +- ", flatten_z1_seq.std().item())
+            print("After FlowPermutation - values are ", flatten_z2_seq.mean().item(), " +- ",
+                  flatten_z2_seq.std().item(), "\n")
 
         # reshape
         seq_z2 = torch.reshape(flatten_z2_seq, tensor_shape)
@@ -263,6 +281,10 @@ class FlowStep(nn.Module):
                 z2_u_seq = z2_u_seq + shift
                 z2_u_seq = z2_u_seq * scale
                 logdet = thops.sum(torch.log(scale), dim=[1, 2]) + logdet
+
+        if debug:
+            print("Coupling contribution: ", logdet - old_lodget)
+            old_lodget = logdet
 
         z3_seq = torch.cat((z2_l_seq, z2_u_seq), dim=2)
 
