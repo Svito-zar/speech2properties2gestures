@@ -4,7 +4,7 @@ Glow:
   LU_decomposed: true
   actnorm_scale: 1.0
   flow_coupling: affine
-  flow_permutation: invconv
+  flow_permutation: shuffle
   hidden_channels: 128
   rnn_type: gru
   scale_eps: 0.0001

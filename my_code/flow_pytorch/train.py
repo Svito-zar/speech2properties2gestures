@@ -21,6 +21,6 @@ if __name__ == "__main__":
 
     tb_logger = pl_loggers.TensorBoardLogger('lightning_logs/')
 
-    trainer = Trainer.from_argparse_args(hparams, logger=tb_logger) # callbacks=callbacks)
+    trainer = Trainer.from_argparse_args(hparams, logger=tb_logger, profiler="simple") # profiler="advanced"
 
     trainer.fit(model)
