@@ -129,20 +129,18 @@ class GestureFlow(LightningModule):
         _, deranged_log_det, deranged_pr_nll = self(deranged_batch)
         deranged_loss = torch.mean(deranged_pr_nll - deranged_log_det).unsqueeze(-1) / batch["audio"].shape[1]
 
-
         if random.randint(0, 5) == 1:
             self.log_histogram(prior_nll / batch["audio"].shape[1], "tr_logs/prior_nll")
             self.log_histogram(logdet / batch["audio"].shape[1], "tr_logs/logdet")
 
-        tb_log = {"Loss/train": loss_value,
-		  "Loss/missmatched_nll": deranged_loss,
-		  "Loss/mismatched_diff": loss_value - deranged_loss}
+        self.log('Loss/train', loss_value)
+        self.log('Loss/missmatched_nll', deranged_loss)
 
         if self.hparams.optuna and self.global_step > 20 and loss_value > 1000:
             message = f"Trial was pruned since training loss > 1000"
             raise optuna.exceptions.TrialPruned(message)
 
-        return {"loss": loss_value, "log": tb_log}
+        return loss_value
 
 
     def validation_step(self, batch, batch_idx):
@@ -167,6 +165,7 @@ class GestureFlow(LightningModule):
 
         return output
 
+
     def validation_epoch_end(self, outputs):
         avg_loss = torch.stack([x["val_loss"] for x in outputs]).mean()
         tb_logs = {"Loss/val": avg_loss}
@@ -176,13 +175,13 @@ class GestureFlow(LightningModule):
 
         if det_check:
             avg_det_check = torch.stack(det_check).mean()
-            tb_logs["reconstruction/nll_error_percentage"] = avg_det_check
+            self.log("reconstruction/nll_error_percentage", avg_det_check)
 
         reconstr_check = [x["reconstr_check"] for x in outputs if x.get("reconstr_check") is not None]
 
         if reconstr_check:
             avg_reconstr_check = torch.stack(reconstr_check).mean()
-            tb_logs["reconstruction/reconstr_error_percentage"] = avg_reconstr_check
+            self.log("reconstruction/reconstr_error_percentage", avg_reconstr_check)
 
         jerk = [x["jerk"] for x in outputs if x.get("jerk")]
         if jerk:
@@ -212,16 +211,12 @@ class GestureFlow(LightningModule):
 
         if self.hparams.Validation["inference"]:
 
-
-
             # Save resulting gestures without teacher forcing
             sample_prediction = outputs[0]['gesture_example'][:3].cpu().detach().numpy()
 
             sample_gesture = inv_standardize(sample_prediction, self.scalings[-1])
 
             self.save_prediction(sample_gesture, path.join(os.getcwd(),self.hparams.val_gest_dir))
-
-        return {"save_loss": save_loss, "val_loss": avg_loss, "log": tb_logs}
 
 
     def save_prediction(self, gestures, save_dir, raw=False, video=True):
@@ -299,10 +294,11 @@ class GestureFlow(LightningModule):
 
         return [optimizer], [scheduler]
 
+
     # learning rate warm-up
-    def optimizer_step(
-        self, current_epoch, batch_nb, optimizer, optimizer_i, second_order_closure=None
-    ):
+    def optimizer_step(self, current_epoch, batch_idx, optimizer, optimizer_i,
+                       optimizer_closure, on_tpu=False, using_native_amp=False, using_lbfgs=False):
+
         lr = self.hparams.lr
         # warm up lr
         warm_up = self.hparams.Optim["Schedule"]["warm_up"]
@@ -315,13 +311,15 @@ class GestureFlow(LightningModule):
             self.logger.log_metrics({"learning_rate": pg["lr"]}, self.global_step)
 
         # update params
-        optimizer.step()
+        optimizer.step(closure=optimizer_closure)
         optimizer.zero_grad()
+
 
     def train_dataloader(self):
         loader = torch.utils.data.DataLoader(
             dataset=self.train_dataset,
             batch_size=self.hparams.batch_size,
+            num_workers=8,
             shuffle=True
         )
         return loader
@@ -330,6 +328,7 @@ class GestureFlow(LightningModule):
         loader = torch.utils.data.DataLoader(
             dataset=self.val_dataset,
             batch_size=self.hparams.batch_size,
+            num_workers=8,
             shuffle=False
         )
         return loader
