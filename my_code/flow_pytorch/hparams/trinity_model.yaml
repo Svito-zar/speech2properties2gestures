@@ -11,6 +11,9 @@ Glow:
   distr_dim: 45
   speech_cond_dim: 64
   conv_seq_len: 1
+  CNN:
+    numb_layers: 4
+    kernel_size: 3
 Infer:
   temp: 0.8
   seq_len: 120

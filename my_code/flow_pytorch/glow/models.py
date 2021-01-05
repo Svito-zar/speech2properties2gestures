@@ -10,6 +10,102 @@ from my_code.flow_pytorch.glow import modules, thops, utils
 from my_code.flow_pytorch.glow.modules import DiagGaussian
 
 
+@torch.jit.script
+def fused_add_tanh_sigmoid_multiply(input_a, input_b, n_channels):
+    n_channels_int = n_channels[0]
+    in_act = input_a+input_b
+    t_act = torch.tanh(in_act[:, :n_channels_int, :])
+    s_act = torch.sigmoid(in_act[:, n_channels_int:, :])
+    acts = t_act * s_act
+    return acts
+
+
+class WN(torch.nn.Module):
+    """
+    Code taken is based on the code from WaveGlow:
+    https://github.com/NVIDIA/waveglow/blob/master/glow.py#L105
+
+    This is the WaveNet like layer for the affine coupling.  The primary difference
+    from WaveNet is the convolutions need not be causal.  There is also no dilation
+    size reset.  The dilation only doubles on each layer
+    """
+
+    def __init__(self, input_size, sp_cond_dim, n_layers, hidden_size, output_size,
+                 kernel_size):
+        super(WN, self).__init__()
+        assert(kernel_size % 2 == 1)
+        assert(output_size % 2 == 0)
+        self.n_layers = n_layers
+        self.hid_channels = hidden_size
+        self.in_layers = torch.nn.ModuleList()
+        self.res_skip_layers = torch.nn.ModuleList()
+
+        start = torch.nn.Conv1d(input_size+sp_cond_dim, hidden_size, 1)
+        start = torch.nn.utils.weight_norm(start, name='weight')
+        self.start = start
+
+        # Initializing last layer to 0 makes the affine coupling layers
+        # do nothing at first.  This helps with training stability
+        end = torch.nn.Conv1d(hidden_size, output_size, 1)
+        end.weight.data.zero_()
+        end.bias.data.zero_()
+        self.end = end
+
+        cond_layer = torch.nn.Conv1d(sp_cond_dim, 2 * hidden_size * n_layers, 1)
+        self.cond_layer = torch.nn.utils.weight_norm(cond_layer, name='weight')
+
+        for i in range(n_layers):
+            dilation = 2 ** i
+            padding = int((kernel_size*dilation - dilation)/2)
+            in_layer = torch.nn.Conv1d(hidden_size, 2 * hidden_size, kernel_size,
+                                       dilation=dilation, padding=padding)
+            in_layer = torch.nn.utils.weight_norm(in_layer, name='weight')
+            self.in_layers.append(in_layer)
+
+            # last one is not necessary
+            if i < n_layers - 1:
+                res_skip_channels = hidden_size * 2
+            else:
+                res_skip_channels = hidden_size
+            res_skip_layer = torch.nn.Conv1d(hidden_size, res_skip_channels, 1)
+            res_skip_layer = torch.nn.utils.weight_norm(res_skip_layer, name='weight')
+            self.res_skip_layers.append(res_skip_layer)
+
+    def forward(self, z_seq, cond_seq):
+
+        # add (concat) speech conditioning
+        input_seq = torch.cat((z_seq, cond_seq), dim=2)
+
+        # reshape
+        input_seq_tr = torch.transpose(input_seq, dim0=2, dim1=1)
+
+        h_seq = self.start(input_seq_tr)
+        output = torch.zeros_like(h_seq)
+        n_channels_tensor = torch.IntTensor([self.hid_channels])
+
+        for i in range(self.n_layers):
+
+            # ToDo Later - fuse conditioning info at each layer
+            """spect_offset = i * 2 * self.n_channels
+            acts = fused_add_tanh_sigmoid_multiply(
+                self.in_layers[i](h_seq),
+                spect[:,spect_offset:spect_offset+2*self.n_channels,:],
+                n_channels_tensor)
+            """
+
+            res_skip_acts = self.res_skip_layers[i](h_seq)
+            if i < self.n_layers - 1:
+                h_seq = h_seq + res_skip_acts[:,:self.hid_channels,:]
+                output = output + res_skip_acts[:,self.hid_channels:,:]
+            else:
+                output = output + res_skip_acts
+
+        # reshape
+        output = torch.transpose(self.end(output), dim0=2, dim1=1)
+
+        return output
+
+
 class f_conv(nn.Module):
     """
     Transformation to be used in a coupling layer
@@ -36,6 +132,8 @@ class f_conv(nn.Module):
 
         # first conv
         conv1 = nn.Conv1d(in_channels=input_size+sp_cond_dim, out_channels=hidden_size, kernel_size=9, padding=4, padding_mode='reflect')
+        #conv1 = nn.Conv1d(in_channels=input_size + sp_cond_dim, out_channels=hidden_size, kernel_size=7, padding=6,
+        #                  padding_mode = 'reflect', dilation = 2)
 
         # Apply weight normalization
         self.conv1  = torch.nn.utils.weight_norm(conv1, name='weight')
@@ -114,6 +212,8 @@ class FlowStep(nn.Module):
         # About sequence processing
         self.past_context = hparams.Cond["Speech"]["prev_context"]
         self.future_context = hparams.Cond["Speech"]["future_context"]
+        self.numb_layers_in_f = hparams.Glow["CNN"]["numb_layers"]
+        self.kernel_size = hparams.Glow["CNN"]["kernel_size"]
 
         # Helpers for conditioning info
 
@@ -130,34 +230,36 @@ class FlowStep(nn.Module):
         else:
             self.reverse = modules.Permute2d(in_channels, shuffle=False)
 
-
-
         # 3. coupling
         temp_cond_length = hparams.Glow["distr_dim"] // 2 * (hparams.Glow["conv_seq_len"] * 2 + 1)
+
         if flow_coupling == "additive":
-            self.f = f_conv(
+            self.f = WN(
                 in_channels // 2,
-                in_channels - in_channels // 2,
-                hidden_channels,
                 cond_dim,
-                temp_cond_length,
+                self.numb_layers_in_f,
+                hidden_channels,
+                in_channels - in_channels // 2,
+                self.kernel_size,
             )
         elif flow_coupling == "affine":
             if in_channels % 2 == 0:
-                self.f = f_conv(
+                self.f = WN(
                     in_channels // 2,
-                    in_channels,
-                    hidden_channels,
                     cond_dim,
-                    temp_cond_length,
+                    self.numb_layers_in_f,
+                    hidden_channels,
+                    in_channels,
+                    self.kernel_size,
                 )
             else:
-                self.f = f_conv(
+                self.f = WN(
                     in_channels // 2,
-                    in_channels + 1,
-                    hidden_channels,
                     cond_dim,
-                    temp_cond_length,
+                    self.numb_layers_in_f,
+                    hidden_channels,
+                    in_channels + 1,
+                    self.kernel_size,
                 )
 
 
