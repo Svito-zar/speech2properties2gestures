@@ -5,6 +5,7 @@ import shutil
 import socket
 from argparse import ArgumentParser, Namespace
 from pprint import pprint
+from datetime import datetime
 
 import numpy as np
 import optuna
@@ -15,10 +16,13 @@ from jsmin import jsmin
 from optuna.integration import PyTorchLightningPruningCallback
 from pytorch_lightning import Trainer, seed_everything
 
-from glow_pytorch.glow.lets_face_it_glow import LetsFaceItGlow
-from glow_pytorch.hparam_tuning_configs import hparam_configs
-from misc.shared import CONFIG, DATA_DIR, RANDOM_SEED
-from misc.utils import get_training_name
+import os
+from my_code.flow_pytorch.glow.gesture_flow import GestureFlow
+from my_code.flow_pytorch.glow.utils import get_hparams
+from my_code.misc.shared import BASE_DIR, CONFIG, DATA_DIR, RANDOM_SEED
+from pytorch_lightning import Trainer, seed_everything
+from pytorch_lightning import loggers as pl_loggers
+from my_code.flow_pytorch.params_tuning_configs import hparams_to_check as hparam_configs
 
 seed_everything(RANDOM_SEED)
 
@@ -36,14 +40,14 @@ class MyEarlyStopping(PyTorchLightningPruningCallback):
 
     def on_epoch_end(self, trainer, pl_module):
         super().on_epoch_end(trainer, pl_module)
-        jerk = trainer.callback_metrics.get("jerk/generated_mean")
+        #jerk = trainer.callback_metrics.get("jerk/generated_mean")
         val_loss = trainer.callback_metrics.get("val_loss")
         if val_loss is not None and val_loss > 0:
             message = f"Trial was pruned because val loss was too high {val_loss}."
             raise optuna.exceptions.TrialPruned(message)
-        if jerk is not None and jerk > 10:
-            message = f"Trial was pruned because jerk was too high {jerk}."
-            raise optuna.exceptions.TrialPruned(message)
+        #if jerk is not None and jerk > 10:
+        #    message = f"Trial was pruned because jerk was too high {jerk}."
+        #    raise optuna.exceptions.TrialPruned(message)
         if val_loss < self.best_loss:
             self.best_loss = val_loss
             self.wait = 0
@@ -84,7 +88,7 @@ def prepare_hparams(trial):
     params.update(vars(override_params))
     hparams = Namespace(**params)
 
-    return hparam_configs[conf_name].hparam_options(hparams, trial)
+    return hparam_configs.hparam_options(hparams, trial)
 
 
 def run(hparams, return_dict, trial, batch_size, current_date):
@@ -96,9 +100,11 @@ def run(hparams, return_dict, trial, batch_size, current_date):
     hparams.batch_size = batch_size
 
     trainer_params = vars(hparams).copy()
+
     trainer_params["checkpoint_callback"] = pl.callbacks.ModelCheckpoint(
         save_top_k=3, monitor="save_loss", mode="min"
     )
+
 
     if CONFIG["comet"]["api_key"]:
         from pytorch_lightning.loggers import CometLogger
@@ -111,8 +117,11 @@ def run(hparams, return_dict, trial, batch_size, current_date):
 
     trainer_params["early_stop_callback"] = MyEarlyStopping(trial, monitor="val_loss")
 
-    trainer = Trainer(**trainer_params)
-    model = LetsFaceItGlow(hparams)
+    trainer_params = Namespace(**trainer_params)
+
+    trainer = Trainer.from_argparse_args(trainer_params)
+
+    model = GestureFlow(hparams)
 
     try:
         trainer.fit(model)
@@ -128,6 +137,11 @@ def run(hparams, return_dict, trial, batch_size, current_date):
         return_dict[key] = float(item)
 
 
+def get_training_name():
+    dt = datetime.now()
+    return f"{dt.day}-{dt.month}_{dt.hour}-{dt.minute}-{dt.second}.{str(dt.microsecond)[:2]}"
+
+
 def objective(trial):
     current_date = get_training_name()
 
@@ -141,26 +155,14 @@ def objective(trial):
     trial.set_user_attr("GPU", os.environ.get("CUDA_VISIBLE_DEVICES"))
 
     pprint(vars(hparams))
-    while batch_size > 0:
-        print(f"trying with batch_size {batch_size}")
 
-        return_dict = manager.dict()
-        p = multiprocessing.Process(
-            target=run, args=(hparams, return_dict, trial, batch_size, current_date),
-        )
-        p.start()
-        p.join()
-        print(return_dict)
-        if return_dict.get("OOM"):
-            new_batch_size = batch_size // 2
-            if new_batch_size < 2:
-                raise FailedTrial("batch size smaller than 2!")
-            else:
-                batch_size = new_batch_size
-        elif return_dict.get("error"):
-            raise return_dict.get("error")
-        else:
-            break
+    return_dict = manager.dict()
+    p = multiprocessing.Process(
+        target=run, args=(hparams, return_dict, trial, batch_size, current_date),
+    )
+    p.start()
+    p.join()
+
     trial.set_user_attr("batch_size", batch_size)
 
     for metric, val in return_dict.items():
