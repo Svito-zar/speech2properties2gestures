@@ -102,7 +102,7 @@ def run(hparams, return_dict, trial, batch_size, current_date):
     trainer_params = vars(hparams).copy()
 
     trainer_params["checkpoint_callback"] = pl.callbacks.ModelCheckpoint(
-        save_top_k=3, monitor="save_loss", mode="min"
+        save_top_k=3, monitor="val_loss", mode="min"
     )
 
 
@@ -166,7 +166,7 @@ def objective(trial):
     trial.set_user_attr("batch_size", batch_size)
 
     for metric, val in return_dict.items():
-        if metric != "val_loss":
+        if metric == "val_loss" and isinstance(val, float):
             trial.set_user_attr(metric, float(val))
 
     return float(return_dict["val_loss"])

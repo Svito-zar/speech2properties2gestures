@@ -173,6 +173,8 @@ class GestureFlow(LightningModule):
 
         det_check = [x["det_check"] for x in outputs if x.get("det_check") is not None]
 
+        self.log("val_loss", avg_loss)
+
         if det_check:
             avg_det_check = torch.stack(det_check).mean()
             self.log("reconstruction/nll_error_percentage", avg_det_check)
