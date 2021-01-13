@@ -40,7 +40,7 @@ class WN(torch.nn.Module):
         self.in_layers = torch.nn.ModuleList()
         self.res_skip_layers = torch.nn.ModuleList()
 
-        start = torch.nn.Conv1d(input_size+sp_cond_dim, hidden_size, 1)
+        start = torch.nn.Conv1d(input_size, hidden_size, 1)
         start = torch.nn.utils.weight_norm(start, name='weight')
         self.start = start
 
@@ -73,27 +73,25 @@ class WN(torch.nn.Module):
 
     def forward(self, z_seq, cond_seq):
 
-        # add (concat) speech conditioning
-        input_seq = torch.cat((z_seq, cond_seq), dim=2)
-
         # reshape
-        input_seq_tr = torch.transpose(input_seq, dim0=2, dim1=1)
+        input_seq_tr = torch.transpose(z_seq, dim0=2, dim1=1)
 
         h_seq = self.start(input_seq_tr)
         output = torch.zeros_like(h_seq)
         n_channels_tensor = torch.IntTensor([self.hid_channels])
 
+        cond_seq_tr = torch.transpose(cond_seq, dim0=2, dim1=1)
+        all_the_cond = self.cond_layer(cond_seq_tr)
+
         for i in range(self.n_layers):
 
-            # ToDo Later - fuse conditioning info at each layer
-            """spect_offset = i * 2 * self.n_channels
+            spect_offset = i * 2 * self.hid_channels
             acts = fused_add_tanh_sigmoid_multiply(
                 self.in_layers[i](h_seq),
-                spect[:,spect_offset:spect_offset+2*self.n_channels,:],
+                all_the_cond[:,spect_offset:spect_offset+2*self.hid_channels,:],
                 n_channels_tensor)
-            """
 
-            res_skip_acts = self.res_skip_layers[i](h_seq)
+            res_skip_acts = self.res_skip_layers[i](acts)
             if i < self.n_layers - 1:
                 h_seq = h_seq + res_skip_acts[:,:self.hid_channels,:]
                 output = output + res_skip_acts[:,self.hid_channels:,:]
