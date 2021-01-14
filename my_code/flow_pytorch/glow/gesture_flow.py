@@ -218,7 +218,27 @@ class GestureFlow(LightningModule):
 
             sample_gesture = inv_standardize(sample_prediction, self.scalings[-1])
 
-            self.save_prediction(sample_gesture, path.join(os.getcwd(),self.hparams.val_gest_dir))
+            save_dir = path.join(os.getcwd(), "videos/" + self.logger.version)
+
+            # make dir for the results, if it does not exist yet
+            if self.current_epoch == 0:
+                for dir in [save_dir, save_dir + "/raw", save_dir + "/videos", save_dir + "/temp"]:
+                    try:
+                        os.mkdir(dir)
+                    except OSError:
+                        print("Creation of the directory %s failed" % dir)
+                    else:
+                        print("\nSuccessfully created the directory %s " % dir)
+
+            self.save_prediction(sample_gesture, save_dir)
+
+            mp4_filename = path.join(save_dir + "/videos", f"val_result_ep{self.current_epoch + 1}.mp4")
+
+            self.logger.experiment.log_asset(mp4_filename, step=self.global_step) #, ftype="video")
+
+            #self.logger.experiment.log_html(
+            #    f"{mp4_filename}<br><video src='{video}' width=640 controls></video> <br><br>"
+            #)
 
 
     def save_prediction(self, gestures, save_dir, raw=False, video=True):
