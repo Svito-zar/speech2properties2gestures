@@ -40,7 +40,8 @@ class WN(torch.nn.Module):
         self.in_layers = torch.nn.ModuleList()
         self.res_skip_layers = torch.nn.ModuleList()
 
-        start = torch.nn.Conv1d(input_size, hidden_size, 1)
+        #start = torch.nn.Conv1d(input_size, hidden_size, 1)
+        start = torch.nn.Conv1d(input_size, hidden_size, kernel_size, padding=int((kernel_size - 1) / 2))
         start = torch.nn.utils.weight_norm(start, name='weight')
         self.start = start
 
@@ -652,11 +653,9 @@ class SeqFlowNet(nn.Module):
             mu = torch.tanh(mu)
             log_sigma = torch.log(sigma)
 
-            # For DEBUG use zeros
+            # Use zeros for std
             log_sigma = torch.zeros_like(sigma)
-            mu = torch.zeros_like(mu)
             sigma = torch.ones_like(sigma)
-
 
             nll = - DiagGaussian.log_likelihood(mu, log_sigma, curr_z)
 
@@ -695,9 +694,8 @@ class SeqFlowNet(nn.Module):
             mu = torch.tanh(mu)
             log_sigma = torch.log(sigma)
 
-            # For DEBUG use zeros
+            # Use zeros for std
             log_sigma = torch.zeros_like(sigma)
-            mu = torch.zeros_like(mu)
             sigma = torch.ones_like(sigma)
 
             # sample
