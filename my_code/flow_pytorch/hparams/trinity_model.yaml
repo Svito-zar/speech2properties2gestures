@@ -110,3 +110,7 @@ val_gest_dir: ./results/gesture_flow/val_res
 val_percent_check: 1.0
 weights_save_path: null
 weights_summary: top
+comet_logger:
+  api_key: None
+  project_name: gestureflow
+
