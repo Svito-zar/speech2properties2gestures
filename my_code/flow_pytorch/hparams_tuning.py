@@ -39,7 +39,7 @@ class MyEarlyStopping(PyTorchLightningPruningCallback):
         self.patience = patience
 
     def on_epoch_end(self, trainer, pl_module):
-        super().on_epoch_end(trainer, pl_module)
+        super().validation_epoch_end(trainer, pl_module)
         #jerk = trainer.callback_metrics.get("jerk/generated_mean")
         val_loss = trainer.callback_metrics.get("val_loss")
         if val_loss is not None and val_loss > 0:
@@ -88,6 +88,8 @@ def prepare_hparams(trial):
     params.update(vars(override_params))
     hparams = Namespace(**params)
 
+    hparams.gpus = [0] # [0,1]
+
     return hparam_configs.hparam_options(hparams, trial)
 
 
@@ -106,12 +108,12 @@ def run(hparams, return_dict, trial, batch_size, current_date):
     )
 
 
-    if CONFIG["comet"]["api_key"]:
+    if hparams.comet_logger["api_key"]:
         from pytorch_lightning.loggers import CometLogger
 
         trainer_params["logger"] = CometLogger(
-            api_key=CONFIG["comet"]["api_key"],
-            project_name=CONFIG["comet"]["project_name"],
+            api_key=hparams.comet_logger["api_key"],
+            project_name=hparams.comet_logger["project_name"],
             experiment_name=conf_name,  # + current_date
         )
 
@@ -119,8 +121,7 @@ def run(hparams, return_dict, trial, batch_size, current_date):
 
     trainer_params = Namespace(**trainer_params)
 
-    trainer = Trainer.from_argparse_args(trainer_params)
-
+    trainer = Trainer.from_argparse_args(trainer_params, deterministic=False, enable_pl_optimizer=True)
     model = GestureFlow(hparams)
 
     try:
@@ -128,8 +129,10 @@ def run(hparams, return_dict, trial, batch_size, current_date):
     except RuntimeError as e:
         if str(e).startswith("CUDA out of memory"):
             return_dict["OOM"] = True
+            raise FailedTrial("CUDA out of memory")
         else:
             return_dict["error"] = e
+            raise e
     except (optuna.exceptions.TrialPruned, Exception) as e:
         return_dict["error"] = e
 
