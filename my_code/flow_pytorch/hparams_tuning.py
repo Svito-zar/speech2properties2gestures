@@ -159,12 +159,26 @@ def objective(trial):
 
     pprint(vars(hparams))
 
-    return_dict = manager.dict()
-    p = multiprocessing.Process(
-        target=run, args=(hparams, return_dict, trial, batch_size, current_date),
-    )
-    p.start()
-    p.join()
+    while batch_size > 0:
+        print(f"trying with batch_size {batch_size}")
+
+        return_dict = manager.dict()
+        p = multiprocessing.Process(
+            target=run, args=(hparams, return_dict, trial, batch_size, current_date),
+        )
+        p.start()
+        p.join()
+
+        if return_dict.get("OOM"):
+            new_batch_size = batch_size // 2
+            if new_batch_size < 2:
+                raise FailedTrial("batch size smaller than 2!")
+            else:
+                batch_size = new_batch_size
+        elif return_dict.get("error"):
+            raise return_dict.get("error")
+        else:
+            break
 
     trial.set_user_attr("batch_size", batch_size)
 
