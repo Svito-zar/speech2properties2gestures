@@ -1,4 +1,5 @@
 import os
+import comet_ml
 from my_code.flow_pytorch.glow.gesture_flow import GestureFlow
 from my_code.flow_pytorch.glow.utils import get_hparams
 from my_code.misc.shared import BASE_DIR, CONFIG, DATA_DIR, RANDOM_SEED
@@ -16,14 +17,15 @@ if __name__ == "__main__":
     if hparams.comet_logger["api_key"] != "None":
         from pytorch_lightning.loggers import CometLogger
 
+        from comet_ml.api import API, APIExperiment
+
         logger = CometLogger(
             api_key=hparams.comet_logger["api_key"],
-            project_name=hparams.comet_logger["project_name"],
+            project_name=hparams.comet_logger["project_name"]
         )
     else:
         from pytorch_lightning import loggers as pl_loggers
         logger = pl_loggers.TensorBoardLogger('lightning_logs/')
-
 
 
     hparams.num_dataloader_workers = 0

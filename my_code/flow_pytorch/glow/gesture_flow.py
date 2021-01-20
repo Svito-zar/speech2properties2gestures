@@ -19,7 +19,7 @@ from my_code.flow_pytorch.data.trinity_taras import SpeechGestureDataset, inv_st
 
 from my_code.data_processing.visualization.motion_visualizer.generate_videos import visualize
 
-
+import urllib.request
 import h5py
 
 
@@ -234,11 +234,14 @@ class GestureFlow(LightningModule):
 
             mp4_filename = path.join(save_dir + "/videos", f"val_result_ep{self.current_epoch + 1}.mp4")
 
-            self.logger.experiment.log_asset(mp4_filename, step=self.global_step) #, ftype="video")
+            external_ip = urllib.request.urlopen('https://v4.ident.me/').read().decode('utf8')
+            experiment_id = self.logger.version
+            file_name = f"val_result_ep{self.current_epoch + 1}.mp4"
+            video_html = "http://"+str(external_ip)+":5103/"+str(experiment_id) + "/" + str(file_name)
 
-            #self.logger.experiment.log_html(
-            #    f"{mp4_filename}<br><video src='{video}' width=640 controls></video> <br><br>"
-            #)
+            self.logger.experiment.log_html(
+                f"{mp4_filename}<br><video src='{video_html}' width=640 controls></video> <br><br>"
+            )
 
 
     def save_prediction(self, gestures, save_dir, raw=False, video=True):
