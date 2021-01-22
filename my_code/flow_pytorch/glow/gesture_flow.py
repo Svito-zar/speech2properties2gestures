@@ -22,6 +22,16 @@ from my_code.data_processing.visualization.motion_visualizer.generate_videos imp
 import urllib.request
 import h5py
 
+def calc_jerk(sequence):
+    # https://en.wikipedia.org/wiki/Finite_difference_coefficient
+    # −1/2 	1 	0 	−1 	1/2
+    # shift coefficients
+    # 0     1   2    3   4
+    x = sequence.cpu()
+    jerk = -0.5 * x[:, :-4] + x[:, 1:-3] - x[:, 3:-1] + 0.5 * x[:, 4:]
+    return jerk.abs().mean()
+
+
 
 class GestureFlow(LightningModule):
     def __init__(self, hparams, dataset_root=None, test=None):
@@ -148,20 +158,32 @@ class GestureFlow(LightningModule):
         loss_array = -logdet + prior_nll
         loss = torch.mean(loss_array).unsqueeze(-1) / batch["audio"].shape[1]
 
+        self.log('val_loss', loss)
+
         if self.hparams.optuna and self.global_step > 20 and loss > 10000:
             message = f"Trial was pruned since loss > 1000"
             raise optuna.exceptions.TrialPruned(message)
         output = {"val_loss": loss}
 
-        if batch_idx == 0:  #  and self.global_step > 0
-            output["jerk"] = {}
+        if batch_idx == 0:
 
             if self.hparams.Validation["check_invertion"]:
                 # Test if the Flow works correctly
                 output["det_check"], output["reconstr_check"] = self.test_invertability(z_seq, loss, batch)
 
-        if self.hparams.Validation["inference"]:
+        if self.hparams.Validation["inference"] and batch_idx == 0:
+
             output["gesture_example"] = self.inference(batch)
+
+            gt_mean_jerk = calc_jerk(batch["gesture"])
+            generated_mean_jerk = calc_jerk(output["gesture_example"])
+
+            self.log("jerk/gt_mean", gt_mean_jerk)
+            self.log("jerk/generated_mean", generated_mean_jerk)
+            self.log("jerk/generated_mean_ratio", generated_mean_jerk / gt_mean_jerk)
+
+            output["jerk"] = generated_mean_jerk
+
 
         return output
 
@@ -185,31 +207,16 @@ class GestureFlow(LightningModule):
             avg_reconstr_check = torch.stack(reconstr_check).mean()
             self.log("reconstruction/reconstr_error_percentage", avg_reconstr_check)
 
-        jerk = [x["jerk"] for x in outputs if x.get("jerk")]
+        jerk = torch.stack([x["jerk"] for x in outputs if x.get("jerk")]).mean()
         if jerk:
-            gt_jerk_mean = [x["gt_mean"] for x in jerk]
-            if gt_jerk_mean:
-                tb_logs[f"jerk/gt_mean"] = torch.stack(gt_jerk_mean).mean()
-
-            generated_jerk_mean = [x["generated_mean"] for x in jerk]
-            if generated_jerk_mean:
-                tb_logs[f"jerk/generated_mean"] = torch.stack(
-                    generated_jerk_mean
-                ).mean()
-                percentage = tb_logs[f"jerk/generated_mean"] / tb_logs[f"jerk/gt_mean"]
-                tb_logs[f"jerk/generated_mean_ratio"] = percentage
-
             if (
-                tb_logs[f"jerk/generated_mean"] > 5
-                and self.hparams.optuna
+                jerk > 1
                 and self.global_step > 20
             ):
-                message = f"Trial was pruned since jerk > 5"
+                message = f"Trial was pruned since jerk > 1"
                 raise optuna.exceptions.TrialPruned(message)
-            if tb_logs[f"jerk/generated_mean"] < self.best_jerk:
-                self.best_jerk = tb_logs[f"jerk/generated_mean"]
-            else:
-                save_loss + torch.tensor(np.Inf)
+            if jerk < self.best_jerk:
+                self.best_jerk = jerk
 
         if self.hparams.Validation["inference"]:
 
