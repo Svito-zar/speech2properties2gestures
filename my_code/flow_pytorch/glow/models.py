@@ -200,6 +200,7 @@ class FlowStep(nn.Module):
         self.flow_permutation = flow_permutation
         self.flow_coupling = flow_coupling
         self.temp_conf_window = hparams.Glow["conv_seq_len"]
+        self.hparams = hparams
 
         # Custom
         self.scale = None
@@ -328,6 +329,9 @@ class FlowStep(nn.Module):
             logdet:       new value of log determinant of the Jacobian
         """
 
+        max_dilation = 2 ** self.hparams.Glow["CNN"]["numb_layers"]
+        padding = int((self.hparams.Glow["CNN"]["kernel_size"] * max_dilation - max_dilation) / 2)
+
         debug = False
         if random.randint(0, 500) == 1:
             #debug = True
@@ -343,7 +347,9 @@ class FlowStep(nn.Module):
         flatten_input = torch.flatten(input_seq, start_dim=0, end_dim=1)
 
         # 1. actnorm
-        flatten_z1_seq, logdet = self.actnorm(flatten_input, logdet=logdet, seq_len = seq_len, reverse=False)
+        # Do not propagate gradient over padded frames
+        flatten_z1_seq, logdet = self.actnorm(flatten_input, logdet=logdet,
+                                              seq_len = seq_len - 2 * padding, reverse=False)
 
         if debug:
             print("ActNorm contribution: ", logdet - old_lodget)
@@ -381,6 +387,10 @@ class FlowStep(nn.Module):
                     self.scale = scale
                 z2_u_seq = z2_u_seq + shift
                 z2_u_seq = z2_u_seq * scale
+
+                # Do not propagate gradient over padded frames
+                scale = scale[:, padding:-padding]
+
                 logdet = thops.sum(torch.log(scale), dim=[1, 2]) + logdet
 
         if debug:
@@ -405,6 +415,9 @@ class FlowStep(nn.Module):
             logdet:       new value of log determinant of the Jacobian
         """
 
+        max_dilation = 2 ** self.hparams.Glow["CNN"]["numb_layers"]
+        padding = int((self.hparams.Glow["CNN"]["kernel_size"] * max_dilation - max_dilation) / 2)
+
         seq_len = input_seq.shape[1]
 
         #### Go though each steps of the flow separately for the whole sequence
@@ -426,6 +439,9 @@ class FlowStep(nn.Module):
                 self.scale = scale
             z2_u_seq = z2_u_seq / scale
             z2_u_seq = z2_u_seq - shift
+
+            # Do not propagate gradient over padded frames
+            scale = scale[:, padding:-padding]
             logdet = -thops.sum(torch.log(scale), dim=[1, 2]) + logdet
 
         z3_seq = torch.cat((z2_l_seq, z2_u_seq), dim=2)
@@ -439,7 +455,9 @@ class FlowStep(nn.Module):
                 self, flatten_z3_seq.float(), logdet, seq_len, True)
 
         # 1. actnorm
-        flatten_z1_seq, logdet = self.actnorm(flatten_z2_seq, logdet=logdet, seq_len=seq_len, reverse=True)
+        # Do not propagate gradient over padded frames
+        flatten_z1_seq, logdet = self.actnorm(flatten_z2_seq, logdet=logdet,
+                                              seq_len=seq_len - 2 * max_dilation, reverse=True)
 
         # reshape
         z1_seq = torch.reshape(flatten_z1_seq, tensor_shape)
