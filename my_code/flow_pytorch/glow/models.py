@@ -457,7 +457,7 @@ class FlowStep(nn.Module):
         # 1. actnorm
         # Do not propagate gradient over padded frames
         flatten_z1_seq, logdet = self.actnorm(flatten_z2_seq, logdet=logdet,
-                                              seq_len=seq_len - 2 * max_dilation, reverse=True)
+                                              seq_len=seq_len - 2 * padding, reverse=True)
 
         # reshape
         z1_seq = torch.reshape(flatten_z1_seq, tensor_shape)
