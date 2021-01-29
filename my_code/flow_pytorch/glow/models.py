@@ -58,6 +58,7 @@ class WN(torch.nn.Module):
         for i in range(n_layers):
             dilation = 2 ** i
             padding = int((kernel_size*dilation - dilation)/2)
+
             in_layer = torch.nn.Conv1d(hidden_size, 2 * hidden_size, kernel_size,
                                        dilation=dilation, padding=padding)
             in_layer = torch.nn.utils.weight_norm(in_layer, name='weight')
@@ -329,7 +330,7 @@ class FlowStep(nn.Module):
             logdet:       new value of log determinant of the Jacobian
         """
 
-        max_dilation = 2 ** self.hparams.Glow["CNN"]["numb_layers"]
+        max_dilation = 2 ** (self.hparams.Glow["CNN"]["numb_layers"]-1)
         padding = int((self.hparams.Glow["CNN"]["kernel_size"] * max_dilation - max_dilation) / 2)
 
         debug = False
@@ -415,7 +416,7 @@ class FlowStep(nn.Module):
             logdet:       new value of log determinant of the Jacobian
         """
 
-        max_dilation = 2 ** self.hparams.Glow["CNN"]["numb_layers"]
+        max_dilation = 2 ** (self.hparams.Glow["CNN"]["numb_layers"]-1)
         padding = int((self.hparams.Glow["CNN"]["kernel_size"] * max_dilation - max_dilation) / 2)
 
         seq_len = input_seq.shape[1]
