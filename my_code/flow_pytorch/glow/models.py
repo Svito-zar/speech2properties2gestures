@@ -47,7 +47,7 @@ class WN(torch.nn.Module):
 
         # Initializing last layer to 0 makes the affine coupling layers
         # do nothing at first.  This helps with training stability
-        end = torch.nn.Conv1d(hidden_size, output_size, 1)
+        end = torch.nn.Conv1d(hidden_size, output_size, kernel_size, padding=int((kernel_size-1)/2))
         end.weight.data.zero_()
         end.bias.data.zero_()
         self.end = end
@@ -131,15 +131,13 @@ class f_conv(nn.Module):
         super().__init__()
 
         # first conv
-        conv1 = nn.Conv1d(in_channels=input_size+sp_cond_dim, out_channels=hidden_size, kernel_size=9, padding=4, padding_mode='reflect')
-        #conv1 = nn.Conv1d(in_channels=input_size + sp_cond_dim, out_channels=hidden_size, kernel_size=7, padding=6,
-        #                  padding_mode = 'reflect', dilation = 2)
+        conv1 = nn.Conv1d(in_channels=input_size+sp_cond_dim, out_channels=hidden_size, kernel_size=9, padding=8, padding_mode='reflect', dilation=2)
 
         # Apply weight normalization
         self.conv1  = torch.nn.utils.weight_norm(conv1, name='weight')
 
         # final convolution
-        self.final_conv = nn.Conv1d(in_channels=hidden_size, out_channels=output_size, kernel_size=9, padding=4, padding_mode='reflect')
+        self.final_conv = nn.Conv1d(in_channels=hidden_size, out_channels=output_size, kernel_size=9, padding=16, padding_mode='reflect', dilation=4)
 
         # Initializing last layer to 0 makes the affine coupling layers
         # do nothing at first.  This helps with training stability
@@ -330,9 +328,6 @@ class FlowStep(nn.Module):
             logdet:       new value of log determinant of the Jacobian
         """
 
-        max_dilation = 2 ** (self.hparams.Glow["CNN"]["numb_layers"]-1)
-        padding = int((self.hparams.Glow["CNN"]["kernel_size"] * max_dilation - max_dilation) / 2)
-
         debug = False
         if random.randint(0, 500) == 1:
             #debug = True
@@ -348,9 +343,8 @@ class FlowStep(nn.Module):
         flatten_input = torch.flatten(input_seq, start_dim=0, end_dim=1)
 
         # 1. actnorm
-        # Do not propagate gradient over padded frames
         flatten_z1_seq, logdet = self.actnorm(flatten_input, logdet=logdet,
-                                              seq_len = seq_len - 2 * padding, reverse=False)
+                                              seq_len = seq_len, reverse=False)
 
         if debug:
             print("ActNorm contribution: ", logdet - old_lodget)
@@ -389,9 +383,6 @@ class FlowStep(nn.Module):
                 z2_u_seq = z2_u_seq + shift
                 z2_u_seq = z2_u_seq * scale
 
-                # Do not propagate gradient over padded frames
-                scale = scale[:, padding:-padding]
-
                 logdet = thops.sum(torch.log(scale), dim=[1, 2]) + logdet
 
         if debug:
@@ -416,9 +407,6 @@ class FlowStep(nn.Module):
             logdet:       new value of log determinant of the Jacobian
         """
 
-        max_dilation = 2 ** (self.hparams.Glow["CNN"]["numb_layers"]-1)
-        padding = int((self.hparams.Glow["CNN"]["kernel_size"] * max_dilation - max_dilation) / 2)
-
         seq_len = input_seq.shape[1]
 
         #### Go though each steps of the flow separately for the whole sequence
@@ -441,8 +429,6 @@ class FlowStep(nn.Module):
             z2_u_seq = z2_u_seq / scale
             z2_u_seq = z2_u_seq - shift
 
-            # Do not propagate gradient over padded frames
-            scale = scale[:, padding:-padding]
             logdet = -thops.sum(torch.log(scale), dim=[1, 2]) + logdet
 
         z3_seq = torch.cat((z2_l_seq, z2_u_seq), dim=2)
@@ -456,9 +442,8 @@ class FlowStep(nn.Module):
                 self, flatten_z3_seq.float(), logdet, seq_len, True)
 
         # 1. actnorm
-        # Do not propagate gradient over padded frames
         flatten_z1_seq, logdet = self.actnorm(flatten_z2_seq, logdet=logdet,
-                                              seq_len=seq_len - 2 * padding, reverse=True)
+                                              seq_len=seq_len, reverse=True)
 
         # reshape
         z1_seq = torch.reshape(flatten_z1_seq, tensor_shape)
