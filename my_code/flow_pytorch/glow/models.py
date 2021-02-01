@@ -484,6 +484,9 @@ class SeqFlowNet(nn.Module):
         self.K = K
         self.L = L
 
+        # Temperatute
+        self.temp = hparams.Infer["temp"]
+
         # About sequence processing
         self.past_context = hparams.Cond["Speech"]["prev_context"]
         self.future_context = hparams.Cond["Speech"]["future_context"]
@@ -700,7 +703,7 @@ class SeqFlowNet(nn.Module):
 
             # Use zeros for std
             log_sigma = torch.zeros_like(sigma)
-            sigma = torch.ones_like(sigma)
+            sigma = torch.ones_like(sigma) * self.temp
 
             # sample
             curr_z = modules.DiagGaussian.sample(mu, sigma).to(curr_cond.device)
