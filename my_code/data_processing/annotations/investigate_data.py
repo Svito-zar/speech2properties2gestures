@@ -7,7 +7,11 @@ curr_folder = "/home/tarask/Documents/Datasets/SaGa/All_the_transcripts/"
 curr_file = curr_folder + "/01_video_NEW.eaf"
 elan = pympi.Elan.Eaf(file_path=curr_file)
 
-gen_tiers = elan.tiers
+gen_tiers = [ "R.G.Left.Phrase", "R.G.Left.Phase", "R.G.Right.Phrase", "R.G.Right.Phase",
+              "R.Movement_relative_to_other_Hand", "F.G.Right.Phrase", "F.G.Right.Phase",
+              "F.G.Left.Phrase", "F.G.Left.Phase", "R.S.Form", "R.S.Pos", "F.S.Form", "F.S.Pos",
+              "R.G.Right Semantic", "R.S.Semantic Feature"]
+
 #time_key = elan.timeslots
 
 # go though the gesture features
