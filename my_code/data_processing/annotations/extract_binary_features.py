@@ -5,6 +5,8 @@ import os
 import pickle
 import h5py
 
+from my_code.data_processing.annotations.investigate_data import clean_label
+
 
 def create_dict(curr_folder, columns_to_consider, dict_file):
     """
@@ -38,40 +40,21 @@ def create_dict(curr_folder, columns_to_consider, dict_file):
 
             if column in curr_tiers:
                 curr_tier = curr_tiers[column][0]
+                if len(curr_tier) == 0:
+                    curr_tier = curr_tiers[column][1]
             else:
                 break
 
-            for key, (st_t, end_t, label, _) in curr_tier.items():
-                if label is not None:
-                    # remove leading whitespace
-                    label = label.lstrip()
-                    if label != "" and label != " ":
-                        if label.find('-')!=-1:
-                            split = re.split('-',label)
-                            for subval in split:
-                                curr_values.append(subval.strip())
-                        elif label.find('/')!=-1:
-                            split = re.split('/',label)
-                            for subval in split:
-                                curr_values.append(subval.strip())
-                        elif label.find(',')!=-1:
-                            split = re.split(',',label)
-                            for subval in split:
-                                curr_values.append(subval.strip())
-                        elif label.find('\n')!=-1:
-                            split = re.split('\n',label)
-                            for subval in split:
-                                curr_values.append(subval.strip())
-                                break
-                        elif label == "relative Positionm Amount":
-                            curr_values.append("relative Position")
-                            curr_values.append("Amount")
-                        elif label == "relatie Position":
-                            curr_values.append("relative Position")
-                        elif label == "Shape38":
-                            curr_values.append("Shape")
-                        else:
-                            curr_values.append(label)
+            for key, value in curr_tier.items():
+                if len(value) == 4:
+                    (st_t, end_t, label, _) = value
+                    # sometime they are messed up
+                    if label is None and _ is None:
+                        (st_t, label, _, _) = value
+                if label is not None and label != "" and label != " ":
+                    label_cleaned = clean_label(label)
+                    for label_parts in label_cleaned:
+                        curr_values.append(label_parts)
 
         # If this feature is actually present
         if len(set(curr_values)) > 0:
@@ -79,7 +62,7 @@ def create_dict(curr_folder, columns_to_consider, dict_file):
             # create a corresponding dictionary
             dict[column] = {}
             for idx, val in enumerate(set(curr_values)):
-                    dict[column][idx] = val
+                dict[column][idx] = val
 
             print(column, len(set(curr_values)))
             unique_values = np.array(set(curr_values))
@@ -90,10 +73,12 @@ def create_dict(curr_folder, columns_to_consider, dict_file):
     pickle.dump(dict, f)
     f.close()
 
+    print(dict)
+
     print("Done!")
 
 
-def encode_features(dict_file, curr_file, columns_to_consider):
+def encode_other_features(dict_file, curr_file, columns_to_consider):
     """
     Encode features of a current file and save into hdf5 dataset
     Args:
@@ -115,7 +100,7 @@ def encode_features(dict_file, curr_file, columns_to_consider):
     # create hdf5 file
     hdf5_file_name = "feat/" + curr_file[57:-4] + "_feat.hdf5"
     assert os.path.isfile(hdf5_file_name) == False
-    hf = h5py.File(name = hdf5_file_name, mode = 'a')
+    hf = h5py.File(name=hdf5_file_name, mode='a')
 
     for column in columns_to_consider:
 
@@ -125,10 +110,17 @@ def encode_features(dict_file, curr_file, columns_to_consider):
 
         if column in curr_tiers:
             curr_tier = curr_tiers[column][0]
+            if len(curr_tier) == 0:
+                curr_tier = curr_tiers[column][1]
         else:
             break
 
-        for key, (st_t, end_t, label, _) in curr_tier.items():
+        for key, value in curr_tier.items():
+            if len(value) == 4:
+                (st_t, end_t, label, _) = value
+                # sometime they are messed up
+                if label is None and _ is None:
+                    (st_t, label, _, _) = value
 
             if label is not None:
                 # remove leading whitespace
@@ -143,43 +135,52 @@ def encode_features(dict_file, curr_file, columns_to_consider):
 
                     features = [0 for _ in range(len(curr_dict))]
 
-                    #print(label)
+                    # print(label)
                     for key in curr_dict:
-                        if label.find(curr_dict[key])!=-1:
+                        if label.find(curr_dict[key]) != -1:
                             features[key] = 1
-                            #print(key, 'corresponds to', curr_dict[key])
+                            # print(key, 'corresponds to', curr_dict[key])
 
-                    #print(time_key[st_t] / 1000, time_key[end_t] / 1000)
+                    if time_key[st_t] is None or time_key[end_t] is None:
+                        continue
 
-                    #print(features)
+                    # print(features)
 
-                    #print(" .... \n")
+                    # print(" .... \n")
 
                     time_n_feat = [time_key[st_t] / 1000] + [time_key[end_t] / 1000] + features
 
                     curr_column_features.append(np.array(time_n_feat))
 
-        print(column)
+        #print(column)
 
         curr_column_features = np.array(curr_column_features)
 
         hf.create_dataset(column, data=curr_column_features)
 
-
     hf.close()
 
+
+def encode_main_g_features(dict_file, curr_file, columns_to_consider):
+
+    return 0
 
 if __name__ == "__main__":
 
     curr_folder = "/home/tarask/Documents/Datasets/SaGa/All_the_transcripts/"
 
-    columns_to_consider = ["R.G.Left.Phrase", "R.G.Left.Phase", "R.G.Right.Phrase", "R.G.Right.Phase",
+    columns_to_consider = ["R.G.Right.Practice", "R.G.Left.Practice", "R.G.Left.Phrase", "R.G.Right.Phrase",
+                 "R.G.Left.Phase", "R.G.Right.Phase",
                  "R.Movement_relative_to_other_Hand", "R.S.Pos",
-                 "R.G.Right Semantic", "R.S.Semantic Feature"]
+                 "R.G.Right Semantic",  "R.G.Left Semantic", "R.S.Semantic Feature"]
 
     dict_file = "dict.pkl"
 
-    #create_dict(curr_folder, columns_to_consider, dict_file)
+    # create_dict(curr_folder, columns_to_consider, dict_file)
+
+    columns_to_consider = ["R.G.Left.Phase", "R.G.Right.Phase",
+                           "R.Movement_relative_to_other_Hand", "R.S.Pos",
+                           "R.G.Right Semantic", "R.G.Left Semantic", "R.S.Semantic Feature"]
 
     # go though the gesture features
     for item in os.listdir(curr_folder):
@@ -187,4 +188,6 @@ if __name__ == "__main__":
             continue
         curr_file = curr_folder + item
 
-        encode_features(dict_file, curr_file, columns_to_consider)
+        encode_other_features(dict_file, curr_file, columns_to_consider)
+
+    columns_to_consider = ["R.G.Right.Practice", "R.G.Left.Practice", "R.G.Left.Phrase", "R.G.Right.Phrase"]
