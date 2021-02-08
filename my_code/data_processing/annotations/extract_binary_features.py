@@ -152,8 +152,6 @@ def encode_other_features(dict_file, curr_file, columns_to_consider):
 
                     curr_column_features.append(np.array(time_n_feat))
 
-        #print(column)
-
         curr_column_features = np.array(curr_column_features)
 
         hf.create_dataset(column, data=curr_column_features)
