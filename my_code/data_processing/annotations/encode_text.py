@@ -23,12 +23,16 @@ def text_to_feat(tokenizer, model, text):
     last_hidden_states = outputs[0]
     text_enc = last_hidden_states[0, 1:-1]
 
+    assert len(text_enc) == len(text)
+
     return text_enc
 
-def encode_text(elan_file, hdf5_file_name):
+def encode_text(tokenizer, model,elan_file, hdf5_file_name):
     """
     Encode features of a current file and save into hdf5 dataset
     Args:
+        tokenizer:            BERT tokenizer
+        model:                BERT model itself
         elan_file:            file with the ELAN annotations
         hdf5_file_name:       file for storing the pre=processed features
 
@@ -55,10 +59,6 @@ def encode_text(elan_file, hdf5_file_name):
             if word != "" and word != " ":
                 text.append(word)
 
-    # create DistilBERT model
-    tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-german-cased')
-    model = DistilBertModel.from_pretrained('distilbert-base-german-cased')
-
     # Split text into short enough parts
     numb_parts = len(text) // 500 + 1
     full_text_enc = []
@@ -72,7 +72,6 @@ def encode_text(elan_file, hdf5_file_name):
 
     # Combine two halfs together
     full_text_enc = torch.cat(full_text_enc, 0)
-    print(full_text_enc.shape)
 
     # Now encode all the words together with their timing information
     curr_column_features = []
@@ -91,13 +90,15 @@ def encode_text(elan_file, hdf5_file_name):
 
     curr_column_features = np.array(curr_column_features)
 
-    print(curr_column_features.shape)
-
     hf.create_dataset(name="text", data=curr_column_features.astype(np.float64))
 
     hf.close()
 
 if __name__ == "__main__":
+
+    # create DistilBERT model
+    tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-german-cased')
+    model = DistilBertModel.from_pretrained('distilbert-base-german-cased')
 
     curr_folder = "/home/tarask/Documents/Datasets/SaGa/All_the_transcripts/"
 
@@ -106,6 +107,8 @@ if __name__ == "__main__":
         if item[-3:] != "eaf":
             continue
         elan_file = curr_folder + item
+        print(elan_file)
+
         feature_file = "feat/" + item[:-3] + "-text.hdf5"
 
-        encode_text(elan_file, feature_file)
+        encode_text(tokenizer, model, elan_file, feature_file)
