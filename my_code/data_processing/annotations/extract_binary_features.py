@@ -135,18 +135,12 @@ def encode_other_features(dict_file, curr_file, columns_to_consider):
 
                     features = [0 for _ in range(len(curr_dict))]
 
-                    # print(label)
                     for key in curr_dict:
                         if label.find(curr_dict[key]) != -1:
                             features[key] = 1
-                            # print(key, 'corresponds to', curr_dict[key])
 
                     if time_key[st_t] is None or time_key[end_t] is None:
                         continue
-
-                    # print(features)
-
-                    # print(" .... \n")
 
                     time_n_feat = [time_key[st_t] / 1000] + [time_key[end_t] / 1000] + features
 
@@ -159,18 +153,99 @@ def encode_other_features(dict_file, curr_file, columns_to_consider):
     hf.close()
 
 
-def encode_main_g_features(dict_file, curr_file, columns_to_consider):
+def encode_main_g_features(dict_file, curr_file):
+    """
+       Encode main gesture features of a current file and save into hdf5 dataset
+       Args:
+           dict_file:            file with a dictionary for the binary coding
+           curr_file:            file with the ELAN annotations
+       Returns:
+           nothing, saves features in hdf5 file
+       """
+
+    with open(dict_file, 'rb') as handle:
+        total_dict = pickle.load(handle)
+
+    elan = pympi.Elan.Eaf(file_path=curr_file)
+    curr_tiers = elan.tiers
+    time_key = elan.timeslots
+
+    # create hdf5 file
+    hdf5_file_name = "feat/" + curr_file[57:-4] + "_feat.hdf5"
+    hf = h5py.File(name=hdf5_file_name, mode='a')
+
+    hands = ["Right", "Left"]
+    #main_columns = ["R.G.Right.Practice", "R.G.Left.Practice", "R.G.Left.Phrase", "R.G.Right.Phrase"]
+
+    for hand in hands:
+
+        phrase = "R.G." + hand + ".Phrase"
+        practice = "R.G." + hand + ".Practice"
+
+        curr_phrase_dict = total_dict[phrase]
+        curr_practice_dict = total_dict[practice]
+
+        curr_column_features = []
+
+        if phrase in curr_tiers:
+            curr_phrase_tier = curr_tiers[phrase][0]
+            if len(curr_phrase_tier) == 0:
+                curr_phrase_tier = curr_tiers[phrase][1]
+        else:
+            break
+
+        if practice in curr_tiers:
+            curr_practice_tier = curr_tiers[practice][0]
+            if len(curr_practice_tier) == 0:
+                curr_practice_tier = curr_tiers[practice][1]
+        else:
+            break
+
+        for key, value in curr_practice_tier.items():
+            (ges_key, practice_val, _, _) = value
+
+            if practice_val is not None:
+                # remove leading whitespace
+                practice_val = practice_val.lstrip()
+                if practice_val != "" and practice_val != " ":
+
+                    pract_features = [0 for _ in range(len(curr_practice_dict))]
+
+                    for dict_key in curr_practice_dict:
+                        if practice_val.find(curr_practice_dict[dict_key]) != -1:
+                            pract_features[dict_key] = 1
+
+                    (st_t, end_t, phrase_val, _)  = curr_phrase_tier[ges_key]
+
+                    if time_key[st_t] is None or time_key[end_t] is None:
+                        continue
+
+                    if phrase_val is not None:
+                        # remove leading whitespace
+                        phrase_val = phrase_val.lstrip()
+                        if phrase_val != "" and phrase_val != " ":
+
+                            phr_features = [0 for _ in range(len(curr_phrase_dict))]
+
+                            for dict_key in curr_phrase_dict:
+                                if phrase_val.find(curr_phrase_dict[dict_key]) != -1:
+                                    phr_features[dict_key] = 1
+
+                    time_n_feat = [time_key[st_t] / 1000] + [time_key[end_t] / 1000] + phr_features + pract_features
+
+                    curr_column_features.append(np.array(time_n_feat))
+
+        curr_column_features = np.array(curr_column_features)
+
+        hf.create_dataset("gesture_phrase_n_practice_"+hand, data=curr_column_features)
+
+    hf.close()
 
     return 0
 
 if __name__ == "__main__":
 
     curr_folder = "/home/tarask/Documents/Datasets/SaGa/All_the_transcripts/"
-
-    columns_to_consider = ["R.G.Right.Practice", "R.G.Left.Practice", "R.G.Left.Phrase", "R.G.Right.Phrase",
-                 "R.G.Left.Phase", "R.G.Right.Phase",
-                 "R.Movement_relative_to_other_Hand", "R.S.Pos",
-                 "R.G.Right Semantic",  "R.G.Left Semantic", "R.S.Semantic Feature"]
 
     dict_file = "dict.pkl"
 
@@ -186,6 +261,8 @@ if __name__ == "__main__":
             continue
         curr_file = curr_folder + item
 
+        print(curr_file)
+
         encode_other_features(dict_file, curr_file, columns_to_consider)
 
-    columns_to_consider = ["R.G.Right.Practice", "R.G.Left.Practice", "R.G.Left.Phrase", "R.G.Right.Phrase"]
+        encode_main_g_features(dict_file, curr_file)
