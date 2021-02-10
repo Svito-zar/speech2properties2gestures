@@ -165,6 +165,6 @@ if __name__ == "__main__":
         elan_file = curr_folder + item
         print(elan_file)
 
-        feature_file = "feat/" + item[:-3] + "-text.hdf5"
+        feature_file = "feat/" + item[:2] + "_text.hdf5"
 
         encode_text(tokenizer, model, elan_file, feature_file)
