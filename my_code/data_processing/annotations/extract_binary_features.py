@@ -98,7 +98,7 @@ def encode_other_features(dict_file, curr_file, columns_to_consider):
     time_key = elan.timeslots
 
     # create hdf5 file
-    hdf5_file_name = "feat/" + curr_file[61:-4] + "_feat.hdf5"
+    hdf5_file_name = "feat/" + curr_file[61:63] + "_feat.hdf5"
     assert os.path.isfile(hdf5_file_name) == False
     hf = h5py.File(name=hdf5_file_name, mode='a')
 
@@ -171,7 +171,7 @@ def encode_main_g_features(dict_file, curr_file):
     time_key = elan.timeslots
 
     # create hdf5 file
-    hdf5_file_name = "feat/" + curr_file[61:-4] + "_feat.hdf5"
+    hdf5_file_name = "feat/" + curr_file[61:63] + "_feat.hdf5"
     hf = h5py.File(name=hdf5_file_name, mode='a')
 
     hands = ["Right", "Left"]
@@ -267,6 +267,6 @@ if __name__ == "__main__":
 
         encode_main_g_features(dict_file, curr_file)
 
-        feature_file = "feat/" + curr_file[61:-4] + "_feat.hdf5"
+        feature_file = "feat/" + curr_file[61:63] + "_feat.hdf5"
         hf = h5py.File(name=feature_file, mode='r')
         print(len(hf.keys()), hf.keys())
