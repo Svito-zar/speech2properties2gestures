@@ -4,7 +4,7 @@ CNN:
   hidden_dim: 16
   output_dim: 5
   kernel_size: 5
-  dropout: 0.8
+  dropout: 0.3
 Optim:
   Schedule:
     args:
@@ -13,10 +13,10 @@ Optim:
       multiplicative:
         val: 10
       step:
-        gamma: 0.7
-        step_size: 3
+        gamma: 0.95
+        step_size: 10
     name: step
-    warm_up: 500
+    warm_up: 100
   args:
     adam:
       betas:
@@ -33,9 +33,9 @@ amp_level: O1
 auto_lr_find: false
 auto_scale_batch_size: false
 auto_select_gpus: false
-batch_size: 16
+batch_size: 64
 benchmark: true
-check_val_every_n_epoch: 1
+check_val_every_n_epoch: 4
 checkpoint_callback: true
 data_root: /home/tarask/Documents/Datasets/SaGa/Processed/feat/
 data_feat: R.G.Right Semantic
@@ -47,11 +47,11 @@ early_stop_callback: false
 fast_dev_run: false
 gradient_clip_val: 20
 log_gpu_memory: null
-log_save_interval: 100
+log_save_interval: 80
 log_root: results/gesture_flow/log/
 logger: true
-lr: 3.0e-04
-max_epochs: 150
+lr: 1.0e-04
+max_epochs: 100
 max_steps: null
 min_epochs: 1
 min_steps: null
@@ -78,7 +78,7 @@ train_percent_check: 1.0
 truncated_bptt_steps: null
 val_check_interval: 1.0
 val_gest_dir: ./results/gesture_flow/val_res
-val_percent_check: 0.1
+val_percent_check: 0.9
 weights_save_path: null
 weights_summary: top
 comet_logger:

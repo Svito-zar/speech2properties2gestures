@@ -34,7 +34,7 @@ class PropPredictor(LightningModule):
                                    padding=int((hparams.CNN["kernel_size"] - 1) / 2))
 
         self.linear = torch.nn.Sequential(nn.Linear(hparams.CNN["hidden_dim"] * hparams.CNN["seq_length"],
-                                                    hparams.CNN["output_dim"]), nn.Dropout(hparams.CNN["dropout"]),
+                                                    hparams.CNN["output_dim"]), nn.Dropout(p = hparams.CNN["dropout"]),
                                                                                            nn.Sigmoid())
 
         self.loss_funct = nn.BCELoss()
@@ -133,7 +133,7 @@ class PropPredictor(LightningModule):
         if self.hparams.optuna and self.global_step > 20 and loss_value > 1000000:
             message = f"Trial was pruned since loss > 1000"
             raise optuna.exceptions.TrialPruned(message)
-        output = {"val_loss": loss_value}
+        output = {"Loss/val_loss": loss_value}
 
         return output
 
@@ -194,7 +194,7 @@ class PropPredictor(LightningModule):
 
     def train_dataloader(self):
         loader = torch.utils.data.DataLoader(
-            dataset=self.val_dataset,
+            dataset=self.train_dataset,
             batch_size=self.hparams.batch_size,
             num_workers=8,
             shuffle=True
