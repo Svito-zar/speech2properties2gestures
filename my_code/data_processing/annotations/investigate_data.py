@@ -3,7 +3,11 @@ import numpy as np
 import re
 import os
 
-curr_folder = "/home/tarask/Documents/Datasets/SaGa/All_the_transcripts/"
+import pandas
+from collections import Counter
+import matplotlib.pyplot as plt
+
+curr_folder = "/home/tarask/Documents/Datasets/SaGa/Raw/All_the_transcripts/"
 curr_file = curr_folder + "/01_video_NEW.eaf"
 elan = pympi.Elan.Eaf(file_path=curr_file)
 
@@ -58,9 +62,6 @@ if __name__ == "__main__":
         curr_values = []
 
         # go through all the files in the dataset
-
-        print(column)
-
         for item in os.listdir(curr_folder):
             if item[-3:] != "eaf":
                 continue
@@ -98,6 +99,11 @@ if __name__ == "__main__":
             print(unique_values)
 
             print("\n")
+
+            val_counts = Counter(curr_values)
+            df = pandas.DataFrame.from_dict(val_counts, orient='index')
+            df.plot(kind='bar', rot=14)
+            plt.show()
 
         else:
             print(column, " is empty ...")

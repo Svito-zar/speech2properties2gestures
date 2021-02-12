@@ -78,20 +78,17 @@ def create_dict(curr_folder, columns_to_consider, dict_file):
     print("Done!")
 
 
-def encode_other_features(dict_file, curr_file, columns_to_consider):
+def encode_other_features(total_dict, curr_file, columns_to_consider):
     """
     Encode features of a current file and save into hdf5 dataset
     Args:
-        dict_file:            file with a dictionary for the binary coding
+        total_dict:           dictionary for the binary coding
         curr_file:            file with the ELAN annotations
         columns_to_consider:  which columns are we interested in
 
     Returns:
         nothing, saves a new hdf5 file
     """
-
-    with open(dict_file, 'rb') as handle:
-        total_dict = pickle.load(handle)
 
     elan = pympi.Elan.Eaf(file_path=curr_file)
     curr_tiers = elan.tiers
@@ -153,18 +150,16 @@ def encode_other_features(dict_file, curr_file, columns_to_consider):
     hf.close()
 
 
-def encode_main_g_features(dict_file, curr_file):
+def encode_main_g_features(total_dict, curr_file):
     """
        Encode main gesture features of a current file and save into hdf5 dataset
        Args:
-           dict_file:            file with a dictionary for the binary coding
+           total_dict:           dictionary for the binary coding
            curr_file:            file with the ELAN annotations
        Returns:
            nothing, saves features in hdf5 file
        """
 
-    with open(dict_file, 'rb') as handle:
-        total_dict = pickle.load(handle)
 
     elan = pympi.Elan.Eaf(file_path=curr_file)
     curr_tiers = elan.tiers
@@ -241,7 +236,6 @@ def encode_main_g_features(dict_file, curr_file):
 
     hf.close()
 
-    return 0
 
 if __name__ == "__main__":
 
@@ -250,6 +244,9 @@ if __name__ == "__main__":
     dict_file = "dict.pkl"
 
     # create_dict(curr_folder, columns_to_consider, dict_file)
+
+    with open(dict_file, 'rb') as handle:
+        total_dict = pickle.load(handle)
 
     columns_to_consider = ["R.G.Left.Phase", "R.G.Right.Phase",
                            "R.Movement_relative_to_other_Hand", "R.S.Pos",
@@ -263,9 +260,9 @@ if __name__ == "__main__":
 
         print(curr_file)
 
-        encode_other_features(dict_file, curr_file, columns_to_consider)
+        encode_other_features(total_dict, curr_file, columns_to_consider)
 
-        encode_main_g_features(dict_file, curr_file)
+        encode_main_g_features(total_dict, curr_file)
 
         feature_file = "feat/" + curr_file[61:63] + "_feat.hdf5"
         hf = h5py.File(name=feature_file, mode='r')
