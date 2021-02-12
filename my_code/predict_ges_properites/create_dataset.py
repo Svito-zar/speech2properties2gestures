@@ -66,14 +66,26 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
                         np.concatenate(([text_timing[word_id, 0].round(1) - time_st.round(1)], text_array[word_id, 2:]))
                         for word_id in range(curr_word_id - 3, curr_word_id + 4)]
 
-                    X_dataset.append(np.array(input_vector))
-                    Y_dataset.append(output_vector)
+                    # upsample under-represented classes
+                    if output_vector[2] == 1:
+                        mulp_factor = 2
+                    elif output_vector[3] == 1:
+                        mulp_factor = 30
+                    elif output_vector[6] == 1:
+                        mulp_factor = 7
+                    else:
+                        mulp_factor = 1
+
+                    for _ in range(mulp_factor):
+                        X_dataset.append(np.array(input_vector))
+                        Y_dataset.append(output_vector)
 
             print(np.array(Y_dataset).shape)
             print(np.array(X_dataset).shape)
 
     # create dataset file
-    np.save(gen_folder + dataset_name+ "_" + feature_name + "_.npy", Y_dataset)
+    np.save(gen_folder + dataset_name+ "_Y_" + feature_name + ".npy", Y_dataset)
+    np.save(gen_folder + dataset_name + "_X_" + feature_name + ".npy", X_dataset)
 
 if __name__ == "__main__":
 
