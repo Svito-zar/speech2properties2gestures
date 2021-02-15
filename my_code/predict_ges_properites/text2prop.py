@@ -8,8 +8,20 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from torch.optim import SGD, Adam, RMSprop
 from torch.optim.lr_scheduler import LambdaLR, MultiplicativeLR, StepLR
 from torch.utils.data import DataLoader
+import numpy as np
 
 from my_code.predict_ges_properites.GestPropDataset import GesturePropDataset
+
+
+def weights_init_he(m):
+    """Initialize the given linear layer using He initialization."""
+    classname = m.__class__.__name__
+    if classname.find('Linear') != -1:
+        n = m.in_features * m.out_features
+        # m.weight.data shoud be taken from a normal distribution
+        m.weight.data.normal_(0.0, np.sqrt(2 / n))
+        # m.bias.data should be 0
+        m.bias.data.fill_(0)
 
 
 class PropPredictor(LightningModule):
@@ -28,16 +40,38 @@ class PropPredictor(LightningModule):
 
         # define key parameters
         self.hparams = hparams
-
-        self.conv_net = torch.nn.Conv1d(hparams.CNN["input_dim"], hparams.CNN["hidden_dim"],
-                                   hparams.CNN["kernel_size"],
-                                   padding=int((hparams.CNN["kernel_size"] - 1) / 2))
-
-        self.linear = torch.nn.Sequential(nn.Linear(hparams.CNN["hidden_dim"] * hparams.CNN["seq_length"],
-                                                    hparams.CNN["output_dim"]), nn.Dropout(p = hparams.CNN["dropout"]),
-                                                                                           nn.Sigmoid())
+        self.kernel_size = hparams.CNN["input_dim"]
+        self.input_dim = hparams.CNN["input_dim"]
+        self.output_dim = hparams.CNN["output_dim"]
+        self.hidden_dim = hparams.CNN["hidden_dim"]
+        self.n_layers = hparams.CNN["n_layers"]
 
         self.loss_funct = nn.BCELoss()
+
+        assert(self.kernel_size % 2 == 1)
+
+        self.in_layers = torch.nn.ModuleList()
+
+        start = torch.nn.Conv1d(self.input_dim, self.hidden_dim, self.kernel_size, padding=int((self.kernel_size - 1) / 2))
+        start = torch.nn.utils.weight_norm(start, name='weight')
+        self.start = start
+
+        # Initializing last layer to 0 makes the affine coupling layers
+        # do nothing at first.  This helps with training stability
+        end_linear = torch.nn.Sequential(nn.Linear(hparams.CNN["hidden_dim"] * hparams.CNN["seq_length"],
+                                                    hparams.CNN["output_dim"]), nn.Dropout(p = hparams.CNN["dropout"]),
+                                                                                           nn.Sigmoid())
+        end_linear = end_linear.apply(weights_init_he)
+        self.end = end_linear
+
+        for i in range(self.n_layers):
+            dilation = 2 ** i
+            padding = int((self.kernel_size*dilation - dilation)/2)
+
+            in_layer = torch.nn.Conv1d(self.hidden_dim, self.hidden_dim, self.kernel_size,
+                                       dilation=dilation, padding=padding)
+            in_layer = torch.nn.utils.weight_norm(in_layer, name='weight')
+            self.in_layers.append(in_layer)
 
 
     def load_datasets(self):
@@ -61,14 +95,16 @@ class PropPredictor(LightningModule):
         # reshape
         input_seq_tr = torch.transpose(text_inp, dim0=2, dim1=1)
 
-        # apply 1d cnn
-        hidden_tr_1 = self.conv_net(input_seq_tr)
+        h_seq = self.start(input_seq_tr)
+
+        for i in range(self.n_layers):
+            h_seq = self.in_layers[i](h_seq)
 
         # reshape
-        hidden_flat = torch.flatten(hidden_tr_1, start_dim=1, end_dim=2) # dims=[1,2]) # hidden_tr_1, dim0=2, dim1=1)
+        hidden_flat = torch.flatten(h_seq, start_dim=1, end_dim=2) # dims=[1,2]) # hidden_tr_1, dim0=2, dim1=1)
 
         # final linear
-        output = self.linear(hidden_flat)
+        output = self.end(hidden_flat)
 
         return output
 

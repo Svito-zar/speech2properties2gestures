@@ -115,7 +115,7 @@ def run(hparams, return_dict, trial, batch_size, current_date):
         trainer_params["logger"] = CometLogger(
             api_key=hparams.comet_logger["api_key"],
             project_name=hparams.comet_logger["project_name"],
-            experiment_name=conf_name,  # + current_date
+            experiment_name="GestProp" + current_date
         )
 
     #trainer_params["early_stop_callback"] = MyEarlyStopping(trial, monitor="val_loss")

@@ -2,8 +2,9 @@ CNN:
   input_dim: 769
   seq_length: 7
   hidden_dim: 16
+  n_layers: 4
   output_dim: 5
-  kernel_size: 5
+  kernel_size: 3
   dropout: 0.3
 Optim:
   Schedule:
@@ -51,7 +52,7 @@ log_save_interval: 80
 log_root: results/gesture_flow/log/
 logger: true
 lr: 1.0e-04
-max_epochs: 100
+max_epochs: 80
 max_steps: null
 min_epochs: 1
 min_steps: null
