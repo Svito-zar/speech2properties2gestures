@@ -49,8 +49,8 @@ class GesturePropDataset(Dataset):
 if __name__ == "__main__":
 
     # Test the dataset class
-    gen_folder = "/home/tarask/Documents/Datasets/SaGa/Processed/feat/"
+    gen_folder = "/home/tarask/Documents/Datasets/SaGa/Processed/feat/R_Phase_n_Practice/"
     dataset_name = subfolder = "test"
-    feature_name = "R.G.Right Semantic"
+    feature_name = "gesture_phrase_n_practice_Right"
 
     TestDataset = GesturePropDataset(gen_folder, dataset_name, feature_name)

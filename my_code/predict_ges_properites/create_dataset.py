@@ -36,6 +36,8 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
             spec_feat_hf = feat_hf.get(feature_name)
 
             if spec_feat_hf is None:
+                print("Skip file with only the following keys:")
+                print(len(feat_hf.keys()), feat_hf.keys())
                 continue
             spec_feat = np.array(spec_feat_hf)
 
@@ -62,7 +64,7 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
                             break
 
                         # Save some extra info which might be useful later on
-                        output_vector = np.concatenate(([recording_id, time_st.round(1)], [0 for _ in range(5)]))
+                        output_vector = np.concatenate(([recording_id, time_st.round(1)], [0 for _ in range(19)]))
 
                         # find the corresponding words
                         curr_word_id = bisect.bisect(text_timing[:, 0], time_st)
@@ -76,12 +78,16 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
                         X_dataset.append(np.array(input_vector))
                         Y_dataset.append(output_vector)
 
-                for time_st in np.arange(curr_feat_timing[0], curr_feat_timing[1], 0.1):
+                for time_st in np.arange(curr_feat_timing[0], curr_feat_timing[1], 0.4):
+
                     # Save some extra info which might be useful later on
                     output_vector = np.concatenate(([recording_id, time_st.round(1)], curr_feat_values))
 
                     # find the corresponding words
                     curr_word_id = bisect.bisect(text_timing[:, 0], time_st)
+
+                    if curr_word_id + 4 > len(text_array):
+                        continue
 
                     # encode current word with the next three and previous three words
                     # while also storing time offset from the current time-step
@@ -90,12 +96,18 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
                         for word_id in range(curr_word_id - 3, curr_word_id + 4)]
 
                     # upsample under-represented classes
-                    if output_vector[2] == 1:
-                        mulp_factor = 2
-                    elif output_vector[3] == 1:
+                    if output_vector[20] == 1:
+                        mulp_factor = 60
+                    elif output_vector[5] == 1:
+                        mulp_factor = 340
+                    elif output_vector[16] == 1 or output_vector[12] == 1:
                         mulp_factor = 30
-                    elif output_vector[6] == 1:
-                        mulp_factor = 7
+                    elif output_vector[13] == 1 or output_vector[14] == 1 or output_vector[17] == 1:
+                        mulp_factor = 14
+                    elif output_vector[7] == 1 or output_vector[11] == 1:
+                        mulp_factor = 12
+                    elif output_vector[15] == 1 or output_vector[3] == 1 or output_vector[10] == 1:
+                        mulp_factor = 2
                     else:
                         mulp_factor = 1
 
@@ -109,13 +121,15 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
             print(np.array(X_dataset).shape)
 
     # create dataset file
-    np.save(gen_folder + dataset_name+ "_Y_" + feature_name + ".npy", Y_dataset)
-    np.save(gen_folder + dataset_name + "_X_" + feature_name + ".npy", X_dataset)
+    Y = np.asarray(Y_dataset, dtype=np.float32)
+    X = np.asarray(X_dataset, dtype=np.float32)
+    np.save(gen_folder + dataset_name+ "_Y_" + feature_name + ".npy", Y)
+    np.save(gen_folder + dataset_name + "_X_" + feature_name + ".npy", X)
 
 if __name__ == "__main__":
 
     gen_folder = "/home/tarask/Documents/Datasets/SaGa/Processed/feat/"
-    dataset_name = subfolder = "val"
-    feature_name = "R.G.Right Semantic"
+    dataset_name = subfolder = "train"
+    feature_name = "gesture_phrase_n_practice_Right"
 
     create_dataset(gen_folder, subfolder, feature_name, dataset_name)

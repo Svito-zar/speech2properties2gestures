@@ -1,9 +1,9 @@
 CNN:
   input_dim: 769
   seq_length: 7
-  hidden_dim: 16
+  hidden_dim: 8
   n_layers: 4
-  output_dim: 5
+  output_dim: 19
   kernel_size: 3
   dropout: 0.3
 Optim:
@@ -38,8 +38,8 @@ batch_size: 64
 benchmark: true
 check_val_every_n_epoch: 4
 checkpoint_callback: true
-data_root: /home/tarask/Documents/Datasets/SaGa/Processed/feat/
-data_feat: R.G.Right Semantic
+data_root: /home/tarask/Documents/Datasets/SaGa/Processed/feat/R_Phase_n_Practice/
+data_feat: gesture_phrase_n_practice_Right
 dropout: 0.2
 default_root_dir: null
 deterministic: true

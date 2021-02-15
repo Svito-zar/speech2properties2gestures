@@ -52,7 +52,7 @@ class PropPredictor(LightningModule):
 
         self.in_layers = torch.nn.ModuleList()
 
-        start = torch.nn.Conv1d(self.input_dim, self.hidden_dim, self.kernel_size, padding=int((self.kernel_size - 1) / 2))
+        start = torch.nn.Conv1d(self.input_dim, self.hidden_dim, 1)
         start = torch.nn.utils.weight_norm(start, name='weight')
         self.start = start
 
@@ -121,16 +121,32 @@ class PropPredictor(LightningModule):
         # convert from likelihood to labels
         prediction = prediction.round()
 
-        acc_sum = 0
+        # Get accuracy for phrase
+        acc_phr_sum = 0
+        phrase_length = 8
 
-        for label in range(prediction.shape[1]):
+        for label in range(phrase_length):
+            if label == 2 or label == 6:
+                continue
             label_acc = torch.sum(prediction[:, label] == truth[:, label]) / prediction.shape[0]
             self.log('Acc/label_'+ str(label), label_acc)
-            acc_sum += label_acc
+            acc_phr_sum += label_acc
 
-        mean_acc = acc_sum / prediction.shape[1]
+        mean_acc_phr = acc_phr_sum / phrase_length
 
-        return mean_acc
+        self.log("Acc/phrase_av", mean_acc_phr)
+
+        # Get accuracy for practice
+        acc_pract_sum = 0
+
+        for label in range(phrase_length, prediction.shape[1]):
+            label_acc = torch.sum(prediction[:, label] == truth[:, label]) / prediction.shape[0]
+            self.log('Acc/label_' + str(label), label_acc)
+            acc_pract_sum += label_acc
+
+        mean_pract_acc = acc_pract_sum / (prediction.shape[1] - phrase_length)
+
+        self.log("Acc/practice_av", mean_pract_acc)
 
 
     def training_step(self, batch, batch_idx):
@@ -162,9 +178,7 @@ class PropPredictor(LightningModule):
 
         self.log('Loss/val_loss', loss_value)
 
-        acc = self.accuracy(predicted_prob, true_lab)
-
-        self.log('Acc/mean_acc', acc)
+        self.accuracy(predicted_prob, true_lab)
 
         if self.hparams.optuna and self.global_step > 20 and loss_value > 1000000:
             message = f"Trial was pruned since loss > 1000"
