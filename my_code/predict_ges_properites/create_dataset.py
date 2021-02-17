@@ -36,8 +36,7 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
             spec_feat_hf = feat_hf.get(feature_name)
 
             if spec_feat_hf is None:
-                print("Skip file with only the following keys:")
-                print(len(feat_hf.keys()), feat_hf.keys())
+                Warning("Skip file with only the following keys:", len(feat_hf.keys()), feat_hf.keys())
                 continue
             spec_feat = np.array(spec_feat_hf)
 

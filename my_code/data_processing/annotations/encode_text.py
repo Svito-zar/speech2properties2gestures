@@ -19,7 +19,7 @@ def clean_str(word):
 
     new_word = word.replace(" ", "").replace("s...", "so").replace("???", "").replace("-", "_")
 
-    special_chars = ".!@#$%^&*()_"
+    special_chars = ".!@#$%^&*_/><"
 
     for sp_char in special_chars:
         if sp_char in new_word:
@@ -50,13 +50,13 @@ def text_to_feat(tokenizer, model, text):
     text_str = " ".join(clean_str(str(x)) for x in text)
 
     # Encode the whole text split into sub-words
-    input_ids = torch.tensor(tokenizer.encode(text_str)).unsqueeze(0)
+    input_ids = torch.tensor(tokenizer.encode(text_str, add_special_tokens=False)).unsqueeze(0)
     outputs = model(input_ids)
     last_hidden_states = outputs[0]
-    sub_word_encodings = last_hidden_states[0, 1:-1]
+    sub_word_encodings = last_hidden_states[0, :]
 
     actual_tokens = tokenizer.convert_ids_to_tokens(input_ids.tolist()[0])
-    actual_tokens = actual_tokens[1:-1]
+    actual_tokens = actual_tokens
 
     id = 0
     word_encodings = []
@@ -73,7 +73,6 @@ def text_to_feat(tokenizer, model, text):
         actual_enc = np.mean(curr_enc, keepdims=1)
         actual_enc = actual_enc[0]
         id += 1
-
         word_encodings.append(actual_enc)
 
     text_enc = torch.stack(word_encodings)
