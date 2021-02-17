@@ -96,7 +96,7 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
                         for word_id in range(curr_word_id - 3, curr_word_id + 4)]
 
                     # upsample under-represented classes
-                    if output_vector[20] == 1:
+                    """if output_vector[20] == 1:
                         mulp_factor = 60
                     elif output_vector[5] == 1:
                         mulp_factor = 340
@@ -108,8 +108,8 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
                         mulp_factor = 12
                     elif output_vector[15] == 1 or output_vector[3] == 1 or output_vector[10] == 1:
                         mulp_factor = 2
-                    else:
-                        mulp_factor = 1
+                    else:"""
+                    mulp_factor = 1
 
                     for _ in range(mulp_factor):
                         X_dataset.append(np.array(input_vector))

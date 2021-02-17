@@ -111,6 +111,6 @@ val_percent_check: 1.0
 weights_save_path: null
 weights_summary: top
 comet_logger:
-  api_key: None
+  api_key: DVWPz8OdEU7HGvsUjlJhh5Q5p
   project_name: gestureflow
 

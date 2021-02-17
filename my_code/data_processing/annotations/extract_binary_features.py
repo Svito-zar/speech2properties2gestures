@@ -248,6 +248,10 @@ if __name__ == "__main__":
     with open(dict_file, 'rb') as handle:
         total_dict = pickle.load(handle)
 
+    print(total_dict)
+
+    exit(0)
+
     columns_to_consider = ["R.G.Left.Phase", "R.G.Right.Phase",
                            "R.Movement_relative_to_other_Hand", "R.S.Pos",
                            "R.G.Right Semantic", "R.G.Left Semantic", "R.S.Semantic Feature"]

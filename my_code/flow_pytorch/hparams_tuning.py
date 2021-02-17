@@ -38,7 +38,7 @@ class MyEarlyStopping(PyTorchLightningPruningCallback):
         self.wait = 0
         self.patience = patience
 
-    def on_epoch_end(self, trainer, pl_module):
+    def on_validation_epoch_end(self, trainer, pl_module):
         super().validation_epoch_end(trainer, pl_module)
         #jerk = trainer.callback_metrics.get("jerk/generated_mean")
         val_loss = trainer.callback_metrics.get("val_loss")
@@ -132,7 +132,7 @@ def run(hparams, return_dict, trial, batch_size, current_date):
             #raise FailedTrial("CUDA out of memory")
         else:
             return_dict["error"] = e
-            raise e
+            #raise e
     except (optuna.exceptions.TrialPruned, Exception) as e:
         return_dict["error"] = e
 
