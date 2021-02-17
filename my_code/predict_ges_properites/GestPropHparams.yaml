@@ -38,7 +38,7 @@ batch_size: 64
 benchmark: true
 check_val_every_n_epoch: 4
 checkpoint_callback: true
-data_root: /home/tarask/Documents/Datasets/SaGa/Processed/feat/R_Phase_n_Practice/
+data_root: /home/taras/Documents/storage/Saga/GestPropPred/R_Phase_n_Practice/
 data_feat: gesture_phrase_n_practice_Right
 dropout: 0.2
 default_root_dir: null
@@ -52,7 +52,7 @@ log_save_interval: 80
 log_root: results/gesture_flow/log/
 logger: true
 lr: 1.0e-04
-max_epochs: 80
+max_epochs: 15
 max_steps: null
 min_epochs: 1
 min_steps: null

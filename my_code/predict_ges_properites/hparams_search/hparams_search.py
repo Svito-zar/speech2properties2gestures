@@ -30,34 +30,6 @@ seed_everything(RANDOM_SEED)
 class FailedTrial(Exception):
     pass
 
-
-"""class MyEarlyStopping(PyTorchLightningPruningCallback):
-    def __init__(self, trial, monitor="val_loss", patience=2):
-        super().__init__(trial, monitor=monitor)
-        self.best_loss = torch.tensor(np.Inf)
-        self.wait = 0
-        self.patience = patience
-
-    def on_validation_epoch_end(self, trainer, pl_module):
-        super().validation_epoch_end(trainer, pl_module)
-        #jerk = trainer.callback_metrics.get("jerk/generated_mean")
-        val_loss = trainer.callback_metrics.get("val_loss")
-        if val_loss is not None and val_loss > 0:
-            message = f"Trial was pruned because val loss was too high {val_loss}."
-            raise optuna.exceptions.TrialPruned(message)
-        #if jerk is not None and jerk > 10:
-        #    message = f"Trial was pruned because jerk was too high {jerk}."
-        #    raise optuna.exceptions.TrialPruned(message)
-        if val_loss < self.best_loss:
-            self.best_loss = val_loss
-            self.wait = 0
-        else:
-            self.wait += 1
-            if self.wait >= self.patience:
-                return True             
-"""
-
-
 parser = ArgumentParser()
 parser.add_argument("hparams_file")
 parser.add_argument("-n", type=int)
@@ -89,7 +61,7 @@ def prepare_hparams(trial):
     params.update(vars(override_params))
     hparams = Namespace(**params)
 
-    hparams.gpus = None # [0] # [0,1]
+    hparams.gpus = [1] # [0,1]
 
     return hparam_configs.hparam_options(hparams, trial)
 

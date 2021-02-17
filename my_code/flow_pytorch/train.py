@@ -29,10 +29,10 @@ if __name__ == "__main__":
 
 
     hparams.num_dataloader_workers = 0
-    hparams.gpus = 0
+    hparams.gpus = [0] #, 1]
 
     model = GestureFlow(hparams)
 
-    trainer = Trainer.from_argparse_args(hparams, logger=logger) #, profiler="simple") # profiler="advanced"
+    trainer = Trainer.from_argparse_args(hparams, logger=logger, deterministic=False, enable_pl_optimizer=True) #, profiler="simple") # profiler="advanced"
 
     trainer.fit(model)

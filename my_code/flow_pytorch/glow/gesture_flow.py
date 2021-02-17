@@ -33,6 +33,13 @@ def calc_jerk(sequence):
 
 
 
+import faulthandler
+faulthandler.enable()
+
+# weirdly this line is nessesary for it to work on a GPU!
+faulthandler.dump_traceback_later(3600, repeat=False, exit=False)
+
+
 class GestureFlow(LightningModule):
     def __init__(self, hparams, dataset_root=None, test=None):
         super().__init__()
@@ -174,7 +181,7 @@ class GestureFlow(LightningModule):
         if self.hparams.Validation["inference"] and batch_idx == 0:
 
             output["gesture_example"] = self.inference(batch)
-
+  
             gt_mean_jerk = calc_jerk(batch["gesture"])
             generated_mean_jerk = calc_jerk(output["gesture_example"])
 
@@ -210,10 +217,10 @@ class GestureFlow(LightningModule):
         jerk = torch.stack([x["jerk"] for x in outputs if x.get("jerk")]).mean()
         if jerk:
             if (
-                jerk > 1
-                and self.global_step > 20
+                jerk > 100
+                and self.global_step > 4000
             ):
-                message = f"Trial was pruned since jerk > 1"
+                message = f"Trial was pruned since jerk > 100"
                 raise optuna.exceptions.TrialPruned(message)
             if jerk < self.best_jerk:
                 self.best_jerk = jerk
@@ -246,9 +253,13 @@ class GestureFlow(LightningModule):
             file_name = f"val_result_ep{self.current_epoch + 1}.mp4"
             video_html = "http://"+str(external_ip)+":5103/"+str(experiment_id) + "/" + str(file_name)
 
+            print("\n VIDEO: ",video_html)
+
             self.logger.experiment.log_html(
                 f"{mp4_filename}<br><video src='{video_html}' width=640 controls></video> <br><br>"
             )
+
+        self.log('val_loss', save_loss)
 
 
     def save_prediction(self, gestures, save_dir, raw=False, video=True):

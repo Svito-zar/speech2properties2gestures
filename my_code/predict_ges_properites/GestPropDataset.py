@@ -18,7 +18,6 @@ class GesturePropDataset(Dataset):
         self.root_dir = root_dir
 
         # define data file name
-        self.file_name = path.join(root_dir, 'train.hdf5')
         self.type = dataset_type
         self.x_file_name = root_dir + dataset_type + "_X_" + features_name + ".npy"
         self.y_file_name = root_dir + dataset_type + "_Y_" + features_name + ".npy"

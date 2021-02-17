@@ -88,7 +88,7 @@ def prepare_hparams(trial):
     params.update(vars(override_params))
     hparams = Namespace(**params)
 
-    hparams.gpus = [0] # [0,1]
+    hparams.gpus = [0] # [0] # [0,1]
 
     return hparam_configs.hparam_options(hparams, trial)
 
@@ -114,7 +114,7 @@ def run(hparams, return_dict, trial, batch_size, current_date):
         trainer_params["logger"] = CometLogger(
             api_key=hparams.comet_logger["api_key"],
             project_name=hparams.comet_logger["project_name"],
-            experiment_name=conf_name,  # + current_date
+            experiment_name=conf_name + current_date,
         )
 
     trainer_params["early_stop_callback"] = MyEarlyStopping(trial, monitor="val_loss")
@@ -129,7 +129,7 @@ def run(hparams, return_dict, trial, batch_size, current_date):
     except RuntimeError as e:
         if str(e).startswith("CUDA out of memory"):
             return_dict["OOM"] = True
-            raise FailedTrial("CUDA out of memory")
+            #raise FailedTrial("CUDA out of memory")
         else:
             return_dict["error"] = e
             raise e
@@ -175,8 +175,8 @@ def objective(trial):
                 raise FailedTrial("batch size smaller than 2!")
             else:
                 batch_size = new_batch_size
-        elif return_dict.get("error"):
-            raise return_dict.get("error")
+        #elif return_dict.get("error"):
+            #raise return_dict.get("error")
         else:
             break
 

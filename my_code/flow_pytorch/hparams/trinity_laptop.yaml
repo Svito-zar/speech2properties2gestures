@@ -67,7 +67,7 @@ batch_size: 64
 benchmark: true
 check_val_every_n_epoch: 1
 checkpoint_callback: true
-data_root: /home/tarask/Documents/Datasets/TrinityCollege/processed/GestureFlow_hdf5
+data_root: /home/taras/Documents/storage/Irish/GestureFlow_hdf5
 dropout: 0.2
 default_root_dir: null
 deterministic: true
@@ -80,7 +80,7 @@ log_save_interval: 100
 log_root: results/gesture_flow/log/
 logger: true
 lr: 1.0e-03
-max_epochs: 1
+max_epochs: 2
 max_steps: null
 min_epochs: 1
 min_steps: null

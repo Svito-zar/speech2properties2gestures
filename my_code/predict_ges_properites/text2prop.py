@@ -123,16 +123,16 @@ class PropPredictor(LightningModule):
 
         # Get accuracy for phrase
         acc_phr_sum = 0
-        phrase_length = 8
+        phrase_length = 7
 
         for label in range(phrase_length):
-            if label == 2 or label == 6:
+            if label == 2 or label == 6 or label == 3:
                 continue
             label_acc = torch.sum(prediction[:, label] == truth[:, label]) / prediction.shape[0]
             self.log('Acc/label_'+ str(label), label_acc)
             acc_phr_sum += label_acc
 
-        mean_acc_phr = acc_phr_sum / phrase_length
+        mean_acc_phr = acc_phr_sum / (phrase_length-3)
 
         self.log("Acc/phrase_av", mean_acc_phr)
 
@@ -140,11 +140,13 @@ class PropPredictor(LightningModule):
         acc_pract_sum = 0
 
         for label in range(phrase_length, prediction.shape[1]):
+            if label == 10 or label == 14 or label == 18:
+                continue
             label_acc = torch.sum(prediction[:, label] == truth[:, label]) / prediction.shape[0]
             self.log('Acc/label_' + str(label), label_acc)
             acc_pract_sum += label_acc
 
-        mean_pract_acc = acc_pract_sum / (prediction.shape[1] - phrase_length)
+        mean_pract_acc = acc_pract_sum / (prediction.shape[1] - phrase_length - 3)
 
         self.log("Acc/practice_av", mean_pract_acc)
 
