@@ -11,8 +11,8 @@ from torch.utils.data import DataLoader
 import numpy as np
 
 from my_code.predict_ges_properites.GestPropDataset import GesturePropDataset
+from my_code.predict_ges_properites.classification_evaluation import evaluate_phrase, evaluate_practice, evaluate_g_semantic
 
-from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 
 
 def weights_init_he(m):
@@ -123,50 +123,11 @@ class PropPredictor(LightningModule):
         # convert from likelihood to labels
         prediction = prediction.round()
 
-        # Get accuracy for phrase
-        acc_phr_sum = 0
-        f1_phr_sum = 0
-        phrase_length = 7
+        # calculate metrics
+        logs = evaluate_g_semantic(prediction, truth)
 
-        for label in range(phrase_length):
-            if label == 2 or label == 6 or label == 3:
-                continue
-            label_acc = accuracy_score(truth[:, label], prediction[:, label])
-            self.log('Acc/label_'+ str(label), label_acc)
-            acc_phr_sum += label_acc
-
-            # f1 score is even more important
-            label_f1 = f1_score(truth[:, label], prediction[:, label])
-            self.log('F1/phrase_' + str(label), label_f1)
-            f1_phr_sum += label_f1
-
-        mean_acc_phr = acc_phr_sum / (phrase_length-3)
-        self.log("Acc/phrase_av", mean_acc_phr)
-
-        mean_f1_phr = f1_phr_sum /  (phrase_length-3)
-        self.log("F1/phrase_av", mean_f1_phr)
-
-        # Get accuracy for practice
-        acc_pract_sum = 0
-        f1_pract_sum = 0
-
-        for label in range(phrase_length, prediction.shape[1]):
-            if label == 10 or label == 14 or label == 18:
-                continue
-            label_acc = torch.sum(prediction[:, label] == truth[:, label]) / prediction.shape[0]
-            self.log('Acc/label_' + str(label), label_acc)
-            acc_pract_sum += label_acc
-
-            # f1 score is even more important
-            label_f1 = f1_score(truth[:, label], prediction[:, label])
-            self.log('F1/practice_' + str(label), label_f1)
-            f1_pract_sum += label_f1
-
-        mean_pract_acc = acc_pract_sum / (prediction.shape[1] - phrase_length - 3)
-        self.log("Acc/practice_av", mean_pract_acc)
-
-        mean_f1_pract = f1_pract_sum / (prediction.shape[1] - phrase_length - 3)
-        self.log("F1/practice_av", mean_f1_pract)
+        for metric in logs:
+            self.log(metric, logs[metric])
 
 
     def training_step(self, batch, batch_idx):

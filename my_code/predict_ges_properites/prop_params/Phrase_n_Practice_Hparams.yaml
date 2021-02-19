@@ -1,8 +1,8 @@
 CNN:
   input_dim: 769
   seq_length: 7
-  hidden_dim: 8
-  n_layers: 4
+  hidden_dim: 32
+  n_layers: 3
   output_dim: 19
   kernel_size: 3
   dropout: 0.3
@@ -17,7 +17,7 @@ Optim:
         gamma: 0.95
         step_size: 10
     name: step
-    warm_up: 100
+    warm_up: 300
   args:
     adam:
       betas:
@@ -36,9 +36,9 @@ auto_scale_batch_size: false
 auto_select_gpus: false
 batch_size: 64
 benchmark: true
-check_val_every_n_epoch: 4
+check_val_every_n_epoch: 1
 checkpoint_callback: true
-data_root: /home/taras/Documents/storage/Saga/GestPropPred/R_Phase_n_Practice/
+data_root: /home/tarask/Documents/Datasets/SaGa/Processed/feat/R_Phase_n_Practice/
 data_feat: gesture_phrase_n_practice_Right
 dropout: 0.2
 default_root_dir: null
@@ -79,7 +79,7 @@ train_percent_check: 1.0
 truncated_bptt_steps: null
 val_check_interval: 1.0
 val_gest_dir: ./results/gesture_flow/val_res
-val_percent_check: 0.9
+val_percent_check: 0.2
 weights_save_path: null
 weights_summary: top
 comet_logger:
