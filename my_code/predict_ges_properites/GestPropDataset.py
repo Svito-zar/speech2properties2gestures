@@ -28,9 +28,12 @@ class GesturePropDataset(Dataset):
 
         self.len = self.y_dataset.shape[0]
 
+        self.calculate_frequencies()
+
 
     def __len__(self):
         return self.len
+
 
     def __getitem__(self, idx):
 
@@ -43,6 +46,20 @@ class GesturePropDataset(Dataset):
         sample = {'text': text, 'property': property}
 
         return sample
+
+
+    def calculate_frequencies(self):
+        numb_feat = self.y_dataset.shape[1] - 2
+        freq = np.zeros(numb_feat)
+        for feat in range(numb_feat):
+            column = self.y_dataset[:, 2 + feat]
+            freq[feat] = np.sum(column)
+        #print(freq)
+        self.class_freq = freq
+
+
+    def get_freq(self):
+        return self.class_freq
 
 
 if __name__ == "__main__":
