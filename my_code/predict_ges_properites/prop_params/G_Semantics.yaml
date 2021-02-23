@@ -6,6 +6,10 @@ CNN:
   output_dim: 5
   kernel_size: 3
   dropout: 0.3
+Loss:
+  loss_type: focal
+  beta: 0.95
+  gamma: 2.0
 Optim:
   Schedule:
     args:
@@ -38,7 +42,7 @@ batch_size: 64
 benchmark: true
 check_val_every_n_epoch: 1
 checkpoint_callback: true
-data_root: /home/tarask/Documents/Datasets/SaGa/Processed/feat/R_Semantics/
+data_root: /home/tarask/Documents/Datasets/SaGa/Processed/feat/R_Semantics/Plain/
 data_feat: R.G.Right Semantic
 dropout: 0.2
 default_root_dir: null

@@ -12,6 +12,7 @@ import numpy as np
 
 from my_code.predict_ges_properites.GestPropDataset import GesturePropDataset
 from my_code.predict_ges_properites.classification_evaluation import evaluate_phrase, evaluate_practice, evaluate_g_semantic
+from my_code.predict_ges_properites.class_balanced_loss import CB_loss
 
 
 
@@ -80,6 +81,7 @@ class PropPredictor(LightningModule):
         try:
             self.train_dataset = GesturePropDataset(self.data_root, "train", self.hparams.data_feat)
             self.val_dataset = GesturePropDataset(self.data_root, "val", self.hparams.data_feat)
+            self.class_freq = self.train_dataset.get_freq()
         except FileNotFoundError as err:
             abs_data_dir = os.path.abspath(self.data_root)
             if not os.path.isdir(abs_data_dir):
@@ -113,7 +115,9 @@ class PropPredictor(LightningModule):
 
     def loss(self, prediction, label):
 
-        loss_val = self.loss_funct(prediction, label)
+        loss_val = CB_loss(label, prediction, self.class_freq, len(self.class_freq),
+                           self.hparams.Loss["loss_type"], self.hparams.Loss["beta"],
+                           self.hparams.Loss["gamma"])
 
         return loss_val
 
