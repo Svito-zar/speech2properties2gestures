@@ -15,18 +15,6 @@ from my_code.predict_ges_properites.classification_evaluation import evaluate_ph
 from my_code.predict_ges_properites.class_balanced_loss import CB_loss
 
 
-
-def weights_init_he(m):
-    """Initialize the given linear layer using He initialization."""
-    classname = m.__class__.__name__
-    if classname.find('Linear') != -1:
-        n = m.in_features * m.out_features
-        # m.weight.data shoud be taken from a normal distribution
-        m.weight.data.normal_(0.0, np.sqrt(2 / n))
-        # m.bias.data should be 0
-        m.bias.data.fill_(0)
-
-
 class PropPredictor(LightningModule):
     def __init__(self, hparams, dataset_root=None, test=None):
         super().__init__()
@@ -64,7 +52,7 @@ class PropPredictor(LightningModule):
         end_linear = torch.nn.Sequential(nn.Linear(hparams.CNN["hidden_dim"] * hparams.CNN["seq_length"],
                                                     hparams.CNN["output_dim"]), nn.Dropout(p = hparams.CNN["dropout"]),
                                                                                            nn.Sigmoid())
-        end_linear = end_linear.apply(weights_init_he)
+        end_linear = end_linear.apply(self.weights_init_he)
         self.end = end_linear
 
         for i in range(self.n_layers):
@@ -75,6 +63,17 @@ class PropPredictor(LightningModule):
                                        dilation=dilation, padding=padding)
             in_layer = torch.nn.utils.weight_norm(in_layer, name='weight')
             self.in_layers.append(in_layer)
+
+
+    def weights_init_he(self, m):
+        """Initialize the given linear layer using He initialization."""
+        classname = m.__class__.__name__
+        if classname.find('Linear') != -1:
+            n = m.in_features * m.out_features
+            # m.weight.data shoud be taken from a normal distribution
+            m.weight.data.normal_(0.0, np.sqrt(2 / n))
+            # m.bias.data
+            m.bias.data.fill_(-np.log(self.hparams.CNN["output_dim"]) - 1)
 
 
     def load_datasets(self):
@@ -125,7 +124,7 @@ class PropPredictor(LightningModule):
     def accuracy(self, prediction, truth):
 
         # convert from likelihood to labels
-        prediction = prediction.round()
+        prediction = (prediction + 1e-6).round()
 
         # calculate metrics
         logs = evaluate_g_semantic(prediction, truth)
