@@ -50,9 +50,8 @@ class PropPredictor(LightningModule):
         # Initializing last layer to 0 makes the affine coupling layers
         # do nothing at first.  This helps with training stability
         end_linear = torch.nn.Sequential(nn.Linear(hparams.CNN["hidden_dim"] * hparams.CNN["seq_length"],
-                                                    hparams.CNN["output_dim"]), nn.Dropout(p = hparams.CNN["dropout"]),
-                                                                                           nn.Sigmoid())
-        end_linear = end_linear.apply(self.weights_init_he)
+                                                    hparams.CNN["output_dim"]), nn.Dropout(p = hparams.CNN["dropout"]))
+        end_linear = end_linear.apply(self.weights_init)
         self.end = end_linear
 
         for i in range(self.n_layers):
@@ -65,15 +64,15 @@ class PropPredictor(LightningModule):
             self.in_layers.append(in_layer)
 
 
-    def weights_init_he(self, m):
+    def weights_init(self, m):
         """Initialize the given linear layer using He initialization."""
         classname = m.__class__.__name__
         if classname.find('Linear') != -1:
             n = m.in_features * m.out_features
-            # m.weight.data shoud be taken from a normal distribution
-            m.weight.data.normal_(0.0, np.sqrt(2 / n))
+            # m.weight.data should be zero
+            m.weight.data.fill_(0.0)
             # m.bias.data
-            m.bias.data.fill_(-np.log(self.hparams.CNN["output_dim"]) - 1)
+            m.bias.data.fill_(-np.log(self.hparams.CNN["output_dim"] - 1))
 
 
     def load_datasets(self):
@@ -124,7 +123,7 @@ class PropPredictor(LightningModule):
     def accuracy(self, prediction, truth):
 
         # convert from likelihood to labels
-        prediction = (prediction + 1e-6).round()
+        prediction = torch.sigmoid(prediction + 1e-6).round()
 
         # calculate metrics
         logs = evaluate_g_semantic(prediction, truth)
