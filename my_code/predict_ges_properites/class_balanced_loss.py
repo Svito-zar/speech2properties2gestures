@@ -15,7 +15,7 @@ import torch.nn.functional as F
 
 
 
-def focal_loss(labels, logits, alpha, gamma):
+def focal_loss(labels, logits, alpha, gamma, positive_weight):
     """Compute the focal loss between `logits` and the ground truth `labels`.
 
     Focal loss = -alpha_t * (1-pt)^gamma * log(pt)
@@ -28,11 +28,13 @@ def focal_loss(labels, logits, alpha, gamma):
       alpha: A float tensor of size [batch_size]
         specifying per-example weight for balanced cross entropy.
       gamma: A float scalar modulating loss from hard and easy examples.
+      positive_weight:   a float scalar amplifying loss for positive examples
 
     Returns:
       focal_loss: A float32 scalar representing normalized total loss.
     """
-    BCLoss = F.binary_cross_entropy_with_logits(input = logits, target = labels,reduction = "none")
+    positive_w = torch.tensor([positive_weight for _ in range(labels.shape[1])])
+    BCLoss = F.binary_cross_entropy_with_logits(input=logits, target=labels,reduction="none", pos_weight=positive_w)
 
     if gamma == 0.0:
         modulator = 1.0
@@ -50,7 +52,7 @@ def focal_loss(labels, logits, alpha, gamma):
 
 
 
-def CB_loss(labels, logits, samples_per_cls, no_of_classes, loss_type, beta, gamma):
+def CB_loss(labels, logits, samples_per_cls, no_of_classes, loss_type, beta, gamma, positive_weight):
     """Compute the Class Balanced Loss between `logits` and the ground truth `labels`.
 
     Class Balanced Loss: ((1-beta)/(1-beta^n))*Loss(labels, logits)
@@ -75,14 +77,9 @@ def CB_loss(labels, logits, samples_per_cls, no_of_classes, loss_type, beta, gam
     labels_one_hot = labels.float()
 
     weights = torch.tensor(weights).float().to(logits.device)
-    weights = weights.unsqueeze(0)
-    weights = weights.repeat(labels_one_hot.shape[0],1) * labels_one_hot
-    weights = weights.sum(1)
-    weights = weights.unsqueeze(1)
-    weights = weights.repeat(1,no_of_classes)
 
     if loss_type == "focal":
-        cb_loss = focal_loss(labels_one_hot, logits, weights, gamma)
+        cb_loss = focal_loss(labels_one_hot, logits, weights, gamma, positive_weight)
     elif loss_type == "sigmoid":
         cb_loss = F.binary_cross_entropy_with_logits(input = logits,target = labels_one_hot, weights = weights)
     elif loss_type == "softmax":
@@ -93,14 +90,19 @@ def CB_loss(labels, logits, samples_per_cls, no_of_classes, loss_type, beta, gam
 
 
 if __name__ == '__main__':
-    no_of_classes = 5
-    logits = torch.rand(10,no_of_classes).float()
-    labels = torch.randint(0,2, size = (10,no_of_classes))
-    beta = 0.9999
+    no_of_classes = 3
+    logits = torch.rand(5,no_of_classes).float()
+    labels = torch.randint(0,2, size = (5,no_of_classes))
+    labels = torch.tensor([[0, 1, 1],
+                            [0, 0, 0]]).float()
+    logits = torch.tensor([[0.3642, 0.4676, 0.3010],
+                           [0.2917, 0.1789, 0.2967]]).float()
+    beta = 0.95
     gamma = 2.0
-    samples_per_cls = [2,3,1,2,2]
+    samples_per_cls = [20,300,1] #,2,2]
+    positive_weight = 4
     loss_type = "focal"
     print(labels)
     print(logits)
-    cb_loss = CB_loss(labels, logits, samples_per_cls, no_of_classes,loss_type, beta, gamma)
+    cb_loss = CB_loss(labels, logits, samples_per_cls, no_of_classes,loss_type, beta, gamma, positive_weight)
     print(cb_loss)

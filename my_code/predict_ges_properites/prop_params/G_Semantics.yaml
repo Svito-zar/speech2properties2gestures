@@ -1,15 +1,16 @@
 CNN:
   input_dim: 769
   seq_length: 7
-  hidden_dim: 12
+  hidden_dim: 16
   n_layers: 3
   output_dim: 5
   kernel_size: 3
-  dropout: 0.3
+  dropout: 0.4
 Loss:
   loss_type: focal
   beta: 0.95
   gamma: 2.0
+  pos_weight: 3
 Optim:
   Schedule:
     args:
@@ -55,8 +56,8 @@ log_gpu_memory: null
 log_save_interval: 80
 log_root: results/gesture_flow/log/
 logger: true
-lr: 1.0e-04
-max_epochs: 15
+lr: 1.0e-03
+max_epochs: 30
 max_steps: null
 min_epochs: 1
 min_steps: null
@@ -87,5 +88,5 @@ val_percent_check: 0.2
 weights_save_path: null
 weights_summary: top
 comet_logger:
-  api_key: DVWPz8OdEU7HGvsUjlJhh5Q5p
-  project_name: prop_predict
+  api_key: None
+  project_name: prop_predict_new
