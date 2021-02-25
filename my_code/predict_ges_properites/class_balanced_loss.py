@@ -25,7 +25,7 @@ def focal_loss(labels, logits, alpha, gamma, positive_weight):
     Args:
       labels: A float tensor of size [batch, num_classes].
       logits: A float tensor of size [batch, num_classes].
-      alpha: A float tensor of size [batch_size]
+      alpha: A float tensor of size [num_classes]
         specifying per-example weight for balanced cross entropy.
       gamma: A float scalar modulating loss from hard and easy examples.
       positive_weight:   a float scalar amplifying loss for positive examples
@@ -52,7 +52,7 @@ def focal_loss(labels, logits, alpha, gamma, positive_weight):
 
 
 
-def CB_loss(labels, logits, samples_per_cls, no_of_classes, loss_type, beta, gamma, positive_weight):
+def CB_loss(labels, logits, samples_per_cls, no_of_classes, beta, gamma, positive_weight):
     """Compute the Class Balanced Loss between `logits` and the ground truth `labels`.
 
     Class Balanced Loss: ((1-beta)/(1-beta^n))*Loss(labels, logits)
@@ -63,9 +63,9 @@ def CB_loss(labels, logits, samples_per_cls, no_of_classes, loss_type, beta, gam
       logits: A float tensor of size [batch, no_of_classes].
       samples_per_cls: A python list of size [no_of_classes].
       no_of_classes: total number of classes. int
-      loss_type: string. One of "sigmoid", "focal", "softmax".
       beta: float. Hyperparameter for Class balanced loss.
       gamma: float. Hyperparameter for Focal loss.
+      positive_weight: float. weight increase for positive examples
 
     Returns:
       cb_loss: A float tensor representing class balanced loss
@@ -78,13 +78,8 @@ def CB_loss(labels, logits, samples_per_cls, no_of_classes, loss_type, beta, gam
 
     weights = torch.tensor(weights).float().to(logits.device)
 
-    if loss_type == "focal":
-        cb_loss = focal_loss(labels_one_hot, logits, weights, gamma, positive_weight)
-    elif loss_type == "sigmoid":
-        cb_loss = F.binary_cross_entropy_with_logits(input = logits,target = labels_one_hot, weights = weights)
-    elif loss_type == "softmax":
-        pred = logits.softmax(dim = 1)
-        cb_loss = F.binary_cross_entropy(input = pred, target = labels_one_hot, weight = weights)
+    cb_loss = focal_loss(labels_one_hot, logits, weights, gamma, positive_weight)
+
     return cb_loss
 
 

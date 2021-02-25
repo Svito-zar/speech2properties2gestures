@@ -114,8 +114,8 @@ class PropPredictor(LightningModule):
     def loss(self, prediction, label):
 
         loss_val = CB_loss(label, prediction, self.class_freq, len(self.class_freq),
-                           self.hparams.Loss["loss_type"], self.hparams.Loss["beta"],
-                           self.hparams.Loss["gamma"], self.hparams.Loss["pos_weight"])
+                           self.hparams.Loss["beta"], self.hparams.Loss["gamma"],
+                           self.hparams.Loss["pos_weight"])
 
         return loss_val
 
