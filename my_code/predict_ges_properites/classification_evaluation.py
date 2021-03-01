@@ -104,6 +104,8 @@ def evaluate_practice(prediction, truth):
     # Get accuracy for practice
     acc_pract_sum = 0
     f1_pract_sum = 0
+    prec_sum = 0
+    recall_sum = 0
     phrase_length = 7
     prefix = "practice_"
 
@@ -121,10 +123,23 @@ def evaluate_practice(prediction, truth):
         log['F1/' + prefix + str(label)] = label_f1
         f1_pract_sum += label_f1
 
+        # check also precision
+        label_prec = precision_score(truth[:, label], prediction[:, label])
+        log['Prec/' + prefix + str(label)] = label_prec
+        prec_sum += label_prec
+
+        # check also recall
+        label_recall = recall_score(truth[:, label], prediction[:, label])
+        log['Rec/' + prefix + str(label)] = label_recall
+        recall_sum += label_recall
+    
     mean_pract_acc = acc_pract_sum / (prediction.shape[1] - phrase_length - 3)
     log["Acc/" + prefix + "_av"] = mean_pract_acc
 
     mean_f1_pract = f1_pract_sum / (prediction.shape[1] - phrase_length - 3)
     log["F1/" + prefix + "_av"] = mean_f1_pract
 
+    log["Prec/" + prefix + "_av"] =  prec_sum / (prediction.shape[1] - phrase_length - 3)
+    log["Rec/" + prefix + "_av"] = recall_sum / (prediction.shape[1] - phrase_length - 3)
+    
     return log
