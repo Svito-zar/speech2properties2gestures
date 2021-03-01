@@ -47,13 +47,6 @@ class PropPredictor(LightningModule):
         start = torch.nn.utils.weight_norm(start, name='weight')
         self.start = start
 
-        # Initializing last layer to 0 makes the affine coupling layers
-        # do nothing at first.  This helps with training stability
-        end_linear = torch.nn.Sequential(nn.Linear(hparams.CNN["hidden_dim"] * hparams.CNN["seq_length"],
-                                                    hparams.CNN["output_dim"]), nn.Dropout(p = hparams.CNN["dropout"]))
-        end_linear = end_linear.apply(self.weights_init)
-        self.end = end_linear
-
         for i in range(self.n_layers):
             dilation = 2 ** i
             padding = int((self.kernel_size*dilation - dilation)/2)
@@ -62,6 +55,13 @@ class PropPredictor(LightningModule):
                                        dilation=dilation, padding=padding)
             in_layer = torch.nn.utils.weight_norm(in_layer, name='weight')
             self.in_layers.append(in_layer)
+
+        # Initializing last layer to 0 makes the affine coupling layers
+        # do nothing at first.  This helps with training stability
+        end_linear = torch.nn.Sequential(nn.Linear(hparams.CNN["hidden_dim"],
+                                                   hparams.CNN["output_dim"]), nn.Dropout(p=hparams.CNN["dropout"]))
+        end_linear = end_linear.apply(self.weights_init)
+        self.end = end_linear
 
 
     def weights_init(self, m):
@@ -102,11 +102,11 @@ class PropPredictor(LightningModule):
         for i in range(self.n_layers):
             h_seq = self.in_layers[i](h_seq)
 
-        # reshape
-        hidden_flat = torch.flatten(h_seq, start_dim=1, end_dim=2) # dims=[1,2]) # hidden_tr_1, dim0=2, dim1=1)
+        # take only the current time step
+        seq_length = h_seq.shape[2]
+        hid = h_seq[:, :, seq_length // 2 + 1]
 
-        # final linear
-        output = self.end(hidden_flat)
+        output = self.end(hid)
 
         return output
 
