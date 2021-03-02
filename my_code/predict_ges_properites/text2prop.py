@@ -12,7 +12,7 @@ import numpy as np
 
 from my_code.predict_ges_properites.GestPropDataset import GesturePropDataset
 from my_code.predict_ges_properites.classification_evaluation import evaluate_phrase, evaluate_practice, evaluate_g_semantic
-from my_code.predict_ges_properites.class_balanced_loss import CB_loss
+from my_code.predict_ges_properites.class_balanced_loss import ClassBalancedLoss
 
 
 class PropPredictor(LightningModule):
@@ -37,7 +37,9 @@ class PropPredictor(LightningModule):
         self.hidden_dim = hparams.CNN["hidden_dim"]
         self.n_layers = hparams.CNN["n_layers"]
 
-        self.loss_funct = nn.BCELoss()
+        self.loss_funct = ClassBalancedLoss(self.class_freq, self.output_dim,
+                                            self.hparams.Loss["beta"],  self.hparams.Loss["alpha"],
+                                            self.hparams.Loss["gamma"])
 
         assert(self.kernel_size % 2 == 1)
 
@@ -113,9 +115,7 @@ class PropPredictor(LightningModule):
 
     def loss(self, prediction, label):
 
-        loss_val = CB_loss(label, prediction, self.class_freq, len(self.class_freq),
-                           self.hparams.Loss["beta"], self.hparams.Loss["gamma"],
-                           self.hparams.Loss["pos_weight"])
+        loss_val = self.loss_funct(prediction, label,)
 
         return loss_val
 
