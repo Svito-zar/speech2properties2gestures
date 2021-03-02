@@ -54,6 +54,8 @@ class GesturePropDataset(Dataset):
         for feat in range(numb_feat):
             column = self.y_dataset[:, 2 + feat]
             freq[feat] = np.sum(column)
+            if freq[feat] < 30:
+                freq[feat] = 10000
         self.class_freq = freq
 
 

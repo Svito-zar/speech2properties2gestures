@@ -33,7 +33,7 @@ def focal_loss(labels, logits, alpha, gamma, positive_weight):
     Returns:
       focal_loss: A float32 scalar representing normalized total loss.
     """
-    positive_w = torch.tensor([positive_weight for _ in range(labels.shape[1])])
+    positive_w = torch.tensor([positive_weight for _ in range(labels.shape[1])]).to(logits.device)
     BCLoss = F.binary_cross_entropy_with_logits(input=logits, target=labels,reduction="none", pos_weight=positive_w)
 
     if gamma == 0.0:
