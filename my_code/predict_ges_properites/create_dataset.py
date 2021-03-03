@@ -63,7 +63,7 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
                             break
 
                         # Save some extra info which might be useful later on
-                        output_vector = np.concatenate(([recording_id, time_st.round(1)], [0 for _ in range(5)]))
+                        output_vector = np.concatenate(([recording_id, time_st.round(1)], [0 for _ in range(8)]))
 
                         # find the corresponding words
                         curr_word_id = bisect.bisect(text_timing[:, 0], time_st)
@@ -77,7 +77,7 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
                         X_dataset.append(np.array(input_vector))
                         Y_dataset.append(output_vector)
 
-                for time_st in np.arange(curr_feat_timing[0], curr_feat_timing[1], 0.3):
+                for time_st in np.arange(curr_feat_timing[0], curr_feat_timing[1], 0.2):
 
                     # Save some extra info which might be useful later on
                     output_vector = np.concatenate(([recording_id, time_st.round(1)], curr_feat_values))
@@ -94,12 +94,24 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
                         np.concatenate(([text_timing[word_id, 0].round(1) - time_st.round(1)], text_array[word_id, 2:]))
                         for word_id in range(curr_word_id - 3, curr_word_id + 4)]
 
-                    X_dataset.append(np.array(input_vector))
-                    Y_dataset.append(output_vector)
+                    if output_vector[6] == 1:
+                        mulp_factor = 14
+                    elif output_vector[4] == 1:
+                        mulp_factor = 10
+                    elif output_vector[2] == 1 or output_vector[5] == 1 or output_vector[8] == 1:
+                        mulp_factor = 3
+                    elif output_vector[7] == 1:
+                        mulp_factor = 2
+                    else:
+                        mulp_factor = 1
+
+                    for _ in range(mulp_factor):
+                        X_dataset.append(np.array(input_vector))
+                        Y_dataset.append(output_vector)
 
                 prev_feat_timing = curr_feat_timing
 
-            print(np.array(Y_dataset).shape)
+            print(np.asarray(Y_dataset, dtype=np.float32).shape)
             print(np.array(X_dataset).shape)
 
     # create dataset file
@@ -112,6 +124,6 @@ if __name__ == "__main__":
 
     gen_folder = "/home/tarask/Documents/Datasets/SaGa/Processed/feat/"
     dataset_name = subfolder = "test"
-    feature_name = "R.G.Right Semantic"
+    feature_name = "R.S.Semantic Feature"
 
     create_dataset(gen_folder, subfolder, feature_name, dataset_name)
