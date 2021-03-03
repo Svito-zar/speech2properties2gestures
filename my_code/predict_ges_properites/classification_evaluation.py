@@ -99,6 +99,55 @@ def evaluate_g_semantic(prediction, truth):
     return log
 
 
+def evaluate_s_semantic(prediction, truth):
+
+    # Get accuracy for s semantic
+    acc_sum = 0
+    f1_sum = 0
+    prec_sum = 0
+    recall_sum = 0
+
+    semant_length = 8
+
+    prefix = "sp_semantic_"
+
+    log = {}
+
+    for label in range(semant_length):
+        if label == 1:
+            continue
+        label_acc = accuracy_score(truth[:, label], prediction[:, label])
+        log['Acc/' + prefix + str(label)] = label_acc
+        acc_sum += label_acc
+
+        # f1 score is even more important
+        label_f1 = f1_score(truth[:, label], prediction[:, label])
+        log['F1/' + prefix + str(label)] = label_f1
+        f1_sum += label_f1
+
+        # check also precision
+        label_prec = precision_score(truth[:, label], prediction[:, label])
+        log['Prec/' + prefix + str(label)] = label_prec
+        prec_sum += label_prec
+
+        # check also recall
+        label_recall = recall_score(truth[:, label], prediction[:, label])
+        log['Rec/' + prefix + str(label)] = label_recall
+        recall_sum += label_recall
+
+    mean_acc_phr = acc_sum / (semant_length - 1)
+    log["Acc/" + prefix + "_av"] = mean_acc_phr
+
+    mean_f1_phr = f1_sum / (semant_length - 1)
+    log["F1/" + prefix + "_av"] = mean_f1_phr
+
+    log["Prec/" + prefix + "_av"] = prec_sum / (semant_length - 1)
+
+    log["Rec/" + prefix + "_av"] = recall_sum / (semant_length - 1)
+
+    return log
+
+
 def evaluate_practice(prediction, truth):
 
     # Get accuracy for practice
