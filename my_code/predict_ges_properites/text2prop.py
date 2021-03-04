@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 import numpy as np
 
 from my_code.predict_ges_properites.GestPropDataset import GesturePropDataset
-from my_code.predict_ges_properites.classification_evaluation import evaluate_phrase, evaluate_practice, evaluate_g_semantic, evaluate_s_semantic
+from my_code.predict_ges_properites.classification_evaluation import evaluate_phrase, evaluate_practice, evaluate_g_semantic, evaluate_s_semantic, evaluate_phase
 from my_code.predict_ges_properites.class_balanced_loss import ClassBalancedLoss
 
 
@@ -126,7 +126,7 @@ class PropPredictor(LightningModule):
         prediction = torch.sigmoid(prediction + 1e-6).round()
 
         # calculate metrics
-        logs = evaluate_s_semantic(prediction.cpu(), truth.cpu())
+        logs = evaluate_phase(prediction.cpu(), truth.cpu())
 
         for metric in logs:
             self.log(metric, logs[metric])

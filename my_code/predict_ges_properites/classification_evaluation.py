@@ -192,3 +192,46 @@ def evaluate_practice(prediction, truth):
     log["Rec/" + prefix + "_av"] = recall_sum / (prediction.shape[1] - phrase_length - 3)
     
     return log
+
+
+def evaluate_phase(prediction, truth):
+    # Get accuracy for phase
+    acc_sum = 0
+    f1_sum = 0
+    prec_sum = 0
+    recall_sum = 0
+    phrase_length = 5
+    prefix = "phase_"
+
+    log = {}
+
+    for label in range(phrase_length):
+        label_acc = accuracy_score(truth[:, label], prediction[:, label])
+        log['Acc/' + prefix + str(label)] = label_acc
+        acc_sum += label_acc
+
+        # f1 score is even more important
+        label_f1 = f1_score(truth[:, label], prediction[:, label])
+        log['F1/' + prefix + str(label)] = label_f1
+        f1_sum += label_f1
+
+        # check also precision
+        label_prec = precision_score(truth[:, label], prediction[:, label])
+        log['Prec/' + prefix + str(label)] = label_prec
+        prec_sum += label_prec
+
+        # check also recall
+        label_recall = recall_score(truth[:, label], prediction[:, label])
+        log['Rec/' + prefix + str(label)] = label_recall
+        recall_sum += label_recall
+
+    mean_pract_acc = acc_sum / phrase_length
+    log["Acc/" + prefix + "_av"] = mean_pract_acc
+
+    mean_f1_pract = f1_sum / phrase_length
+    log["F1/" + prefix + "_av"] = mean_f1_pract
+
+    log["Prec/" + prefix + "_av"] = prec_sum / phrase_length
+    log["Rec/" + prefix + "_av"] = recall_sum / phrase_length
+
+    return log
