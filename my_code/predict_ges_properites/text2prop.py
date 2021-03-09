@@ -130,7 +130,6 @@ class PropPredictor(LightningModule):
 
         # calculate metrics
         logs = evaluate_s_semantic(prediction.cpu(), truth.cpu())
-
         for metric in logs:
             self.log(metric + "/" + str(self.fold), logs[metric])
 

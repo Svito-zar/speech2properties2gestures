@@ -45,7 +45,7 @@ if __name__ == "__main__":
     hparams, conf_name = get_hparams()
 
     # Configuration K-fold cross validation
-    k_folds = 5
+    k_folds = 10
 
     # Define the K-fold Cross Validator
     kfold = KFold(n_splits=k_folds, shuffle=True)
@@ -70,7 +70,7 @@ if __name__ == "__main__":
         logger = pl_loggers.TensorBoardLogger('lightning_logs/')
 
     hparams.num_dataloader_workers = 0
-    hparams.gpus = 0
+    hparams.gpus = 1
 
     # Start print
     print('--------------------------------')

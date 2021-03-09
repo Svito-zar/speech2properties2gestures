@@ -23,6 +23,10 @@ from my_code.misc.shared import BASE_DIR, CONFIG, DATA_DIR, RANDOM_SEED
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning import loggers as pl_loggers
 from my_code.predict_ges_properites.hparams_search import hparams_range_of_values as hparam_configs
+from my_code.predict_ges_properites.GestPropDataset import GesturePropDataset
+
+from sklearn.model_selection import StratifiedKFold as KFold
+
 
 seed_everything(RANDOM_SEED)
 
@@ -61,7 +65,7 @@ def prepare_hparams(trial):
     params.update(vars(override_params))
     hparams = Namespace(**params)
 
-    hparams.gpus = [1] # [0,1]
+    hparams.gpus = [0] # [0,1]
 
     return hparam_configs.hparam_options(hparams, trial)
 
@@ -90,27 +94,44 @@ def run(hparams, return_dict, trial, batch_size, current_date):
             experiment_name="GestProp" + current_date
         )
 
-    #trainer_params["early_stop_callback"] = MyEarlyStopping(trial, monitor="val_loss")
+    # Configuration K-fold cross validation
+    k_folds = 10
 
-    trainer_params = Namespace(**trainer_params)
+    # Define the K-fold Cross Validator
+    kfold = KFold(n_splits=k_folds, shuffle=True)
 
-    trainer = Trainer.from_argparse_args(trainer_params, deterministic=False, enable_pl_optimizer=True)
-    model = PropPredictor(hparams)
+    # Load dataset
+    train_n_val_dataset = GesturePropDataset(hparams.data_root, "train_n_val", hparams.data_feat)
+    class_freq = train_n_val_dataset.get_freq()
 
-    try:
-        trainer.fit(model)
-    except RuntimeError as e:
-        if str(e).startswith("CUDA out of memory"):
-            return_dict["OOM"] = True
-            raise FailedTrial("CUDA out of memory")
-        else:
-            return_dict["error"] = e
-            raise e
-    except (optuna.exceptions.TrialPruned, Exception) as e:
-        return_dict["error"] = e
+    # Start print
+    print('--------------------------------')
 
-    for key, item in trainer.callback_metrics.items():
-        return_dict[key] = float(item)
+    # K-fold Cross Validation model evaluation
+    for fold, (train_ids, test_ids) in enumerate(kfold.split(train_n_val_dataset.x_dataset, train_n_val_dataset.y_labels)):
+        # Print
+        print(f'FOLD {fold}')
+        print('--------------------------------')
+
+        trainer_params = Namespace(**trainer_params)
+
+        trainer = Trainer.from_argparse_args(trainer_params, deterministic=False, enable_pl_optimizer=True)
+        model = PropPredictor(hparams, fold, train_ids, test_ids)
+
+        try:
+           trainer.fit(model)
+        except RuntimeError as e:
+           if str(e).startswith("CUDA out of memory"):
+               return_dict["OOM"] = True
+               raise FailedTrial("CUDA out of memory")
+           else:
+               return_dict["error"] = e
+               raise e
+        except (optuna.exceptions.TrialPruned, Exception) as e:
+           return_dict["error"] = e
+
+        for key, item in trainer.callback_metrics.items():
+           return_dict[key] = float(item)
 
 
 def get_training_name():
