@@ -3,7 +3,7 @@ CNN:
   seq_length: 7
   hidden_dim: 12
   n_layers: 1
-  output_dim: 8
+  output_dim: 6
   kernel_size: 5
   dropout: 0.4
 Loss:
@@ -42,7 +42,7 @@ batch_size: 64
 benchmark: true
 check_val_every_n_epoch: 1
 checkpoint_callback: true
-data_root: /home/tarask/Documents/Datasets/SaGa/Processed/feat/S_Semantics/
+data_root: /home/tarask/Documents/Datasets/SaGa/Processed/feat/S_Semantics/new/
 data_feat: R.S.Semantic Feature
 dropout: 0.2
 default_root_dir: null

@@ -79,8 +79,8 @@ class PropPredictor(LightningModule):
 
     def load_datasets(self):
         try:
-            self.train_dataset = GesturePropDataset(self.data_root, "train", self.hparams.data_feat)
-            self.val_dataset = GesturePropDataset(self.data_root, "val", self.hparams.data_feat)
+            self.train_dataset = GesturePropDataset(self.data_root, "train_n_val", self.hparams.data_feat)
+            self.val_dataset = GesturePropDataset(self.data_root, "train_n_val", self.hparams.data_feat)
             self.class_freq = self.train_dataset.get_freq()
         except FileNotFoundError as err:
             abs_data_dir = os.path.abspath(self.data_root)
@@ -126,7 +126,7 @@ class PropPredictor(LightningModule):
         prediction = torch.sigmoid(prediction + 1e-6).round()
 
         # calculate metrics
-        logs = evaluate_phase(prediction.cpu(), truth.cpu())
+        logs = evaluate_s_semantic(prediction.cpu(), truth.cpu())
 
         for metric in logs:
             self.log(metric, logs[metric])
