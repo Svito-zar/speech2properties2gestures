@@ -16,7 +16,7 @@ from my_code.predict_ges_properites.class_balanced_loss import ClassBalancedLoss
 
 
 class PropPredictor(LightningModule):
-    def __init__(self, hparams, dataset_root=None, test=None):
+    def __init__(self, hparams, fold, train_ids, val_ids, test=None):
         super().__init__()
 
         if test is not None:
@@ -28,6 +28,9 @@ class PropPredictor(LightningModule):
 
         # obtain datasets
         self.load_datasets()
+        self.train_ids = train_ids
+        self.val_ids = val_ids
+        self.fold = fold
 
         # define key parameters
         self.hparams = hparams
@@ -129,7 +132,7 @@ class PropPredictor(LightningModule):
         logs = evaluate_s_semantic(prediction.cpu(), truth.cpu())
 
         for metric in logs:
-            self.log(metric, logs[metric])
+            self.log(metric + "/" + str(self.fold), logs[metric])
 
 
     def training_step(self, batch, batch_idx):
@@ -226,19 +229,25 @@ class PropPredictor(LightningModule):
 
 
     def train_dataloader(self):
+
+        train_subsampler = torch.utils.data.SubsetRandomSampler(self.train_ids)
+
         loader = torch.utils.data.DataLoader(
             dataset=self.train_dataset,
             batch_size=self.hparams.batch_size,
             num_workers=8,
-            shuffle=True
+            sampler=train_subsampler
         )
         return loader
 
     def val_dataloader(self):
+
+        val_sampler = torch.utils.data.SubsetRandomSampler(self.val_ids)
+
         loader = torch.utils.data.DataLoader(
             dataset=self.val_dataset,
             batch_size=self.hparams.batch_size,
             num_workers=8,
-            shuffle=True
+            sampler=val_sampler
         )
         return loader
