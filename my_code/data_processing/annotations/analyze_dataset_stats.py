@@ -1,8 +1,8 @@
 import numpy as np
 
 
-gen_folder = "/home/tarask/Documents/Datasets/SaGa/Processed/feat/S_Semantics/"
-file_name = gen_folder + "train_Y_R.S.Semantic Feature.npy"
+gen_folder = "/home/tarask/Documents/Datasets/SaGa/Processed/feat/"
+file_name = gen_folder + "train_Y_R.G.Left.Phase.npy"
 
 X = np.load(file_name, allow_pickle=True)
 
@@ -14,7 +14,7 @@ for feat in X:
 print("No f: ", no_f)
 
 
-for feat in range(8):
+for feat in range(5):
     column = X[:, 2 + feat]
     print(feat, np.sum(column))
 
