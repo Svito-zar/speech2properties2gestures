@@ -12,7 +12,8 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
         specific_subfolder: name of a specific subfolder
         feature_name:       name of the feature we are considering
         dataset_name:       name of the dataset
-        feature_dim:        dimensionality of the feature considered
+        feature_dim:        his defines how many values given feature can attain.
+                            for example `phase` has feature_dim 4: {'iconic', 'discourse', 'deictic', 'beat'}
 
     Returns:
         Nothing, save dataset in npy file
@@ -41,60 +42,7 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
                 continue
             spec_feat = np.array(spec_feat_hf)
 
-            text_file = str(recording_id).zfill(2) + "_text.hdf5"
-
-            text_hf = h5py.File(name=curr_folder + text_file, mode='r')
-            text_array = text_hf.get("text")
-            text_timing = text_array[:, :2]
-
-            # Consider all the time-frames except for the first and last three words, since we need three words for the contexts
-            start_time = text_timing[3, 0].round(1)
-            end_time = text_timing[-4, 0].round(1)
-            duration = end_time - start_time
-            total_number_of_frames = int(duration * 5) # 0.2s time-steps
-
-            """ print("Start time: ", start_time)
-            print("End time: ", end_time)
-            print("Total numb of frames: ", total_number_of_frames) """
-
-            # First save all the text features
-            curr_file_X_data = np.zeros((total_number_of_frames, 7, 769))
-
-            time_ind = 0
-            for time_st in np.arange(start_time, end_time-0.1, 0.2):
-
-                # find the corresponding words
-                curr_word_id = bisect.bisect(text_timing[:, 0], time_st)
-
-                # encode current word with the next three and previous three words
-                # while also storing time offset from the current time-step
-                input_vector = [
-                    np.concatenate(([text_timing[word_id, 0].round(1) - time_st.round(1)], text_array[word_id, 2:]))
-                    for word_id in range(curr_word_id - 3, curr_word_id + 4)]
-
-                curr_file_X_data[time_ind] = np.array(input_vector)
-
-                time_ind = int( (time_st.round(1) - start_time) * 5 )
-
-            # Create dataset for Y features
-            curr_file_Y_data = np.zeros((total_number_of_frames, feature_dim+2))
-
-            for feat_id in range(spec_feat.shape[0]):
-
-                curr_feat_vec = spec_feat[feat_id]
-
-                # First two values contain st_time and end_time, other values - feature vector itself
-                curr_feat_timing = curr_feat_vec[:2].round(1)
-                curr_feat_values = curr_feat_vec[2:]
-
-                for time_st in np.arange(curr_feat_timing[0], curr_feat_timing[1], 0.2):
-
-                    # Save some extra info which might be useful later on
-                    output_vector = np.concatenate(([recording_id, time_st.round(1)], curr_feat_values))
-
-                    time_ind = int((time_st.round(1) - start_time) * 5)
-
-                    curr_file_Y_data[time_ind] = output_vector
+            curr_file_X_data, curr_file_Y_data = extract_info_from_the_current_file(spec_feat, recording_id, curr_folder)
 
             if len(X_dataset) == 0:
                 X_dataset = curr_file_X_data
@@ -119,13 +67,70 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
     np.save(gen_folder + dataset_name + "_X_" + feature_name + ".npy", X_ups)
 
 
-def upsample(X, Y, feature_length):
+def extract_info_from_the_current_file(spec_feat, recording_id, curr_folder):
+    text_file = str(recording_id).zfill(2) + "_text.hdf5"
+
+    text_hf = h5py.File(name=curr_folder + text_file, mode='r')
+    text_array = text_hf.get("text")
+    word_starts = text_array[:, 0].round(1)
+    word_ends = text_array[:, 0].round(1)
+
+    # Consider all the time-frames except for the first and last three words, since we need three words for the contexts
+    start_time = word_starts[3]
+    end_time = word_ends[-4] - 0.1
+    duration = end_time - start_time
+    total_number_of_frames = int(duration * 5)  # 0.2s time-steps
+
+    # First save all the text features
+    curr_file_X_data = np.zeros((total_number_of_frames, 7, 769))
+
+    time_ind = 0
+    for time_st in np.arange(start_time, end_time - 0.1, 0.2):
+        # find the corresponding words
+        curr_word_id = bisect.bisect(word_starts, time_st)
+
+        # encode current word with the next three and previous three words
+        # while also storing time offset from the current time-step
+        input_vector = [
+            np.concatenate(([word_starts[word_id] - time_st], text_array[word_id, 2:]))
+            for word_id in range(curr_word_id - 3, curr_word_id + 4)]
+
+        curr_file_X_data[time_ind] = np.array(input_vector)
+
+        time_ind += 1
+
+    # Create dataset for Y features
+    curr_file_Y_data = np.zeros((total_number_of_frames, feature_dim + 2))
+
+    for feat_id in range(spec_feat.shape[0]):
+
+        curr_feat_vec = spec_feat[feat_id]
+
+        # First two values contain st_time and end_time, other values - feature vector itself
+        curr_feat_timing = curr_feat_vec[:2].round(1)
+        curr_feat_values = curr_feat_vec[2:]
+
+        for time_st in np.arange(curr_feat_timing[0], curr_feat_timing[1], 0.2):
+
+            if time_st > end_time:
+                break
+
+            # Save some extra info which might be useful later on
+            output_vector = np.concatenate(([recording_id, time_st], curr_feat_values))
+
+            time_ind = int((time_st - start_time) * 5)
+
+            curr_file_Y_data[time_ind] = output_vector
+
+    return curr_file_X_data, curr_file_Y_data
+
+def upsample(X, Y, n_features):
     """
 
     Args:
-        X:                  input dataset
-        Y:                  output dataset
-        feature_length:     number of features in the dataset
+        X:                  input dataset with text features
+        Y:                  output dataset with binary gesture properties
+        n_features:         number of features in the dataset
 
     Returns:
         X_upsampled:        upsampled input dataset with equalized features frequencies
@@ -133,32 +138,31 @@ def upsample(X, Y, feature_length):
 
     """
 
-    freq = np.zeros(feature_length)
-    for feat in range(feature_length):
+    freq = np.zeros(n_features)
+    for feat in range(n_features):
         column = Y[:, 2 + feat]
-        freq[feat] = np.sum(column)
+        freq[feat] = np.sum(column) # These are the binary gesture properties
 
     max_freq = np.max(freq)
-    multipliers = [int(2 * max_freq // freq[feat]) for feat in range(feature_length)]
+    multipliers = [int(2 * max_freq // freq[feat]) for feat in range(n_features)]
 
     Y_upsampled = list(np.copy(Y))
     X_upsampled = list(np.copy(X))
 
-    for ind in range(Y.shape[0]):
+    for frame_ind in range(Y.shape[0]):
         multipl_factor = 1
-        for feat in range(feature_length):
-            if Y[ind, 2 + feat] == 1:
-                multipl_factor = max(multipl_factor, multipliers[feat])
+        for curr_feat in range(n_features):
+            if Y[frame_ind, curr_feat+2] == 1: # first two numbers are containing extra info
+                multipl_factor = max(multipl_factor, multipliers[curr_feat])
         if multipl_factor > 1:
-            for _ in range(multipl_factor-1):
-                Y_upsampled.append(Y[ind])
-                X_upsampled.append(X[ind])
+            X_upsampled += [X[frame_ind]] * multipl_factor
+            Y_upsampled += [Y[frame_ind]] * multipl_factor
 
     X_upsampled = np.asarray(X_upsampled, dtype=np.float32)
     Y_upsampled = np.asarray(Y_upsampled, dtype=np.float32)
 
-    freq = np.zeros(feature_length)
-    for feat in range(feature_length):
+    freq = np.zeros(n_features)
+    for feat in range(n_features):
         column = Y_upsampled[:, 2 + feat]
         freq[feat] = np.sum(column)
 
@@ -169,7 +173,8 @@ if __name__ == "__main__":
 
     gen_folder = "/home/tarask/Documents/Datasets/SaGa/Processed/feat/"
     dataset_name = subfolder = "train_n_val"
-    feature_name = "R.S.Semantic Feature"
-    feature_dim = 8
+    feature_name = "R.G.Right.Phase"
+    # feature_name = "R.S.Semantic Feature"
+    feature_dim = 5
 
     create_dataset(gen_folder, subfolder, feature_name, dataset_name, feature_dim)
