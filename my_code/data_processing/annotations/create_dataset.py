@@ -36,13 +36,25 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
 
             feat_hf = h5py.File(name=curr_folder + feat_file, mode='r')
             spec_feat_hf = feat_hf.get(feature_name)
-
             if spec_feat_hf is None:
-                Warning("Skip file with only the following keys:", len(feat_hf.keys()), feat_hf.keys())
                 continue
-            spec_feat = np.array(spec_feat_hf)
 
-            curr_file_X_data, curr_file_Y_data = extract_info_from_the_current_file(spec_feat, recording_id, curr_folder)
+            # Obtain timing information
+            text_file = str(recording_id).zfill(2) + "_text.hdf5"
+            text_hf = h5py.File(name=curr_folder + text_file, mode='r')
+            text_array = text_hf.get("text")
+            word_starts = text_array[:, 0].round(1)
+            word_ends = text_array[:, 1].round(1)
+
+            # Consider all the time-frames except for the first and last three words, since we need three words for the contexts
+            start_time = word_starts[3]
+            end_time = (word_ends[-4] - 0.3).round(1)
+            duration = (end_time - start_time).round(1)
+            total_number_of_frames = int(duration * 5) + 1  # 0.2s time-steps
+
+            curr_file_X_data = extract_text_from_the_current_file(text_hf, start_time, end_time, total_number_of_frames)
+
+            curr_file_Y_data = extract_features_from_the_current_file(spec_feat_hf, recording_id, start_time, end_time, total_number_of_frames)
 
             if len(X_dataset) == 0:
                 X_dataset = curr_file_X_data
@@ -67,19 +79,10 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
     np.save(gen_folder + dataset_name + "_X_" + feature_name + ".npy", X_ups)
 
 
-def extract_info_from_the_current_file(spec_feat, recording_id, curr_folder):
-    text_file = str(recording_id).zfill(2) + "_text.hdf5"
+def extract_text_from_the_current_file(text_hf, start_time, end_time, total_number_of_frames):
 
-    text_hf = h5py.File(name=curr_folder + text_file, mode='r')
     text_array = text_hf.get("text")
     word_starts = text_array[:, 0].round(1)
-    word_ends = text_array[:, 1].round(1)
-
-    # Consider all the time-frames except for the first and last three words, since we need three words for the contexts
-    start_time = word_starts[3]
-    end_time = (word_ends[-4] - 0.3).round(1)
-    duration = (end_time - start_time).round(1)
-    total_number_of_frames = int(duration * 5) + 1  # 0.2s time-steps
 
     # First save all the text features
     curr_file_X_data = np.zeros((total_number_of_frames, 7, 769))
@@ -98,6 +101,12 @@ def extract_info_from_the_current_file(spec_feat, recording_id, curr_folder):
         curr_file_X_data[time_ind] = np.array(input_vector)
 
         time_ind += 1
+
+    return curr_file_X_data
+
+
+def extract_features_from_the_current_file(spec_feat_hf, recording_id, start_time, end_time, total_number_of_frames):
+    spec_feat = np.array(spec_feat_hf)
 
     # Create dataset for Y features
     curr_file_Y_data = np.zeros((total_number_of_frames, feature_dim + 2))
@@ -124,7 +133,8 @@ def extract_info_from_the_current_file(spec_feat, recording_id, curr_folder):
 
             curr_file_Y_data[time_ind] = output_vector
 
-    return curr_file_X_data, curr_file_Y_data
+    return curr_file_Y_data
+
 
 def upsample(X, Y, n_features):
     """
@@ -176,6 +186,7 @@ if __name__ == "__main__":
     gen_folder = "/home/tarask/Documents/Datasets/SaGa/Processed/feat/"
     dataset_name = subfolder = "train_n_val"
     feature_name = "R.G.Right.Phase"
-    feature_dim = 5
+    feature_name = "R.S.Semantic Feature"
+    feature_dim = 8
 
     create_dataset(gen_folder, subfolder, feature_name, dataset_name, feature_dim)
