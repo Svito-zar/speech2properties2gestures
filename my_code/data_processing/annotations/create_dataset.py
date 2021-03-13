@@ -35,9 +35,11 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
             print("Consider file number :", str(recording_id).zfill(2))
 
             feat_hf = h5py.File(name=curr_folder + feat_file, mode='r')
-            spec_feat_hf = feat_hf.get(feature_name)
+            spec_feat_hf = feat_hf.get("R.G.Right." + feature_name)
             if spec_feat_hf is None:
-                continue
+                spec_feat_hf = feat_hf.get("R.G.Left." + feature_name)
+                if spec_feat_hf is None:
+                    continue
 
             # Obtain timing information
             text_file = str(recording_id).zfill(2) + "_text.hdf5"
@@ -54,7 +56,15 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
 
             curr_file_X_data = extract_text_from_the_current_file(text_hf, start_time, end_time, total_number_of_frames)
 
-            curr_file_Y_data = extract_features_from_the_current_file(spec_feat_hf, recording_id, start_time, end_time, total_number_of_frames)
+            spec_feat_hf = feat_hf.get("R.G.Right." + feature_name)
+            curr_file_Y_right_data = extract_features_from_the_current_file(spec_feat_hf, recording_id, start_time,
+                                                                            end_time, total_number_of_frames)
+
+            spec_feat_hf = feat_hf.get("R.G.Left." + feature_name)
+            curr_file_Y_left_data = extract_features_from_the_current_file(spec_feat_hf, recording_id, start_time,
+                                                                            end_time, total_number_of_frames)
+
+            curr_file_Y_data = np.clip(curr_file_Y_left_data + curr_file_Y_right_data, 0, 1)
 
             if len(X_dataset) == 0:
                 X_dataset = curr_file_X_data
@@ -80,6 +90,19 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
 
 
 def extract_text_from_the_current_file(text_hf, start_time, end_time, total_number_of_frames):
+    """
+    Extract text features from a given file
+
+    Args:
+        text_hf:                hdf5 file with the transcript
+        start_time:             start time
+        end_time:               end time
+        total_number_of_frames: total number of frames in the future feature file
+
+    Returns:
+        curr_file_X_data:       [total_number_of_frames, 7, 769] array of text features
+
+    """
 
     text_array = text_hf.get("text")
     word_starts = text_array[:, 0].round(1)
@@ -106,6 +129,23 @@ def extract_text_from_the_current_file(text_hf, start_time, end_time, total_numb
 
 
 def extract_features_from_the_current_file(spec_feat_hf, recording_id, start_time, end_time, total_number_of_frames):
+    """
+    Extract given feature from a given file
+
+    Args:
+        spec_feat_hf:           hdf5 file for the given feature
+        recording_id:           recording ID
+        start_time:             start time
+        end_time:               end time
+        total_number_of_frames: total number of frames in the future feature file
+
+    Returns:
+        curr_file_X_data:       [total_number_of_frames, n_features] array of features
+    """
+
+    if spec_feat_hf is None:
+        return 0
+
     spec_feat = np.array(spec_feat_hf)
 
     # Create dataset for Y features
@@ -185,8 +225,8 @@ if __name__ == "__main__":
 
     gen_folder = "/home/tarask/Documents/Datasets/SaGa/Processed/feat/"
     dataset_name = subfolder = "train_n_val"
-    feature_name = "R.G.Right.Phase"
-    feature_name = "R.S.Semantic Feature"
-    feature_dim = 8
+
+    feature_dim = 5
+    feature_name = "Phase"
 
     create_dataset(gen_folder, subfolder, feature_name, dataset_name, feature_dim)
