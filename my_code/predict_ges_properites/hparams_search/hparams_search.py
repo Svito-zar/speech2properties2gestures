@@ -25,7 +25,7 @@ from pytorch_lightning import loggers as pl_loggers
 from my_code.predict_ges_properites.hparams_search import hparams_range_of_values as hparam_configs
 from my_code.predict_ges_properites.GestPropDataset import GesturePropDataset
 
-from sklearn.model_selection import StratifiedKFold as KFold
+from sklearn.model_selection import TimeSeriesSplit as KFold
 
 
 seed_everything(RANDOM_SEED)
@@ -65,7 +65,7 @@ def prepare_hparams(trial):
     params.update(vars(override_params))
     hparams = Namespace(**params)
 
-    hparams.gpus = [0] # [0,1]
+    hparams.gpus = [1] # [0,1]
 
     return hparam_configs.hparam_options(hparams, trial)
 
@@ -98,7 +98,7 @@ def run(hparams, return_dict, trial, batch_size, current_date):
     k_folds = 10
 
     # Define the K-fold Cross Validator
-    kfold = KFold(n_splits=k_folds, shuffle=True)
+    kfold = KFold(n_splits=k_folds)
 
     # Load dataset
     train_n_val_dataset = GesturePropDataset(hparams.data_root, "train_n_val", hparams.data_feat)
@@ -107,13 +107,15 @@ def run(hparams, return_dict, trial, batch_size, current_date):
     # Start print
     print('--------------------------------')
 
+    trainer_params = Namespace(**trainer_params)
+
     # K-fold Cross Validation model evaluation
     for fold, (train_ids, test_ids) in enumerate(kfold.split(train_n_val_dataset.x_dataset, train_n_val_dataset.y_labels)):
+
         # Print
         print(f'FOLD {fold}')
         print('--------------------------------')
 
-        trainer_params = Namespace(**trainer_params)
 
         trainer = Trainer.from_argparse_args(trainer_params, deterministic=False, enable_pl_optimizer=True)
         model = PropPredictor(hparams, fold, train_ids, test_ids)

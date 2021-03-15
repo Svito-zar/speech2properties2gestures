@@ -8,7 +8,7 @@ from my_code.predict_ges_properites.GestPropDataset import GesturePropDataset
 from my_code.misc.shared import RANDOM_SEED
 from pytorch_lightning import Trainer, seed_everything
 
-from sklearn.model_selection import StratifiedKFold as KFold
+from sklearn.model_selection import TimeSeriesSplit as KFold
 
 seed_everything(RANDOM_SEED)
 
@@ -48,7 +48,7 @@ if __name__ == "__main__":
     k_folds = 10
 
     # Define the K-fold Cross Validator
-    kfold = KFold(n_splits=k_folds, shuffle=True)
+    kfold = KFold(n_splits=k_folds)
 
     assert os.path.exists(
         hparams.data_root
@@ -76,7 +76,7 @@ if __name__ == "__main__":
     print('--------------------------------')
 
     # K-fold Cross Validation model evaluation
-    for fold, (train_ids, test_ids) in enumerate(kfold.split(train_n_val_dataset.x_dataset, train_n_val_dataset.y_labels)):
+    for fold, (train_ids, test_ids) in enumerate(kfold.split(train_n_val_dataset.x_dataset)):
         # Print
         print(f'FOLD {fold}')
         print('--------------------------------')
