@@ -35,10 +35,13 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
             print("Consider file number :", str(recording_id).zfill(2))
 
             feat_hf = h5py.File(name=curr_folder + feat_file, mode='r')
+
+            # check if the file contain the given feature
             spec_feat_hf = feat_hf.get("R.G.Right." + feature_name)
             if spec_feat_hf is None:
                 spec_feat_hf = feat_hf.get("R.G.Left." + feature_name)
                 if spec_feat_hf is None:
+                    print("\nFile ", feat_file, " does not contain feature ", feature_name)
                     continue
 
             # Obtain timing information
