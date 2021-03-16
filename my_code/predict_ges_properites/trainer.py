@@ -8,7 +8,7 @@ from my_code.predict_ges_properites.GestPropDataset import GesturePropDataset
 from my_code.misc.shared import RANDOM_SEED
 from pytorch_lightning import Trainer, seed_everything
 
-from sklearn.model_selection import TimeSeriesSplit as KFold
+from sklearn.model_selection import KFold
 
 seed_everything(RANDOM_SEED)
 
@@ -70,13 +70,13 @@ if __name__ == "__main__":
         logger = pl_loggers.TensorBoardLogger('lightning_logs/')
 
     hparams.num_dataloader_workers = 0
-    hparams.gpus = 1
+    hparams.gpus = 0
 
     # Start print
     print('--------------------------------')
 
     # K-fold Cross Validation model evaluation
-    for fold, (train_ids, test_ids) in enumerate(kfold.split(train_n_val_dataset.x_dataset)):
+    for fold, (train_ids, test_ids) in enumerate(kfold.split(train_n_val_dataset)):
         # Print
         print(f'FOLD {fold}')
         print('--------------------------------')

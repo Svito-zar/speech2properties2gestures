@@ -25,7 +25,7 @@ from pytorch_lightning import loggers as pl_loggers
 from my_code.predict_ges_properites.hparams_search import hparams_range_of_values as hparam_configs
 from my_code.predict_ges_properites.GestPropDataset import GesturePropDataset
 
-from sklearn.model_selection import TimeSeriesSplit as KFold
+from sklearn.model_selection import KFold
 
 
 seed_everything(RANDOM_SEED)
@@ -110,7 +110,7 @@ def run(hparams, return_dict, trial, batch_size, current_date):
     trainer_params = Namespace(**trainer_params)
 
     # K-fold Cross Validation model evaluation
-    for fold, (train_ids, test_ids) in enumerate(kfold.split(train_n_val_dataset.x_dataset, train_n_val_dataset.y_labels)):
+    for fold, (train_ids, test_ids) in enumerate(kfold.split(train_n_val_dataset)):
 
         # Print
         print(f'FOLD {fold}')
