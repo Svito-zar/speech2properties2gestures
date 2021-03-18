@@ -131,7 +131,7 @@ class PropPredictor(LightningModule):
         prediction = torch.sigmoid(prediction + 1e-6).round()
 
         # calculate metrics
-        logs = evaluate_s_semantic(prediction.cpu(), truth.cpu())
+        logs = evaluate_g_semantic(prediction.cpu(), truth.cpu())
         for metric in logs:
             self.log(metric + "/" + str(self.fold), logs[metric])
 
@@ -161,12 +161,12 @@ class PropPredictor(LightningModule):
 
         # plot sequnces
         if batch_idx == 5:
-            x = batch["property"][:, 1]
+            x = batch["property"][:, 1].cpu()
             # convert from raw values to likelihood
             predicted_prob = torch.sigmoid(prediction + 1e-6)
             for feat in range(4):
-                plt.plot(x, batch["property"][:, feat+2], 'r--', x, predicted_prob[:, feat], 'bs--')
-                image_file_name = "fig/valid_res_"+str(self.current_epoch) + "_" + str(feat) + "_" + str(batch["property"][0, 0].item()) + ".png"
+                plt.plot(x, batch["property"][:, feat+2].cpu(), 'r--', x, predicted_prob[:, feat].cpu(), 'bs--')
+                image_file_name = "fig/valid_res_"+str(self.current_epoch) + "_" + str(feat) + ".png"
                 plt.savefig(fname=image_file_name)
                 self.logger.experiment.log_image(image_file_name)
                 plt.clf()
