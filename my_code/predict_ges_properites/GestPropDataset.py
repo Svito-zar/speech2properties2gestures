@@ -41,7 +41,7 @@ class GesturePropDataset(Dataset):
     def __getitem__(self, idx):
 
         text = self.x_dataset[idx]
-        property = self.y_dataset[idx][2:] # ignore extra info, keep only the label
+        property = self.y_dataset[idx]
 
         if len(text) == 0:
             raise Exception("Missing text!")

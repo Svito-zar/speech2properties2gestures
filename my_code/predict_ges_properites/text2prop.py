@@ -9,6 +9,8 @@ from torch.optim import SGD, Adam, RMSprop
 from torch.optim.lr_scheduler import LambdaLR, MultiplicativeLR, StepLR
 from torch.utils.data import DataLoader
 import numpy as np
+import matplotlib.pyplot as plt
+import urllib.request
 
 from my_code.predict_ges_properites.GestPropDataset import GesturePropDataset
 from my_code.predict_ges_properites.classification_evaluation import evaluate_phrase, evaluate_practice, evaluate_g_semantic, evaluate_s_semantic, evaluate_phase
@@ -137,7 +139,7 @@ class PropPredictor(LightningModule):
     def training_step(self, batch, batch_idx):
 
         predicted_prob = self(batch).float()
-        true_lab = batch["property"].float()
+        true_lab = batch["property"][:, 2:].float() # ignore extra info, keep only the label
 
         loss_array = self.loss(predicted_prob, true_lab)
 
@@ -154,16 +156,28 @@ class PropPredictor(LightningModule):
 
     def validation_step(self, batch, batch_idx):
 
-        predicted_prob = self(batch).float()
-        true_lab = batch["property"].float()
+        prediction = self(batch).float()
+        true_lab = batch["property"][:,2:].float()
 
-        loss_array = self.loss(predicted_prob, true_lab)
+        # plot sequnces
+        if batch_idx == 5:
+            x = batch["property"][:, 1]
+            # convert from raw values to likelihood
+            predicted_prob = torch.sigmoid(prediction + 1e-6)
+            for feat in range(4):
+                plt.plot(x, batch["property"][:, feat+2], 'r--', x, predicted_prob[:, feat], 'bs--')
+                image_file_name = "fig/valid_res_"+str(self.current_epoch) + "_" + str(feat) + "_" + str(batch["property"][0, 0].item()) + ".png"
+                plt.savefig(fname=image_file_name)
+                self.logger.experiment.log_image(image_file_name)
+                plt.clf()
+
+        loss_array = self.loss(prediction, true_lab)
 
         loss_value = torch.mean(loss_array).unsqueeze(-1) / batch["property"].shape[1]
 
         self.log('Loss/val_loss', loss_value)
 
-        self.accuracy(predicted_prob, true_lab)
+        self.accuracy(prediction, true_lab)
 
         if self.hparams.optuna and self.global_step > 20 and loss_value > 1000000:
             message = f"Trial was pruned since loss > 1000"
@@ -241,7 +255,7 @@ class PropPredictor(LightningModule):
 
     def val_dataloader(self):
 
-        val_sampler = torch.utils.data.SubsetRandomSampler(self.val_ids)
+        val_sampler = torch.utils.data.SequentialSampler(self.val_ids)
 
         loader = torch.utils.data.DataLoader(
             dataset=self.val_dataset,
