@@ -58,15 +58,13 @@ def evaluate_g_semantic(prediction, truth):
     prec_sum = 0
     recall_sum = 0
 
-    semant_length = 5
+    semant_length = 4
 
     prefix = "semantic_"
 
     log = {}
 
     for label in range(semant_length):
-        if label == 1:
-            continue
         label_acc = accuracy_score(truth[:, label], prediction[:, label])
         log['Acc/' + prefix + str(label)] = label_acc
         acc_sum += label_acc
@@ -86,15 +84,15 @@ def evaluate_g_semantic(prediction, truth):
         log['Rec/' + prefix + str(label)] = label_recall
         recall_sum += label_recall
 
-    mean_acc_phr = acc_sum / (semant_length - 1)
+    mean_acc_phr = acc_sum / (semant_length )
     log["Acc/" + prefix + "_av"] = mean_acc_phr
 
-    mean_f1_phr = f1_sum / (semant_length - 1)
+    mean_f1_phr = f1_sum / (semant_length)
     log["F1/" + prefix + "_av"] = mean_f1_phr
 
-    log["Prec/" + prefix + "_av"] =  prec_sum / (semant_length - 1)
+    log["Prec/" + prefix + "_av"] =  prec_sum / (semant_length)
 
-    log["Rec/" + prefix + "_av"] = recall_sum / (semant_length - 1)
+    log["Rec/" + prefix + "_av"] = recall_sum / (semant_length)
 
     return log
 

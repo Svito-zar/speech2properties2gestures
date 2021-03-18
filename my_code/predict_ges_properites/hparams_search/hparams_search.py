@@ -112,6 +112,9 @@ def run(hparams, return_dict, trial, batch_size, current_date):
     # K-fold Cross Validation model evaluation
     for fold, (train_ids, test_ids) in enumerate(kfold.split(train_n_val_dataset)):
 
+        if test_ids[-1] > 69000:
+            continue
+
         # Print
         print(f'FOLD {fold}')
         print('--------------------------------')
