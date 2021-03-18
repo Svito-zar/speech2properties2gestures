@@ -26,7 +26,7 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
     Y_dataset = []
 
     # go though the dataset recordings
-    for recording_id in range(1, 25):
+    for recording_id in range(1, 26):
         feat_file = str(recording_id).zfill(2) + "_feat.hdf5"
 
         # if this recording belong to the current dataset
@@ -37,11 +37,11 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
             feat_hf = h5py.File(name=curr_folder + feat_file, mode='r')
 
             # check if the file contain the given feature
-            spec_feat_hf = feat_hf.get("R.G.Right." + feature_name)
+            spec_feat_hf = feat_hf.get("R.G.Right " + feature_name)
             if spec_feat_hf is None:
-                spec_feat_hf = feat_hf.get("R.G.Left." + feature_name)
+                spec_feat_hf = feat_hf.get("R.G.Left " + feature_name)
                 if spec_feat_hf is None:
-                    print("\nFile ", feat_file, " does not contain feature ", feature_name)
+                    print("\nFile ", feat_file, " does not contain feature ", feature_name, " but only ", feat_hf.keys())
                     continue
 
             # Obtain timing information
@@ -59,13 +59,15 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
 
             curr_file_X_data = extract_text_from_the_current_file(text_hf, start_time, end_time, total_number_of_frames)
 
-            spec_feat_hf = feat_hf.get("R.G.Right." + feature_name)
+            spec_feat_hf = feat_hf.get("R.G.Right " + feature_name)
             curr_file_Y_right_data = extract_features_from_the_current_file(spec_feat_hf, recording_id, start_time,
-                                                                            end_time, total_number_of_frames)
+                                                                            end_time, total_number_of_frames, feature_dim+1)
+            if spec_feat_hf is not None:
+                curr_file_Y_right_data = merge_dir_n_relativ_pos(curr_file_Y_right_data)
 
-            spec_feat_hf = feat_hf.get("R.G.Left." + feature_name)
+            spec_feat_hf = feat_hf.get("R.G.Left " + feature_name)
             curr_file_Y_left_data = extract_features_from_the_current_file(spec_feat_hf, recording_id, start_time,
-                                                                            end_time, total_number_of_frames)
+                                                                            end_time, total_number_of_frames, feature_dim)
 
             curr_file_Y_data = np.clip(curr_file_Y_left_data + curr_file_Y_right_data, 0, 1)
 
@@ -90,6 +92,32 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
     # save files
     np.save(gen_folder + dataset_name+ "_Y_" + feature_name + ".npy", Y_ups)
     np.save(gen_folder + dataset_name + "_X_" + feature_name + ".npy", X_ups)
+
+
+def merge_dir_n_relativ_pos(feature_array):
+    """
+    Merge several features which represent the same thing:
+    "direction" and "relative position"
+
+    'R.G.Right Semantic': {0: 'Amount', 1: 'Direction', 2: 'Shape', 3: 'relative Position', 4: 'Size'}
+    'R.G.Left Semantic': {0: 'Amount', 1: 'Shape', 2: 'relative Position', 3: 'Size'}
+
+    Args:
+        feature_array:     {0: 'Amount', 1: 'Direction', 2: 'Shape', 3: 'relative Position', 4: 'Size'}
+
+    Returns:
+        new_feature_array: {0: 'Amount', 1: 'Shape', 2: 'relative Position', 3: 'Size'}
+
+    """
+
+
+    direction = np.clip(feature_array[:, 3] + feature_array[:, 5], 0, 1)
+    feature_array[:, 5] = direction
+    # remove "relative Position", which we already merged above
+    new_feature_array = np.delete(feature_array, 3, 1)
+
+    return new_feature_array
+
 
 
 def extract_text_from_the_current_file(text_hf, start_time, end_time, total_number_of_frames):
@@ -131,7 +159,7 @@ def extract_text_from_the_current_file(text_hf, start_time, end_time, total_numb
     return curr_file_X_data
 
 
-def extract_features_from_the_current_file(spec_feat_hf, recording_id, start_time, end_time, total_number_of_frames):
+def extract_features_from_the_current_file(spec_feat_hf, recording_id, start_time, end_time, total_number_of_frames, feature_dim):
     """
     Extract given feature from a given file
 
@@ -141,6 +169,7 @@ def extract_features_from_the_current_file(spec_feat_hf, recording_id, start_tim
         start_time:             start time
         end_time:               end time
         total_number_of_frames: total number of frames in the future feature file
+        feature_dim:            dimensionality of the features
 
     Returns:
         curr_file_X_data:       [total_number_of_frames, n_features] array of features
@@ -193,13 +222,22 @@ def upsample(X, Y, n_features):
 
     """
 
+    print(Y.shape)
+
+
     freq = np.zeros(n_features)
     for feat in range(n_features):
         column = Y[:, 2 + feat]
         freq[feat] = np.sum(column) # These are the binary gesture properties
+        if freq[feat] < 100:
+            freq[feat] = 10000
+
+    print(freq)
 
     max_freq = np.max(freq)
-    multipliers = [int(2 * max_freq // freq[feat]) for feat in range(n_features)]
+    multipliers = [int(max_freq // freq[feat]) for feat in range(n_features)]
+
+    print("Multipliers: ", multipliers)
 
     Y_upsampled = list(np.copy(Y))
     X_upsampled = list(np.copy(X))
@@ -216,10 +254,14 @@ def upsample(X, Y, n_features):
     X_upsampled = np.asarray(X_upsampled, dtype=np.float32)
     Y_upsampled = np.asarray(Y_upsampled, dtype=np.float32)
 
+    print(Y_upsampled.shape)
+
     freq = np.zeros(n_features)
     for feat in range(n_features):
         column = Y_upsampled[:, 2 + feat]
         freq[feat] = np.sum(column)
+
+    print("Freq: ", freq)
 
     return X_upsampled, Y_upsampled
 
@@ -229,7 +271,7 @@ if __name__ == "__main__":
     gen_folder = "/home/tarask/Documents/Datasets/SaGa/Processed/feat/"
     dataset_name = subfolder = "train_n_val"
 
-    feature_dim = 5
-    feature_name = "Phase"
+    feature_dim = 4
+    feature_name = "Semantic"
 
     create_dataset(gen_folder, subfolder, feature_name, dataset_name, feature_dim)
