@@ -69,7 +69,16 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
             curr_file_Y_left_data = extract_features_from_the_current_file(spec_feat_hf, recording_id, start_time,
                                                                             end_time, total_number_of_frames, feature_dim)
 
-            curr_file_Y_data = np.clip(curr_file_Y_left_data + curr_file_Y_right_data, 0, 1)
+            # Merge both hands together
+            if curr_file_Y_left_data is not None and curr_file_Y_right_data is not None:
+                curr_file_Y_data = curr_file_Y_left_data
+                # only sum features, but not the extra info in the first two dimensions
+                curr_file_Y_data[:,2:] = np.clip(curr_file_Y_left_data[:,2:] + curr_file_Y_right_data[:,2:], 0, 1)
+            else:
+                if curr_file_Y_left_data is not None:
+                    curr_file_Y_data = curr_file_Y_left_data
+                else:
+                    curr_file_Y_data = curr_file_Y_right_data
 
             if len(X_dataset) == 0:
                 X_dataset = curr_file_X_data
@@ -176,12 +185,15 @@ def extract_features_from_the_current_file(spec_feat_hf, recording_id, start_tim
     """
 
     if spec_feat_hf is None:
-        return 0
+        return None
 
     spec_feat = np.array(spec_feat_hf)
 
     # Create dataset for Y features
     curr_file_Y_data = np.zeros((total_number_of_frames, feature_dim + 2))
+
+    # Add timing info
+    curr_file_Y_data[:, 1] = np.linspace(start_time, end_time, num=total_number_of_frames)
 
     for feat_id in range(spec_feat.shape[0]):
 
