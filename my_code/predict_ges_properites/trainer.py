@@ -2,6 +2,7 @@ import os
 from argparse import ArgumentParser, Namespace
 import yaml
 import torch
+import numpy as np
 
 from my_code.predict_ges_properites.text2prop import PropPredictor
 from my_code.predict_ges_properites.GestPropDataset import GesturePropDataset
@@ -65,12 +66,22 @@ if __name__ == "__main__":
             api_key=hparams.comet_logger["api_key"],
             project_name=hparams.comet_logger["project_name"]
         )
+
     else:
         from pytorch_lightning import loggers as pl_loggers
         logger = pl_loggers.TensorBoardLogger('lightning_logs/')
 
     hparams.num_dataloader_workers = 0
     hparams.gpus = 0
+
+    # identify "empty" vectors
+    feat_sum = np.sum(train_n_val_dataset.y_dataset[:, 2:], axis=1)
+    zero_ids = np.where(feat_sum == 0)
+    # keep 10% of the empty vectors
+    fraction = 0.9
+    zeros_numb = len(zero_ids[0])
+    remove_n_zeros = int(zeros_numb * fraction)
+    zero_ids_index = np.random.choice(zero_ids[0], remove_n_zeros, replace=False)
 
     # Start print
     print('--------------------------------')
@@ -81,7 +92,12 @@ if __name__ == "__main__":
         print(f'FOLD {fold}')
         print('--------------------------------')
 
-        model = PropPredictor(hparams, fold, train_ids, test_ids)
+        train_ids_no_zeros = [x for x in train_ids if x not in zero_ids_index]
+
+        if test_ids[-1] > 67436:
+            continue
+
+        model = PropPredictor(hparams, fold, train_ids_no_zeros, test_ids)
 
         trainer = Trainer.from_argparse_args(hparams, logger=logger) #, profiler="simple") # profiler="advanced"
 
