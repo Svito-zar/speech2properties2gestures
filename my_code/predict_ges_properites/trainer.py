@@ -77,8 +77,9 @@ if __name__ == "__main__":
     # identify "empty" vectors
     feat_sum = np.sum(train_n_val_dataset.y_dataset[:, 2:], axis=1)
     zero_ids = np.where(feat_sum == 0)
-    # keep 10% of the empty vectors
-    fraction = 0.9
+
+    # keep % of the empty vectors
+    fraction = hparams.Loss["keep_zeros_fraction"]
     zeros_numb = len(zero_ids[0])
     remove_n_zeros = int(zeros_numb * fraction)
     zero_ids_index = np.random.choice(zero_ids[0], remove_n_zeros, replace=False)

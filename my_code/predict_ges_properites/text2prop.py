@@ -160,7 +160,7 @@ class PropPredictor(LightningModule):
         true_lab = batch["property"][:,2:].float()
 
         # plot sequnces
-        if batch_idx == 5:
+        if batch_idx == 2:
             x = batch["property"][:, 1].cpu()
             # convert from raw values to likelihood
             predicted_prob = torch.sigmoid(prediction + 1e-6)
