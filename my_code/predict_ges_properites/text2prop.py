@@ -165,6 +165,7 @@ class PropPredictor(LightningModule):
             # convert from raw values to likelihood
             predicted_prob = torch.sigmoid(prediction + 1e-6)
             for feat in range(4):
+                plt.ylim([0, 1])
                 plt.plot(x, batch["property"][:, feat+2].cpu(), 'r--', x, predicted_prob[:, feat].cpu(), 'bs--')
                 image_file_name = "fig/valid_res_"+str(self.current_epoch) + "_" + str(feat) + ".png"
                 plt.savefig(fname=image_file_name)
