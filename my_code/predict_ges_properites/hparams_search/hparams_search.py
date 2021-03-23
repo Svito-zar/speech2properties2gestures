@@ -103,13 +103,6 @@ def run(hparams, return_dict, trial, batch_size, current_date):
     # Load dataset
     train_n_val_dataset = GesturePropDataset(hparams.data_root, "train_n_val", hparams.data_feat)
 
-    # prepare to upsample under-represented classes
-    freq = train_n_val_dataset.get_freq()
-    n_features = hparams.CNN["output_dim"]
-
-    max_freq = np.max(freq)
-    multipliers = [int(max_freq // freq[feat]) for feat in range(n_features)]
-
     # Start print
     print('--------------------------------')
 
@@ -125,19 +118,8 @@ def run(hparams, return_dict, trial, batch_size, current_date):
         print(f'FOLD {fold}')
         print('--------------------------------')
 
-        # upsample under-represented classes in the training set
-        train_ids_upsampled = list(np.copy(train_ids))
-
-        for frame_ind in range(train_ids.shape[0]):
-            multipl_factor = 1
-            for curr_feat in range(n_features):
-                if train_n_val_dataset.y_dataset[frame_ind, curr_feat + 2] == 1:  # first two numbers are containing extra info
-                    multipl_factor = max(multipl_factor, multipliers[curr_feat])
-            if multipl_factor > 1:
-                train_ids_upsampled += [train_ids[frame_ind]] * multipl_factor
-
         trainer = Trainer.from_argparse_args(trainer_params, deterministic=False, enable_pl_optimizer=True)
-        model = PropPredictor(hparams, fold, train_ids_upsampled, test_ids)
+        model = PropPredictor(hparams, fold, train_ids, test_ids, upsample=True)
 
         try:
            trainer.fit(model)

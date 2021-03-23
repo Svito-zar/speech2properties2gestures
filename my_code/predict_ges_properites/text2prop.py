@@ -18,13 +18,14 @@ from my_code.predict_ges_properites.class_balanced_loss import ClassBalancedLoss
 
 
 class PropPredictor(LightningModule):
-    def __init__(self, hparams, fold, train_ids, val_ids, test=None):
+    def __init__(self, hparams, fold, train_ids, val_ids, upsample=False, test=None):
         super().__init__()
 
         if test is not None:
             hparams.Test = test
 
         self.data_root = hparams.data_root
+        self.upsample = upsample
 
         self.hparams = hparams
 
@@ -243,6 +244,26 @@ class PropPredictor(LightningModule):
 
 
     def train_dataloader(self):
+
+        if self.upsample:
+            # prepare to upsample under-represented classes
+            n_features = self.output_dim
+
+            max_freq = np.max(self.class_freq)
+            multipliers = [int(max_freq // self.class_freq[feat]) for feat in range(n_features)]
+
+            # upsample under-represented classes in the training set
+            train_ids_upsampled = list(np.copy(self.train_ids))
+
+            for frame_ind in range(self.train_ids.shape[0]):
+                multipl_factor = 1
+                for curr_feat in range(n_features):
+                    if self.train_dataset.y_dataset[frame_ind, curr_feat + 2] == 1:  # first two numbers are containing extra info
+                        multipl_factor = max(multipl_factor, multipliers[curr_feat]) # we take the highest multiplier of all features that are present in the frame
+                if multipl_factor > 1:
+                    train_ids_upsampled += [self.train_ids[frame_ind]] * multipl_factor
+
+            self.train_ids = train_ids_upsampled
 
         train_subsampler = torch.utils.data.SubsetRandomSampler(self.train_ids)
 
