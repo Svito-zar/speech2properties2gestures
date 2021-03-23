@@ -94,13 +94,9 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
     Y = np.asarray(Y_dataset, dtype=np.float32)
     X = np.asarray(X_dataset, dtype=np.float32)
 
-    # upsample underrepresented classes
-    print("Upsampling ...")
-    X_ups, Y_ups = upsample(X, Y, feature_dim)
-
     # save files
-    np.save(gen_folder + dataset_name+ "_Y_" + feature_name + ".npy", Y_ups)
-    np.save(gen_folder + dataset_name + "_X_" + feature_name + ".npy", X_ups)
+    np.save(gen_folder + dataset_name+ "_Y_" + feature_name + ".npy", Y)
+    np.save(gen_folder + dataset_name + "_X_" + feature_name + ".npy", X)
 
 
 def merge_dir_n_relativ_pos(feature_array):
