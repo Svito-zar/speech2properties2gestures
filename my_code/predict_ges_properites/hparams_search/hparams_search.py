@@ -104,15 +104,6 @@ def run(hparams, return_dict, trial, batch_size, current_date):
     train_n_val_dataset = GesturePropDataset(hparams.data_root, "train_n_val", hparams.data_feat)
     class_freq = train_n_val_dataset.get_freq()
 
-    # identify "empty" vectors
-    feat_sum = np.sum(train_n_val_dataset.y_dataset[:, 2:], axis=1)
-    zero_ids = np.where(feat_sum == 0)
-    # keep 10% of the empty vectors
-    fraction = 0.9
-    zeros_numb = len(zero_ids[0])
-    remove_n_zeros = int(zeros_numb * fraction)
-    zero_ids_index = np.random.choice(zero_ids[0], remove_n_zeros, replace=False)
-
     # Start print
     print('--------------------------------')
 
@@ -121,17 +112,15 @@ def run(hparams, return_dict, trial, batch_size, current_date):
     # K-fold Cross Validation model evaluation
     for fold, (train_ids, test_ids) in enumerate(kfold.split(train_n_val_dataset)):
 
-        if test_ids[-1] > 69000:
+        if test_ids[-1] > 68000:
             continue
 
         # Print
         print(f'FOLD {fold}')
         print('--------------------------------')
 
-        train_ids_no_zeros = [x for x in train_ids if x not in zero_ids_index]
-
         trainer = Trainer.from_argparse_args(trainer_params, deterministic=False, enable_pl_optimizer=True)
-        model = PropPredictor(hparams, fold, train_ids_no_zeros, test_ids)
+        model = PropPredictor(hparams, fold, train_ids, test_ids)
 
         try:
            trainer.fit(model)
