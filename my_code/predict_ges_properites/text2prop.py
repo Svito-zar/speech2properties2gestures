@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 import urllib.request
 
 from my_code.predict_ges_properites.GestPropDataset import GesturePropDataset
-from my_code.predict_ges_properites.classification_evaluation import evaluate_phrase, evaluate_practice, evaluate_g_semantic, evaluate_s_semantic, evaluate_phase
+from my_code.predict_ges_properites.classification_evaluation import evaluation
 from my_code.predict_ges_properites.class_balanced_loss import ClassBalancedLoss
 
 
@@ -132,7 +132,7 @@ class PropPredictor(LightningModule):
         prediction = torch.sigmoid(prediction + 1e-6).round()
 
         # calculate metrics
-        logs = evaluate_g_semantic(prediction.cpu(), truth.cpu())
+        logs = evaluation(prediction.cpu(), truth.cpu(), self.output_dim)
         for metric in logs:
             self.log(metric + "/" + str(self.fold), logs[metric])
 
