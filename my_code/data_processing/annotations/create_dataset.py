@@ -37,9 +37,9 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
             feat_hf = h5py.File(name=curr_folder + feat_file, mode='r')
 
             # check if the file contain the given feature
-            spec_feat_hf = feat_hf.get("R.G.Right " + feature_name)
+            spec_feat_hf = feat_hf.get("R.G.Right." + feature_name)
             if spec_feat_hf is None:
-                spec_feat_hf = feat_hf.get("R.G.Left " + feature_name)
+                spec_feat_hf = feat_hf.get("R.G.Left." + feature_name)
                 if spec_feat_hf is None:
                     print("\nFile ", feat_file, " does not contain feature ", feature_name, " but only ", feat_hf.keys())
                     continue
@@ -59,13 +59,13 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
 
             curr_file_X_data = extract_text_from_the_current_file(text_hf, start_time, end_time, total_number_of_frames)
 
-            spec_feat_hf = feat_hf.get("R.G.Right " + feature_name)
+            spec_feat_hf = feat_hf.get("R.G.Right." + feature_name)
             curr_file_Y_right_data = extract_features_from_the_current_file(spec_feat_hf, recording_id, start_time,
-                                                                            end_time, total_number_of_frames, feature_dim+1)
-            if spec_feat_hf is not None:
-                curr_file_Y_right_data = merge_dir_n_relativ_pos(curr_file_Y_right_data)
+                                                                            end_time, total_number_of_frames, feature_dim)
+            #if spec_feat_hf is not None:
+            #    curr_file_Y_right_data = merge_dir_n_relativ_pos(curr_file_Y_right_data)
 
-            spec_feat_hf = feat_hf.get("R.G.Left " + feature_name)
+            spec_feat_hf = feat_hf.get("R.G.Left." + feature_name)
             curr_file_Y_left_data = extract_features_from_the_current_file(spec_feat_hf, recording_id, start_time,
                                                                             end_time, total_number_of_frames, feature_dim)
 
@@ -80,6 +80,8 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
                 else:
                     curr_file_Y_data = curr_file_Y_right_data
 
+            curr_file_Y_data = remove_redundant_phrases(curr_file_Y_data)
+
             if len(X_dataset) == 0:
                 X_dataset = curr_file_X_data
                 Y_dataset = curr_file_Y_data
@@ -93,6 +95,15 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
     # create dataset file
     Y = np.asarray(Y_dataset, dtype=np.float32)
     X = np.asarray(X_dataset, dtype=np.float32)
+
+    # calculate frequencies
+    feat_dim = Y.shape[1] - 2
+    freq = np.zeros(feat_dim)
+    for feat in range(feat_dim):
+        column = Y[:, 2 + feat]
+        freq[feat] = np.sum(column)  # These are the binary gesture properties
+
+    print("Frequencies are: ", freq)
 
     # save files
     np.save(gen_folder + dataset_name+ "_Y_" + feature_name + ".npy", Y)
@@ -123,6 +134,27 @@ def merge_dir_n_relativ_pos(feature_array):
 
     return new_feature_array
 
+
+def remove_redundant_phrases(feature_array):
+    """
+    Remove several feature values which are irrelevant
+
+    'R.G.Phrase': {0: 'deictic', 1: 'beat', 2: 'move', 3: 'indexing', 4: 'iconic', 5: 'discourse', 6: 'unclear'},
+    'R.G.Phrase': {0: 'deictic', 1: 'beat', 2: 'iconic', 3: 'discourse''},
+
+    Args:
+        feature_array:    {0: 'deictic', 1: 'beat', 2: 'move', 3: 'indexing', 4: 'iconic', 5: 'discourse', 6: 'unclear'}
+
+    Returns:
+        new_feature_array:  {0: 'deictic', 1: 'beat', 2: 'iconic', 3: 'discourse''},
+
+    """
+
+    # remove  2: 'move', 3: 'indexing', 6: 'unclear' which are not relevant for us
+    new_feature_array = np.delete(feature_array, [4,5,8], 1)
+
+
+    return new_feature_array
 
 
 def extract_text_from_the_current_file(text_hf, start_time, end_time, total_number_of_frames):
@@ -279,7 +311,7 @@ if __name__ == "__main__":
     gen_folder = "/home/tarask/Documents/Datasets/SaGa/Processed/feat/"
     dataset_name = subfolder = "train_n_val"
 
-    feature_dim = 4
-    feature_name = "Semantic"
+    feature_dim = 7
+    feature_name = "Phrase"
 
     create_dataset(gen_folder, subfolder, feature_name, dataset_name, feature_dim)

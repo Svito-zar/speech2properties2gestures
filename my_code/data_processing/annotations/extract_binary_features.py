@@ -251,6 +251,7 @@ if __name__ == "__main__":
     print(total_dict)
 
     columns_to_consider = ["R.G.Left.Phase", "R.G.Right.Phase",
+                           "R.G.Left.Phrase", "R.G.Right.Phrase",
                            "R.G.Right Semantic", "R.G.Left Semantic", "R.S.Semantic Feature"]
 
     # go though the gesture features
@@ -262,8 +263,6 @@ if __name__ == "__main__":
         print(curr_file)
 
         encode_other_features(total_dict, curr_file, columns_to_consider)
-
-        encode_main_g_features(total_dict, curr_file)
 
         feature_file = "feat/" + curr_file[61:63] + "_feat.hdf5"
         hf = h5py.File(name=feature_file, mode='r')
