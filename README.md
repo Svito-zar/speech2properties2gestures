@@ -17,3 +17,17 @@ python train.py hparams/no_autoregr_gpu.yaml -
 ```
 python hparams_tuning.py hparams/no_autoregr_gpu.yaml -n 50
 ```
+
+# Baselines
+
+## Gesticulator 
+
+https://github.com/nagyrajmund/gesticulator/tree/gestureflow_baseline
+
+## StyleGestures
+
+https://github.com/nagyrajmund/stylegestures/tree/baseline
+
+## Trimodal (Yoon et al.)
+
+https://github.com/nagyrajmund/Gesture-Generation-from-Trimodal-Context/tree/baseline
