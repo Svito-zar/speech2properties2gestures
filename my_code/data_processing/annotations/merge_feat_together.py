@@ -1,51 +1,44 @@
 import numpy as np
 
 
-gen_folder = "/home/tarask/Documents/Datasets/SaGa/Processed/feat/S_Semantics/"
+def obtain_data_for_feature(gen_folder, prop):
+    file_name = gen_folder + "train_n_val_Y_" + prop + ".npy"
+    Y_train_n_val = np.load(file_name, allow_pickle=True)
 
-# Merge train n val
-prop = "R.S.Semantic Feature"
+    file_name = gen_folder + "train_n_val_X_" + prop + ".npy"
+    X_train_n_val = np.load(file_name, allow_pickle=True)
 
-val_file_name = gen_folder + "val_Y_" + prop + ".npy"
-Y_val = np.load(val_file_name, allow_pickle=True)
-print(Y_val.shape)
+    print(prop + " shape : ", Y_train_n_val.shape)
 
-train_file_name = gen_folder + "train_Y_" + prop + ".npy"
-Y_train = np.load(train_file_name, allow_pickle=True)
-print(Y_train.shape)
-
-Y_train_n_val = np.concatenate((Y_train, Y_val), axis = 0)
-print(Y_train_n_val.shape)
+    return X_train_n_val, Y_train_n_val
 
 
-val_X_file_name = gen_folder + "val_X_" + prop + ".npy"
-X_val = np.load(val_X_file_name, allow_pickle=True)
-print(X_val.shape)
+gen_folder = "/home/tarask/Documents/Datasets/SaGa/Processed/feat/"
 
-train_X_file_name = gen_folder + "train_X_" + prop + ".npy"
-X_train = np.load(train_X_file_name, allow_pickle=True)
-print(X_train.shape)
+# Read all the features
+X_phrase, Y_phrase = obtain_data_for_feature(gen_folder, "Phrase")
+X_g_semant, Y_g_semant = obtain_data_for_feature(gen_folder, "Semantic")
+X_s_semant, Y_s_semant = obtain_data_for_feature(gen_folder, "R.S.Semantic Feature")
 
-X_train_n_val = np.concatenate((X_train, X_val), axis = 0)
-print(X_train_n_val.shape)
+assert np.array_equal(X_phrase, X_g_semant)
+assert np.array_equal(X_s_semant, X_g_semant)
 
+assert np.array_equal(Y_phrase[:,:2], Y_g_semant[:,:2])
+assert np.array_equal(Y_g_semant[:,:2], Y_s_semant[:,:2])
 
+# Text is always the same
+X_all = X_phrase
+print("\nTotal Text shape: ", X_all.shape)
 
-# Merge certain features together
-direction = np.clip(Y_train_n_val[:, 3] + Y_train_n_val[:, 7], 0, 1)
-direction = Y_train_n_val[:, 3] + Y_train_n_val[:, 7]
-Y_train_n_val[:, 3] = direction
-# remove "relative Position", which we already merged above
-Y_train_n_val = np.delete(Y_train_n_val, 7, 1)
-# remove "Deictic"
-Y_train_n_val = np.delete(Y_train_n_val, 4, 1)
-print(np.array(Y_train_n_val).shape)
+# Combine all the features together
+Y_all = np.concatenate((Y_s_semant, Y_g_semant[:,2:], Y_phrase[:,2:]), axis=1)
+print("Total features shape: ", Y_all.shape)
 
 
 ### Save new files
 
-new_Y_file_name = gen_folder + "train_n_val_Y_" + prop + ".npy"
-np.save(new_Y_file_name, Y_train_n_val)
+new_Y_file_name = gen_folder + "EVERYTHING/train_n_val_Y_all.npy"
+np.save(new_Y_file_name, Y_all)
 
-new_X_file_name = gen_folder + "train_n_val_X_" + prop + ".npy"
-np.save(new_X_file_name, X_train_n_val)
+new_X_file_name = gen_folder + "EVERYTHING/train_n_val_X_all.npy"
+np.save(new_X_file_name, X_all)
