@@ -102,7 +102,7 @@ def average(arr, n):
     return np.mean(arr[:end].reshape(-1, n), 1)
 
 
-def calculate_spectrogram(audio_filename):
+def calculate_spectrogram(audio_filename, fps=20):
     """ Calculate spectrogram for the audio file
     Args:
         audio_filename: audio file name
@@ -120,7 +120,7 @@ def calculate_spectrogram(audio_filename):
 
     spectr = librosa.feature.melspectrogram(audio, sr=sample_rate, window = scipy.signal.hanning,
                                             #win_length=int(WINDOW_LENGTH * sample_rate),
-                                            hop_length = int(WINDOW_LENGTH* sample_rate / 2),
+                                            hop_length = int(sample_rate / fps),
                                             fmax=7500, fmin=100, n_mels=DIM)
 
     # Shift into the log scale
@@ -128,6 +128,7 @@ def calculate_spectrogram(audio_filename):
     log_spectr = np.log(abs(spectr)+eps)
 
     return np.transpose(log_spectr)
+
 
 def calculate_mfcc(audio_filename):
     """

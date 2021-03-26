@@ -3,6 +3,8 @@ import numpy as np
 import os
 import bisect
 
+from my_code.data_processing.tools import calculate_spectrogram, average
+
 
 def correct_the_time(time_st):
     """
@@ -38,9 +40,14 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
 
     curr_folder = general_folder + specific_subfolder + "/"
 
+    context_length = 5
+
     # Initialize empty lists for the dataset input and output
     X_dataset = []
     Y_dataset = []
+    A_dataset = []
+
+    audio_dir = "/home/tarask/Documents/Datasets/SaGa/Raw/Audios/"
 
     # go though the dataset recordings
     for recording_id in range(1, 26):
@@ -49,7 +56,7 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
         # if this recording belong to the current dataset
         if feat_file in os.listdir(curr_folder):
 
-            print("Consider file number :", str(recording_id).zfill(2))
+            print("\nConsider file number :", str(recording_id).zfill(2))
 
             feat_hf = h5py.File(name=curr_folder + feat_file, mode='r')
 
@@ -87,6 +94,16 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
             # calculate duration
             duration = (end_time - start_time).round(1)
             total_number_of_frames = int(duration * 5) + 1  # 0.2s time-steps
+
+            audio_file_name = audio_dir + "V" + str(recording_id) + "K3.mov.wav"
+            curr_file_A_data = extract_audio_from_the_current_file(audio_file_name, start_time, end_time, total_number_of_frames, context_length)
+
+            if len(A_dataset) == 0:
+                A_dataset = curr_file_A_data
+            else:
+                A_dataset = np.concatenate((A_dataset, curr_file_A_data))
+
+            print(np.asarray(A_dataset, dtype=np.float32).shape)
 
             curr_file_X_data = extract_text_from_the_current_file(text_hf, start_time, end_time, total_number_of_frames)
 
@@ -135,6 +152,9 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
             print("Time difference is in [", min_td, ", ", max_td, "]")
 
     # create dataset file
+    Audio_feat = np.asarray(A_dataset, dtype=np.float32)
+    np.save(gen_folder + dataset_name + "_A_" + feature_name + ".npy", Audio_feat)
+
     Y = np.asarray(Y_dataset, dtype=np.float32)
     X = np.asarray(X_dataset, dtype=np.float32)
 
@@ -267,6 +287,54 @@ def extract_text_from_the_current_file(text_hf, start_time, end_time, total_numb
         time_ind += 1
 
     return curr_file_X_data
+
+
+def extract_audio_from_the_current_file(audio_file, start_time, end_time, total_number_of_frames, context_length):
+    """
+    Extract text features from a given file
+
+    Args:
+        audio_file:             audio file
+        start_time:             start time
+        end_time:               end time
+        total_number_of_frames: total number of frames in the future feature file
+        context_length:         how many previous and next frames to consider
+
+    Returns:
+        curr_file_A_data:       [total_number_of_frames, X, Y] array of audio features
+
+    """
+
+    fps = 20
+
+    start_time = start_time.round(1)
+    end_time = end_time.round(1)
+
+    print("Timing: [", start_time, ", ", end_time, "]")
+    print("Number of frames: ", total_number_of_frames)
+
+    # extract spectrogram for the whole audio file
+    print("Calculating spectrogram ... ")
+    audio_array = calculate_spectrogram(audio_file, fps)
+
+    # reduce the fps from 20 to 5, so 4 times
+    end = 4 * int(len(audio_array) / 4)
+    audio_array = np.mean(audio_array[:end].reshape(-1, audio_array.shape[1], 4), 2)
+    fps = 5 # steps are 0.2s
+
+    # create a list of sequences with a fixed past and future context length ( overlap them to use data more efficiently)
+    start_ind = int(start_time*fps)
+    seq_step = 1  # overlap of sequences: 0.2s
+
+    stop_ind = int(end_time*fps) + 1
+
+    assert start_ind > context_length
+    assert stop_ind < audio_array.shape[0]
+
+    curr_file_A_data = np.array([audio_array[i - context_length: i + context_length+1]
+                                    for i in range(start_ind, stop_ind, seq_step)])
+
+    return curr_file_A_data
 
 
 def extract_features_from_the_current_file(spec_feat_hf, recording_id, start_time, end_time, total_number_of_frames, feature_dim):
