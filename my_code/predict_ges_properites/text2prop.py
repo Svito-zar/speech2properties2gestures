@@ -37,7 +37,7 @@ class PropPredictor(LightningModule):
 
         # define key parameters
         self.hparams = hparams
-        self.kernel_size = hparams.CNN["input_dim"]
+        self.kernel_size = hparams.CNN["kernel_size"]
         self.input_dim = hparams.CNN["input_dim"]
         self.output_dim = hparams.CNN["output_dim"]
         self.hidden_dim = hparams.CNN["hidden_dim"]
