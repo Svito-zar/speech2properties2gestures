@@ -274,7 +274,7 @@ def extract_text_from_the_current_file(text_hf, start_time, end_time, total_numb
     time_ind = 0
     for time_st in np.arange(start_time, end_time - 0.1, 0.2):
         # find the corresponding words
-        curr_word_id = bisect.bisect(word_starts, time_st)
+        curr_word_id = bisect.bisect(word_starts, time_st) - 1
 
         # encode current word with the next three and previous three words
         # while also storing time offset from the current time-step
