@@ -291,7 +291,7 @@ def extract_text_from_the_current_file(text_hf, start_time, end_time, total_numb
 
 def extract_audio_from_the_current_file(audio_file, start_time, end_time, total_number_of_frames, context_length):
     """
-    Extract text features from a given file
+    Extract audio features from a given file
 
     Args:
         audio_file:             audio file

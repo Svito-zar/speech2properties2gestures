@@ -18,11 +18,8 @@ from my_code.predict_ges_properites.class_balanced_loss import ClassBalancedLoss
 
 
 class PropPredictor(LightningModule):
-    def __init__(self, hparams, fold, train_ids, val_ids, upsample=False, test=None):
+    def __init__(self, hparams, fold, train_ids, val_ids, upsample=False):
         super().__init__()
-
-        if test is not None:
-            hparams.Test = test
 
         self.data_root = hparams.data_root
         self.upsample = upsample
@@ -73,7 +70,7 @@ class PropPredictor(LightningModule):
 
 
     def weights_init(self, m):
-        """Initialize the given linear layer using He initialization."""
+        """Initialize the given linear layer using zero initialization."""
         classname = m.__class__.__name__
         if classname.find('Linear') != -1:
             n = m.in_features * m.out_features
@@ -121,7 +118,7 @@ class PropPredictor(LightningModule):
 
     def loss(self, prediction, label):
 
-        loss_val = self.loss_funct(prediction, label,)
+        loss_val = self.loss_funct(prediction, label)
 
         return loss_val
 
@@ -139,10 +136,10 @@ class PropPredictor(LightningModule):
 
     def training_step(self, batch, batch_idx):
 
-        predicted_prob = self(batch).float()
+        prediction = self(batch).float()
         true_lab = batch["property"][:, 2:].float() # ignore extra info, keep only the label
 
-        loss_array = self.loss(predicted_prob, true_lab)
+        loss_array = self.loss(prediction, true_lab)
 
         loss_value = torch.mean(loss_array).unsqueeze(-1) / batch["property"].shape[1]
 
@@ -160,12 +157,12 @@ class PropPredictor(LightningModule):
         prediction = self(batch).float()
         true_lab = batch["property"][:,2:].float()
 
-        # plot sequnces
+        # plot sequences
         if batch_idx == 2:
             x = batch["property"][:, 1].cpu()
             # convert from raw values to likelihood
             predicted_prob = torch.sigmoid(prediction + 1e-6)
-            for feat in range(4):
+            for feat in range(self.output_dim):
                 plt.ylim([0, 1])
                 plt.plot(x, batch["property"][:, feat+2].cpu(), 'r--', x, predicted_prob[:, feat].cpu(), 'bs--')
                 image_file_name = "fig/valid_res_"+str(self.current_epoch) + "_" + str(feat) + ".png"
