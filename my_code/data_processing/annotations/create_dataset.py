@@ -151,6 +151,9 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
                 print("WRONG TIMING IN : ", np.where(time_dif != 0.2))
             print("Time difference is in [", min_td, ", ", max_td, "]")
 
+            # ensure synchronization
+            assert X_dataset.shape[0] == Y_dataset.shape[0] == A_dataset.shape[0]
+
     # create dataset file
     Audio_feat = np.asarray(A_dataset, dtype=np.float32)
     np.save(gen_folder + dataset_name + "_A_" + feature_name + ".npy", Audio_feat)
@@ -470,5 +473,6 @@ if __name__ == "__main__":
 
     feature_dim = 4
     feature_name = "Semantic"
+
 
     create_dataset(gen_folder, subfolder, feature_name, dataset_name, feature_dim)

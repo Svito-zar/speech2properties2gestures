@@ -85,6 +85,10 @@ if __name__ == "__main__":
         # Select the rest indices for the training set
         train_ids = np.where(recordings_ids != curr_record_id)
 
+        # Make sure that train_ids[0] does in fact contain all indices!
+        assert len(train_ids[0]) > 0
+        assert len(train_ids[0]) + len(test_ids[0]) == len(recordings_ids)
+
         # Define the model
         model = PropPredictor(hparams, curr_record_id, train_ids[0], test_ids[0], upsample=True)
 

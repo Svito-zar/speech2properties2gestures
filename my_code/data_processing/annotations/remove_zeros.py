@@ -27,7 +27,7 @@ print(A_train_n_val.shape)
 feat_sum = np.sum(Y_train_n_val[:,2:], axis=1)
 zero_ids = np.where(feat_sum == 0)
 
-fraction = 0.95 # keep 10 percent
+fraction = 0.95 # keep 5 percent
 zeros_numb = len(zero_ids[0])
 remove_n_zeros = int(zeros_numb * fraction)
 zero_ids_index = np.random.choice(zero_ids[0], remove_n_zeros, replace=False)
