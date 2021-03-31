@@ -31,3 +31,7 @@ https://github.com/nagyrajmund/stylegestures/tree/baseline
 ## Trimodal (Yoon et al.)
 
 https://github.com/nagyrajmund/Gesture-Generation-from-Trimodal-Context/tree/baseline
+3
+### NOTES
+- The architecture of the audio CNN in the generator and the convolutional discriminator had to be changed to adapt the new motion dim.
+- The autoencoder for calculating the FGD has not beed adapted yet
