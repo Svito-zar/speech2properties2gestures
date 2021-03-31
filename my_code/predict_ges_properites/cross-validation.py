@@ -89,7 +89,10 @@ if __name__ == "__main__":
             len_curr_ids = len(curr_record_indices)
             fraction = len_curr_ids // fold_numb
 
-            curr_test_ind = curr_record_indices[fraction*fold: fraction * (fold+1)]
+            # we don't want to take the same part of the recording all the time
+            shift = int(curr_record_id % fold_numb)
+
+            curr_test_ind = curr_record_indices[fraction*(fold + shift): fraction * (fold++ shift+ 1)]
             curr_train_ids = [x for x in curr_record_indices if x not in curr_test_ind]
 
             if len(train_ids) == 0:
