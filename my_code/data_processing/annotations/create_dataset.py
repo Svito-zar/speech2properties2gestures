@@ -63,7 +63,7 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
             if feature_name == "Semantic":
                 right_feat_name = "R.G.Right " + feature_name
                 left_feat_name = "R.G.Left " + feature_name
-            elif feature_name == "Phrase":
+            elif feature_name == "Phrase" or feature_name == "Phase":
                 right_feat_name = "R.G.Right." + feature_name
                 left_feat_name = "R.G.Left." + feature_name
             elif feature_name == "R.S.Semantic Feature":
@@ -98,13 +98,6 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
             audio_file_name = audio_dir + "V" + str(recording_id) + "K3.mov.wav"
             curr_file_A_data = extract_audio_from_the_current_file(audio_file_name, start_time, end_time, total_number_of_frames, context_length)
 
-            if len(A_dataset) == 0:
-                A_dataset = curr_file_A_data
-            else:
-                A_dataset = np.concatenate((A_dataset, curr_file_A_data))
-
-            print(np.asarray(A_dataset, dtype=np.float32).shape)
-
             curr_file_X_data = extract_text_from_the_current_file(text_hf, start_time, end_time, total_number_of_frames)
 
             spec_feat_hf = feat_hf.get(right_feat_name)
@@ -136,12 +129,15 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
 
             if len(X_dataset) == 0:
                 X_dataset = curr_file_X_data
+                A_dataset = curr_file_A_data
                 Y_dataset = curr_file_Y_data
             else:
                 X_dataset = np.concatenate((X_dataset, curr_file_X_data))
+                A_dataset = np.concatenate((A_dataset, curr_file_A_data))
                 Y_dataset = np.concatenate((Y_dataset, curr_file_Y_data))
 
             print(np.asarray(X_dataset, dtype=np.float32).shape)
+            print(np.asarray(A_dataset, dtype=np.float32).shape)
             print(np.asarray(Y_dataset, dtype=np.float32).shape)
 
             time_dif = (curr_file_Y_data[1:, 1] - curr_file_Y_data[:-1, 1]).round(1)
@@ -465,14 +461,16 @@ if __name__ == "__main__":
     gen_folder = "/home/tarask/Documents/Datasets/SaGa/Processed/feat/"
     dataset_name = subfolder = "train_n_val"
 
-    feature_dim = 7
-    feature_name = "Phrase"
-
     feature_dim = 8
     feature_name = "R.S.Semantic Feature"
 
     feature_dim = 4
     feature_name = "Semantic"
 
+    feature_dim = 7
+    feature_name = "Phrase"
+
+    feature_dim = 5
+    feature_name = "Phase"
 
     create_dataset(gen_folder, subfolder, feature_name, dataset_name, feature_dim)
