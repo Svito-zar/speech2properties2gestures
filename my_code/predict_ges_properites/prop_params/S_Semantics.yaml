@@ -1,15 +1,15 @@
 CNN:
   input_dim: 769
   seq_length: 7
-  hidden_dim: 12
+  hidden_dim: 32
   n_layers: 1
   output_dim: 6
   kernel_size: 5
-  dropout: 0.4
+  dropout: 0.38
 Loss:
-  beta: 0.95
-  alpha: 0.8
-  gamma: 2.0
+  beta: 0.86
+  alpha: 0.65
+  gamma: 3.0
 Optim:
   Schedule:
     args:
@@ -38,13 +38,12 @@ amp_level: O1
 auto_lr_find: false
 auto_scale_batch_size: false
 auto_select_gpus: false
-batch_size: 64
+batch_size: 256
 benchmark: true
-check_val_every_n_epoch: 1
+check_val_every_n_epoch: 3
 checkpoint_callback: true
-data_root: /home/tarask/Documents/Datasets/SaGa/Processed/feat/S_Semantics/new/
+data_root: /home/taras/Documents/storage/Saga/GestPropPred/TextBased/S_Semantic/no_zero/
 data_feat: R.S.Semantic Feature
-dropout: 0.2
 default_root_dir: null
 deterministic: true
 distributed_backend: null
@@ -55,8 +54,8 @@ log_gpu_memory: null
 log_save_interval: 80
 log_root: results/gesture_flow/log/
 logger: true
-lr: 1.0e-04
-max_epochs: 60
+lr: 0.0012
+max_epochs: 150
 max_steps: null
 min_epochs: 1
 min_steps: null
@@ -88,4 +87,4 @@ weights_save_path: null
 weights_summary: top
 comet_logger:
   api_key: None
-  project_name: predict_sp_semant
+  project_name: Text2Prop_sp_semant_no_zeros

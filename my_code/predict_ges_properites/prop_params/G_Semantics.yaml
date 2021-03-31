@@ -1,16 +1,15 @@
 CNN:
   input_dim: 769
   seq_length: 7
-  hidden_dim: 16
-  n_layers: 1
+  hidden_dim: 64
+  n_layers: 2
   output_dim: 4
-  kernel_size: 3
-  dropout: 0.4
+  kernel_size: 7
+  dropout: 0.1
 Loss:
-  beta: 0.95
-  alpha: 0.75
+  beta: 0.87
+  alpha: 0.65
   gamma: 2.0
-  keep_zeros_fraction: 0.97
 Optim:
   Schedule:
     args:
@@ -41,12 +40,10 @@ auto_scale_batch_size: false
 auto_select_gpus: false
 batch_size: 128
 benchmark: true
-check_val_every_n_epoch: 1
+check_val_every_n_epoch: 2
 checkpoint_callback: true
-data_root: /home/tarask/Documents/Datasets/SaGa/Processed/feat/BothHands/G_Semantic/
+data_root: /home/taras/Documents/storage/Saga/GestPropPred/TextBased/G_Semantic/no_zero/
 data_feat: Semantic
-dropout: 0.2
-default_root_dir: null
 deterministic: true
 distributed_backend: null
 early_stop_callback: false
@@ -56,8 +53,8 @@ log_gpu_memory: null
 log_save_interval: 80
 log_root: results/gesture_flow/log/
 logger: true
-lr: 1.0e-04
-max_epochs: 60
+lr: 1.0e-03
+max_epochs: 90
 max_steps: null
 min_epochs: 1
 min_steps: null
@@ -89,4 +86,4 @@ weights_save_path: null
 weights_summary: top
 comet_logger:
   api_key: None
-  project_name: semant_pred_test
+  project_name: Text2Prop_g_semant_no_zero
