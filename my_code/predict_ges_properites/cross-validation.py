@@ -110,15 +110,13 @@ if __name__ == "__main__":
         assert not any(np.isin(train_ids,test_ids))
 
         # Define the model
-        model = PropPredictor(hparams, fold, train_ids, test_ids, upsample=True)
+        model = PropPredictor(hparams, fold + 999, train_ids, test_ids, upsample=True)
 
         # Define the trainer
         trainer = Trainer.from_argparse_args(hparams, logger=logger)  # , profiler="simple") # profiler="advanced"
 
         # Train
         trainer.fit(model)
-
-    exit(0)
 
     # K-fold LEAVE-ONE-OUT Cross Validation model evaluation
     for curr_record_id in recordings:
@@ -135,6 +133,9 @@ if __name__ == "__main__":
         # Make sure that train_ids[0] does in fact contain all indices!
         assert len(train_ids[0]) > 0
         assert len(train_ids[0]) + len(test_ids[0]) == len(recordings_ids)
+
+        # Make sure train and test inds are not overlapping
+        assert not any(np.isin(train_ids[0], test_ids[0]))
 
         # Define the model
         model = PropPredictor(hparams, curr_record_id, train_ids[0], test_ids[0], upsample=True)
