@@ -35,3 +35,4 @@ https://github.com/nagyrajmund/Gesture-Generation-from-Trimodal-Context/tree/bas
 ### NOTES
 - The architecture of the audio CNN in the generator and the convolutional discriminator had to be changed to adapt the new motion dim.
 - The autoencoder for calculating the FGD has not beed adapted yet
+- For this model the hdf5 text dataset has been recreated to include word strings instead of the embeddings
