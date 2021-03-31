@@ -73,7 +73,51 @@ if __name__ == "__main__":
     recordings_ids = train_n_val_dataset.y_dataset[:, 0]
     recordings = np.unique(recordings_ids)
 
-    # K-fold Cross Validation model evaluation
+    # K-fold mix 10% of each Cross Validation model evaluation
+    fold_numb = 10
+    for fold in range(fold_numb):
+        # Print
+        print(f'Testing on hold out FOLD {fold}')
+        print('--------------------------------')
+
+        train_ids = []
+        test_ids = []
+
+        # Take 10% of each recording into the validation set
+        for curr_record_id in recordings:
+            curr_record_indices = np.where(recordings_ids == curr_record_id)[0]
+            len_curr_ids = len(curr_record_indices)
+            fraction = len_curr_ids // fold_numb
+
+            curr_test_ind = curr_record_indices[fraction*fold: fraction * (fold+1)]
+            curr_train_ids = [x for x in curr_record_indices if x not in curr_test_ind]
+
+            if len(train_ids) == 0:
+                train_ids = curr_train_ids
+                test_ids = curr_test_ind
+            else:
+                train_ids = np.concatenate((train_ids, curr_train_ids))
+                test_ids = np.concatenate((test_ids, curr_test_ind))
+
+        # Make sure that train_ids[0] does in fact contain all indices!
+        assert len(train_ids) > 0
+        assert len(train_ids) + len(test_ids) == len(recordings_ids)
+
+        # Make sure train and test inds are not overlapping
+        assert not any(np.isin(train_ids,test_ids))
+
+        # Define the model
+        model = PropPredictor(hparams, fold, train_ids, test_ids, upsample=True)
+
+        # Define the trainer
+        trainer = Trainer.from_argparse_args(hparams, logger=logger)  # , profiler="simple") # profiler="advanced"
+
+        # Train
+        trainer.fit(model)
+
+    exit(0)
+
+    # K-fold LEAVE-ONE-OUT Cross Validation model evaluation
     for curr_record_id in recordings:
         # Print
         print(f'Testing on hold out recording {curr_record_id}')
