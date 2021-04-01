@@ -276,9 +276,11 @@ class PropPredictor(LightningModule):
 
         val_sampler = torch.utils.data.SequentialSampler(self.val_ids)
 
+        val_batch_size = len(self.val_ids)
+
         loader = torch.utils.data.DataLoader(
             dataset=self.val_dataset,
-            batch_size=self.hparams.batch_size,
+            batch_size=val_batch_size,
             num_workers=8,
             sampler=val_sampler
         )
