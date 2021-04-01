@@ -1,19 +1,21 @@
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 
 
-def evaluation(prediction, truth, feat_dim):
+def evaluation(prediction, truth):
     """
     Evaluate accuracy and f1 score for a given predictions
 
     Args:
         prediction:   predictions from the model (already rounded to 0 and 1_
         truth:        true labels for the same samples
-        feat_dim:     dimensionality of this feature
 
     Returns:
         log:          log dictionary containing accuracy, precision, recall and f1 score
 
     """
+
+    # find dimensionality of this feature
+    feat_dim = truth.shape[1]
 
     # Get accuracy for a given feature
     acc_sum = 0
@@ -21,7 +23,7 @@ def evaluation(prediction, truth, feat_dim):
     prec_sum = 0
     recall_sum = 0
 
-    accumul_numb = feat_dim
+    n_present_features = feat_dim
 
     prefix = "feature_"
 
@@ -32,7 +34,7 @@ def evaluation(prediction, truth, feat_dim):
         # ignore features which were basically not present in the validation set
         if sum(truth[:, label]) < 3:
             print("\nIGNORING feature ", label, " in this validation")
-            accumul_numb -= 1
+            n_present_features -= 1
             continue
 
         label_acc = accuracy_score(truth[:, label], prediction[:, label])
@@ -54,14 +56,14 @@ def evaluation(prediction, truth, feat_dim):
         log['Rec/' + prefix + str(label)] = label_recall
         recall_sum += label_recall
 
-    mean_acc_phr = acc_sum / (accumul_numb )
+    mean_acc_phr = acc_sum / (n_present_features )
     log["Acc/" + prefix + "av"] = mean_acc_phr
 
-    mean_f1_phr = f1_sum / (accumul_numb)
+    mean_f1_phr = f1_sum / (n_present_features)
     log["F1/" + prefix + "av"] = mean_f1_phr
 
-    log["Prec/" + prefix + "av"] =  prec_sum / (accumul_numb)
+    log["Prec/" + prefix + "av"] =  prec_sum / (n_present_features)
 
-    log["Rec/" + prefix + "av"] = recall_sum / (accumul_numb)
+    log["Rec/" + prefix + "av"] = recall_sum / (n_present_features)
 
     return log

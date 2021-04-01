@@ -129,7 +129,7 @@ class PropPredictor(LightningModule):
         prediction = torch.sigmoid(prediction + 1e-6).round()
 
         # calculate metrics
-        logs = evaluation(prediction.cpu(), truth.cpu(), self.output_dim)
+        logs = evaluation(prediction.cpu(), truth.cpu())
         for metric in logs:
             self.log(metric + "/" + str(self.fold), logs[metric])
 
