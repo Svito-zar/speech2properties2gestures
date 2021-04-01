@@ -21,11 +21,20 @@ def evaluation(prediction, truth, feat_dim):
     prec_sum = 0
     recall_sum = 0
 
+    accumul_numb = feat_dim
+
     prefix = "feature_"
 
     log = {}
 
     for label in range(feat_dim):
+
+        # ignore features which were basically not present in the validation set
+        if sum(truth[:, label]) < 3:
+            print("\nIGNORING feature ", label, " in this validation")
+            accumul_numb -= 1
+            continue
+
         label_acc = accuracy_score(truth[:, label], prediction[:, label])
         log['Acc/' + prefix + str(label)] = label_acc
         acc_sum += label_acc
@@ -45,14 +54,14 @@ def evaluation(prediction, truth, feat_dim):
         log['Rec/' + prefix + str(label)] = label_recall
         recall_sum += label_recall
 
-    mean_acc_phr = acc_sum / (feat_dim )
-    log["Acc/" + prefix + "_av"] = mean_acc_phr
+    mean_acc_phr = acc_sum / (accumul_numb )
+    log["Acc/" + prefix + "av"] = mean_acc_phr
 
-    mean_f1_phr = f1_sum / (feat_dim)
-    log["F1/" + prefix + "_av"] = mean_f1_phr
+    mean_f1_phr = f1_sum / (accumul_numb)
+    log["F1/" + prefix + "av"] = mean_f1_phr
 
-    log["Prec/" + prefix + "_av"] =  prec_sum / (feat_dim)
+    log["Prec/" + prefix + "av"] =  prec_sum / (accumul_numb)
 
-    log["Rec/" + prefix + "_av"] = recall_sum / (feat_dim)
+    log["Rec/" + prefix + "av"] = recall_sum / (accumul_numb)
 
     return log
