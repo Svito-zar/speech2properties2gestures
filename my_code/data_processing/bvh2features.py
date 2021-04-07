@@ -25,8 +25,12 @@ from pymo.writers import *
 
 import joblib as jl
 
+
 def extract_joint_angles(bvh_dir, files, dest_dir, pipeline_dir, fps):
     p = BVHParser()
+
+    if not os.path.exists(pipeline_dir):
+        raise Exception("Pipeline dir for the motion processing ", pipeline_dir, " does not exist! Change -pipe flag value.")
 
     data_all = list()
     for f in files:
@@ -35,30 +39,29 @@ def extract_joint_angles(bvh_dir, files, dest_dir, pipeline_dir, fps):
         data_all.append(p.parse(ff))
 
     data_pipe = Pipeline([
-       ('dwnsampl', DownSampler(tgt_fps=fps,  keep_all=False)),
+       # ('dwnsampl', DownSampler(tgt_fps=fps,  keep_all=False)),
        ('root', RootTransformer('hip_centric')),
-       ('mir', Mirror(axis='X', append=True)),
-       ('jtsel', JointSelector(['Spine','Spine1','Spine2','Spine3','Neck','Neck1','Head','RightShoulder', 'RightArm', 'RightForeArm', 'RightHand', 'LeftShoulder', 'LeftArm', 'LeftForeArm', 'LeftHand'], include_root=True)),
-       ('exp', MocapParameterizer('expmap')), 
+       # ('mir', Mirror(axis='X', append=True)),
+       # ('jtsel', JointSelector(['Spine','Spine1','Spine2','Spine3','Neck','Neck1','Head','RightShoulder', 'RightArm', 'RightForeArm', 'RightHand', 'LeftShoulder', 'LeftArm', 'LeftForeArm', 'LeftHand'], include_root=True)),
+       ('exp', MocapParameterizer('expmap')),
        ('cnst', ConstantsRemover()),
        ('np', Numpyfier())
     ])
 
     out_data = data_pipe.fit_transform(data_all)
-    
+
     # the datapipe will append the mirrored files to the end
-    assert len(out_data) == 2*len(files)
-    
+    # assert len(out_data) == 2*len(files)
+
     jl.dump(data_pipe, os.path.join(pipeline_dir + 'data_pipe.sav'))
-        
+
     fi=0
     for f in files:
         ff = os.path.join(dest_dir, f)
         print(ff)
         np.savez(ff + ".npz", clips=out_data[fi])
-        np.savez(ff + "_mirrored.npz", clips=out_data[len(files)+fi])
+        # np.savez(ff + "_mirrored.npz", clips=out_data[len(files)+fi])
         fi=fi+1
-
 
 
 if __name__ == '__main__':

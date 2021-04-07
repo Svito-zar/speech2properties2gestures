@@ -46,7 +46,7 @@ if __name__ == "__main__":
     hparams, conf_name = get_hparams()
 
     # Configuration K-fold cross validation
-    k_folds = 10
+    k_folds = 5
 
     # Define the K-fold Cross Validator
     kfold = KFold(n_splits=k_folds)

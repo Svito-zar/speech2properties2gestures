@@ -4,79 +4,73 @@ More info on its usage is given in the main README.md file
 
 @authors: Taras Kucherenko, Rajmund Nagy
 """
-import sys
 import os
 import shutil
-import pandas
+from pathlib import Path
 from os import path
+from os.path import join
 
+from my_code.data_processing.text_features.parse_json_transcript import encode_json_transcript_with_bert, encode_json_transcript_with_fasttext
+from my_code.data_processing import tools
 # Params
-from my_code.data_processing.data_params import dataset_argparser
+from my_code.data_processing.data_params import processing_argparser
+from my_code.data_processing.utils import get_file_name, get_file_extension
 
-# Indices for train/dev/test split
-DEV_LAST_ID = 3
-TEST_LAST_ID = 6
-TRAIN_LAST_ID = 31
 
-audio_prefix = "NaturalTalking_0"
-motion_prefix = "NaturalTalking_0"
+def get_split_from_index(file_ind):
+    """Return the dataset split ("dev" or "test" or "train") for the given file index."""
 
-def copy_files(ind, raw_d_dir, processed_d_dir, data_split, suffix=""):
-    # Copy audio
-    filename = f"{audio_prefix}{ind}{suffix}.wav"
-    original_file_path = path.join(raw_d_dir, "speech", filename)
+    if file_ind in [2, 13, 17]:
+        return "test"
+    elif file_ind in [7, 8]:
+        return "dev"
+    else:
+        return "train"
 
-    if os.path.isfile(original_file_path):
-        target_file_path = path.join(processed_d_dir, data_split, "inputs", filename)
-        shutil.copy(original_file_path, target_file_path)
 
-    # Copy text
-    filename = f"{audio_prefix}{ind}{suffix}.json"
-    transcript_file_path = path.join(raw_d_dir, "transcript", filename)
+def check_dataset_directories(raw_data_dir, proc_data_dir):
+    """
+    Do the following two sanity checks:
     
-    if os.path.isfile(transcript_file_path):
-        target_file_path = path.join(processed_d_dir, data_split, "inputs", filename)
-        shutil.copy(transcript_file_path, target_file_path)
+    1)  Verify that 'raw_data_dir' exists and that it contains the 
+        'Audio', 'Transcripts' and 'Motion' subdirectories; 
+    2)  Check if the 'proc_data_dir' is empty, if it is not, then print
+    """
+    # Ensure that proc_data_dir is either empty or that it can be deleted
+    if path.isdir(proc_data_dir) and os.listdir(proc_data_dir):
+        print(f"WARNING: Result directory '{proc_data_dir}' already exists!", end=' ')
+        print("All files in this directory will be deleted!")
+        print("\nType 'ok' to clear the directory, and anything else to abort the program.")
 
-    # Copy gestures
-    filename = f"{motion_prefix}{ind}{suffix}.npz"
-    original_file_path = path.join(raw_d_dir, "motion", filename)
-    
-    if os.path.isfile(original_file_path):
-        target_file_path = path.join(processed_d_dir, data_split, "labels", filename)
-        shutil.copy(original_file_path, target_file_path)      
+        if input() == 'ok':
+            shutil.rmtree(proc_data_dir)
+        else:
+            exit(-1)
 
-def create_dataset_splits(raw_d_dir, processed_d_dir):
-    """Create the train/dev/test splits in new subfolders within 'processed_d_dir'."""
-    _create_data_directories(processed_d_dir)
+    # Ensure that raw_data_dir is correct
+    if not path.isdir(raw_data_dir):
+        abs_path = path.abspath(raw_data_dir)
 
-    # prepare dev data
-    for i in range(1, DEV_LAST_ID):
-        copy_files(str(i).zfill(2), raw_d_dir, processed_d_dir, "dev")
+        print(f"ERROR: The given dataset folder for the raw data ({abs_path}) does not exist!")
+        print("Please, provide the correct path to the dataset in the `-raw_data_dir` argument.")
+        exit(-1)
 
-    # prepare test data
-    for i in range(DEV_LAST_ID, TEST_LAST_ID):
-        copy_files(str(i).zfill(2), raw_d_dir, processed_d_dir, "test")
+    speech_dir     = path.join(raw_data_dir, "Audio")
+    transcript_dir = path.join(raw_data_dir, "Transcripts")
+    motion_dir     = path.join(raw_data_dir, "Motion")
 
-    # prepare training data
-    for i in range(TEST_LAST_ID, TRAIN_LAST_ID):
-        copy_files(str(i).zfill(2), raw_d_dir, processed_d_dir, "train")
-        copy_files(str(i).zfill(2), raw_d_dir, processed_d_dir, "train", "_2")
-
-    extracted_dir = path.join(processed_d_dir)
-
-    dev_files, train_files, test_files = _format_datasets(extracted_dir)
-
-    # Save the filenames of each datapoints (the preprocessing script will use these)
-    dev_files.to_csv(path.join(extracted_dir, "dev-dataset-info.csv"), index=False)
-    train_files.to_csv(path.join(extracted_dir, "train-dataset-info.csv"), index=False)
-    test_files.to_csv(path.join(extracted_dir, "test-dataset-info.csv"), index=False)
-
+    # Ensure that raw_data_dir contains the right subfolders
+    for sub_dir in [speech_dir, transcript_dir, motion_dir]:
+        if not path.isdir(sub_dir):
+            _, name = path.split(sub_dir)
+            print(f"ERROR: The '{name}' directory is missing from the given dataset folder: '{raw_data_dir}'!") 
+            exit(-1)
 
 def _create_data_directories(processed_d_dir):
     """Create subdirectories for the dataset splits."""
     dir_names = ["dev", "test", "train"]
-    sub_dir_names = ["inputs", "labels"]
+    sub_dir_names = ["inputs", "labels", "sequences"]
+
     os.makedirs(processed_d_dir, exist_ok = True)
     
     print("Creating the datasets in the following directories:") 
@@ -90,64 +84,53 @@ def _create_data_directories(processed_d_dir):
             os.makedirs(dir_path, exist_ok = True) # e.g. ../../dataset/processed/train/inputs/
     print()
 
-
-def _format_datasets(extracted_dir):
-    print("The datasets will contain the following indices:", end='')
-    dev_files = _files_to_pandas_dataframe(extracted_dir, "dev", range(1, DEV_LAST_ID))
-    test_files = _files_to_pandas_dataframe(extracted_dir, "test", range(DEV_LAST_ID, TEST_LAST_ID))
-    train_files = _files_to_pandas_dataframe(extracted_dir, "train", range(TEST_LAST_ID, TRAIN_LAST_ID))
-    print()
-
-    return dev_files, train_files, test_files
-
-
-def _files_to_pandas_dataframe(extracted_dir, set_name, idx_range):
-    info_msg = f"\n  {set_name}:"
-    print("{:10}".format(info_msg), end='')
-
-    files = []
-    for idx in idx_range:
-        try:
-            # original files
-            input_file = path.abspath(path.join(extracted_dir, set_name, "inputs", audio_prefix + str(idx).zfill(2) + ".wav"))
-            label_file = path.abspath(path.join(extracted_dir, set_name, "labels", motion_prefix + str(idx).zfill(2) + ".npz"))
-            wav_size = path.getsize(input_file)
-            files.append((input_file, wav_size, label_file))
-        except OSError:
-            continue
-
-        print(idx, end=' ')
-
-    return pandas.DataFrame(data=files, columns=["wav_filename", "wav_filesize", "bvh_filename"])
-
-
-def check_dataset_directories(raw_data_dir):
+def create_dataset_splits_saga(raw_data_dir, proc_data_dir):    
     """
-    Verify that 'raw_data_dir' exists and that it contains the 
-    'speech', 'transcript' and 'motion' subdirectories.
+    Create the train/dev/test dataset splits in 'proc_data_dir' and move the raw files there.
     """
-    if not path.isdir(raw_data_dir):
-        abs_path = path.abspath(raw_data_dir)
+    _create_data_directories(proc_data_dir)
 
-        print(f"ERROR: The given dataset folder for the raw data ({abs_path}) does not exist!")
-        print("Please, provide the correct path to the dataset in the `-raw_data_dir` argument.")
-        exit(-1)
+    for subfolder in sorted(os.listdir(raw_data_dir)):
+        subfolder = join(raw_data_dir, subfolder)
+        if os.path.isdir(subfolder):
+            print("\n\n")
+            for file in sorted(os.listdir(subfolder)):
+                copy_saga_file(join(subfolder, file), proc_data_dir)
 
-    speech_dir     = path.join(raw_data_dir, "speech")
-    transcript_dir = path.join(raw_data_dir, "transcript")
-    motion_dir     = path.join(raw_data_dir, "motion")
+def copy_saga_file(file_path, proc_data_dir):
+    """
+    Copy the given raw data file to the corresponding data split, based on the 
+    file index and the data type (.bvh for motion, .hdf5 for text, .mov.wav for audio).
+    """
+    file_name = get_file_name(file_path)
+    file_extension = get_file_extension(file_path)
 
-    for sub_dir in [speech_dir, transcript_dir, motion_dir]:
-        if not path.isdir(sub_dir):
-            _, name = path.split(sub_dir)
-            print(f"ERROR: The '{name}' directory is missing from the given dataset folder: '{raw_data_dir}'!") 
-            exit(-1)
+    if file_name == "":
+        return
+
+    print("File: ", file_name)
+ 
+    # Remove the leading V from the file name to get the index
+    file_ind = int(file_name[1:3])
+    # "dev", "train" or "test"
+    split = get_split_from_index(file_ind)
+    
+    if file_extension == "npz":
+        target_dir = "labels"
+    elif file_extension == "hdf5" or file_extension == "mov.wav":
+        target_dir = "inputs"
+    else:
+        print(f"{file_name}.{file_extension} (skipped)")
+        return
+    
+    target_dir = join(proc_data_dir, split, target_dir)
+    
+    print(f"{file_name}.{file_extension}  \t -> \t {target_dir}")
+
+    shutil.copy(file_path, target_dir)
 
 if __name__ == "__main__":
-    args = dataset_argparser.parse_args()
+    args = processing_argparser.parse_args()
     
-    check_dataset_directories(args.raw_data_dir) 
-    create_dataset_splits(args.raw_data_dir, args.proc_data_dir)
-    
-    print(f"\nFinished!")
-
+    check_dataset_directories(args.raw_data_dir, args.proc_data_dir)
+    create_dataset_splits_saga(args.raw_data_dir, args.proc_data_dir)

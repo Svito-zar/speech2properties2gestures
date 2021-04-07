@@ -85,5 +85,5 @@ val_percent_check: 0.2
 weights_save_path: null
 weights_summary: top
 comet_logger:
-  api_key: None
+  api_key: DVWPz8OdEU7HGvsUjlJhh5Q5p
   project_name: Text2Prop_g_semant_no_zero

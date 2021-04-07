@@ -39,7 +39,7 @@ amp_level: O1
 auto_lr_find: false
 auto_scale_batch_size: false
 auto_select_gpus: false
-batch_size: 128
+batch_size: 512
 benchmark: true
 check_val_every_n_epoch: 1
 checkpoint_callback: true
@@ -56,7 +56,7 @@ log_save_interval: 80
 log_root: results/gesture_flow/log/
 logger: true
 lr: 0.01
-max_epochs: 90
+max_epochs: 10
 max_steps: null
 min_epochs: 1
 min_steps: null
@@ -88,4 +88,4 @@ weights_save_path: null
 weights_summary: top
 comet_logger:
   api_key: DVWPz8OdEU7HGvsUjlJhh5Q5p
-  project_name: audio2prop_g_semantics
+  project_name: Audio2Feat-semantic-no-zero

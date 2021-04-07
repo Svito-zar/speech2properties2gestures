@@ -27,7 +27,7 @@ processing_argparser = argparse.ArgumentParser(
     parents=[dataset_argparser], add_help=False) # NOTE: we include the dataset_parser here as a parent!
 
 # Sequence processing
-processing_argparser.add_argument('--seq_len', '-seq_l', default=40,
+processing_argparser.add_argument('--sequence_length', '-seq_l', default=40, type=int,
                     help='Length of the sequences during training (used only to avoid vanishing gradients)')
 processing_argparser.add_argument('--past_context', '-p_cont', default=10, type=int,
                     help='Length of a past context for speech to be used for gestures')
