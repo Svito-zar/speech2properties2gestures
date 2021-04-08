@@ -6,15 +6,14 @@ import argparse
 def convert_bvh2npy(bvh_file, npy_file):
     # read the coordinates
     all_coords = read_bvh_to_array(bvh_file)
-
     # remove fingers and lower body
-    torso = all_coords[:,0:8]
-    right_arm = all_coords[:,9:12]
-    left_arm = all_coords[:,28:31]
+    # torso = all_coords[:,0:8]
+    # right_arm = all_coords[:,9:12]
+    # left_arm = all_coords[:,28:31]
 
-    modeled_coords = np.concatenate((torso, right_arm, left_arm), axis=1)
+    # modeled_coords = np.concatenate((torso, right_arm, left_arm), axis=1)
 
-    np.save(npy_file, modeled_coords)
+    np.save(npy_file, all_coords)
 
 
 if __name__ == "__main__":

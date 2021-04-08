@@ -2,7 +2,7 @@
     Each frame will be converted into 3d Coordinates
     """
 
-# @author: Taras Kucherenko
+# @authors: Taras Kucherenko, Rajmund Nagy
 
 
 import my_code.data_processing.visualization.motion_visualizer.bvh_helper as BVH
@@ -47,52 +47,61 @@ def read_bvh_to_array(bvh_file):
     duration = len(frames)
 
     main_joints = [
-        "Hips",
-        "Spine",
-        "Spine1",
-        "Spine2",
-        "Spine3",
+        "Pelvis",
+        "Spine_01",
+        "Spine_02",
+        "Spine_03",
         "Neck",
-        "Neck1",
-        "Head",  # Head and spine
-        "RightShoulder",
-        "RightArm",
-        "RightForeArm",
-        "RightHand",
-        "RightHandThumb1",
-        "RightHandThumb2",
-        "RightHandThumb3",
-        "RightHandIndex1",
-        "RightHandIndex2",
-        "RightHandIndex3",
-        "RightHandMiddle1",
-        "RightHandMiddle2",
-        "RightHandMiddle3",
-        "RightHandRing1",
-        "RightHandRing2",
-        "RightHandRing3",
-        "RightHandPinky1",
-        "RightHandPinky2",
-        "RightHandPinky3",  # Right hand
-        "LeftShoulder",
-        "LeftArm",
-        "LeftForeArm",
-        "LeftHand",
-        "LeftHandThumb1",
-        "LeftHandThumb2",
-        "LeftHandThumb3",
-        "LeftHandIndex1",
-        "LeftHandIndex2",
-        "LeftHandIndex3",
-        "LeftHandMiddle1",
-        "LeftHandMiddle2",
-        "LeftHandMiddle3",
-        "LeftHandRing1",
-        "LeftHandRing2",
-        "LeftHandRing3",
-        "LeftHandPinky1",
-        "LeftHandPinky2",
-        "LeftHandPinky3",  # left hand
+
+        "L_Clavice",
+        "L_Shoulder",
+        "L_Elbow",  
+        "L_Wrist",
+        
+        "L_Hand_Thumb_00",
+        "L_Hand_Thumb_01",
+        "L_Hand_Thumb_02",
+
+        "L_Hand_Index_00",
+        "L_Hand_Index_01",
+        "L_Hand_Index_02",
+
+        "L_Hand_Middle_00",
+        "L_Hand_Middle_01",
+        "L_Hand_Middle_02",
+
+        "L_Hand_Ring_00",
+        "L_Hand_Ring_01",
+        "L_Hand_Ring_02",
+
+        "L_Hand_Little_00",
+        "L_Hand_Little_01",
+        "L_Hand_Little_02",
+
+        "R_Clavice",
+        "R_Shoulder",
+        "R_Elbow",  
+        "R_Wrist",
+        
+        "R_Hand_Thumb_00",
+        "R_Hand_Thumb_01",
+        "R_Hand_Thumb_02",
+
+        "R_Hand_Index_00",
+        "R_Hand_Index_01",
+        "R_Hand_Index_02",
+
+        "R_Hand_Middle_00",
+        "R_Hand_Middle_01",
+        "R_Hand_Middle_02",
+
+        "R_Hand_Ring_00",
+        "R_Hand_Ring_01",
+        "R_Hand_Ring_02",
+
+        "R_Hand_Little_00",
+        "R_Hand_Little_01",
+        "R_Hand_Little_02",
     ]
 
     coord = obtain_coords(root, frames, duration, main_joints)

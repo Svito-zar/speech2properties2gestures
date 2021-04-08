@@ -106,21 +106,21 @@ def create_video(input_file, output_file, start=-1, end=20, pca=None):
     am.initLines()
 
     anim = am.animate(frames_to_play=skeletons)
-    anim.save(output_file, writer="ffmpeg", fps=20) # codec='libx264',
+    anim.save(output_file, writer="ffmpeg", fps=20)
 
 
 if __name__ == "__main__":
     # Parse command line params
 
     parser = argparse.ArgumentParser(description="Visualize 3d coords. seq. into a video file")
-
+    
     parser.add_argument("--input", "-d", default="ges_test.npy",
                         help="Path to the input file with the motion")
     parser.add_argument("--out", "-o", default="Result.mp4",
                         help="Path to the output file with the video")
     parser.add_argument("--start", "-s", default=-1, type=int,
                         help="Start time (in sec)")
-    parser.add_argument("--end", "-e", default=20, type=int,
+    parser.add_argument("--end", "-e", default=20, type=int, 
                         help="End time (in sec)")
 
     args = parser.parse_args()

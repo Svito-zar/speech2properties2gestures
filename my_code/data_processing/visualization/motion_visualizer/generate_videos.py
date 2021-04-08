@@ -11,7 +11,12 @@ from my_code.data_processing.visualization.motion_visualizer.convert2bvh import 
 
 from my_code.data_processing.visualization.pymo.writers import *
 
-def visualize(motion_in, bvh_file, npy_file, mp4_file, start_t, end_t, data_pipe_dir):
+from my_code.data_processing.visualization.pymo.parsers import BVHParser
+from my_code.data_processing.visualization.pymo.preprocessing import MocapParameterizer
+from my_code.data_processing.visualization.pymo22.viz_tools import render_mp4
+
+
+def visualize(motion_in, bvh_file, npy_file, mp4_file, start_t, end_t, data_pipe_dir, fps, render_mode):
     """
     Create and save a video from the given raw gesture data.
 
@@ -22,20 +27,34 @@ def visualize(motion_in, bvh_file, npy_file, mp4_file, start_t, end_t, data_pipe
         mp4_file:     output mp4 file
         start_t:      start time for the video
         end_t:        end time for the video
+        fps:          the fps of the data
+        render_mode:  'Trinity' (original bvh2video script) or 'SAGA' (new bvh2video script))
     """
-
+    assert render_mode in ['Trinity', 'SAGA']
     motion_clip = motion_in # np.expand_dims(motion_in, axis=0)
 
     write_bvh((data_pipe_dir,), # write_bvh expects a tuple
               motion_clip,
               bvh_file,
-              20)
+              fps)
 
     # Extract 3D coordinates
     convert_bvh2npy(bvh_file, npy_file)
+       
+    if render_mode == 'Trinity':
+        # Visualize those 3D coordinates
+        create_video(npy_file, mp4_file, start_t, end_t)
+    else:
+        render(bvh_file, mp4_file)
 
-    # Visualize those 3D coordinates
-    create_video(npy_file, mp4_file, start_t, end_t)
+
+def render(filename, out_filename):
+    p = BVHParser()
+    data_all = [p.parse(filename)]
+    BVH2Pos = MocapParameterizer('position')
+    data_pos = BVH2Pos.fit_transform(data_all)
+    render_mp4(data_pos[0], out_filename, axis_scale=0.8 , elev=0, azim=90)
+
 
 def generate_videos(raw_input_folder, output_folder, run_name, data_pipe_dir, start_t=0, end_t=10):
 # Go over all the results we have
