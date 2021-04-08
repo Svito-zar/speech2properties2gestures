@@ -294,7 +294,10 @@ class GestureFlow(LightningModule):
                 npy_file=npy_filename,
                 start_t=0,
                 end_t=data_fps * self.hparams.Validation["seq_len"],
-                data_pipe_dir=data_pipe)
+                data_pipe_dir=data_pipe,
+                fps = 25,
+                render_mode="SAGA"
+            )
 
             # Clean up the temporary files
             os.remove(temp_bvh)
