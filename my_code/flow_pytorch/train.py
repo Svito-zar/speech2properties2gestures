@@ -33,6 +33,10 @@ if __name__ == "__main__":
 
     model = GestureFlow(hparams)
 
-    trainer = Trainer.from_argparse_args(hparams, logger=logger, deterministic=False, enable_pl_optimizer=True) #, profiler="simple") # profiler="advanced"
+    trainer = Trainer.from_argparse_args(hparams, logger=logger, deterministic=False, enable_pl_optimizer=True, default_root_dir='./PL_checkpoints') #, profiler="simple") # profiler="advanced"
+
+    # automatically restores model, epoch, step, LR schedulers, apex, etc...
+    #trainer = Trainer.from_argparse_args(hparams, logger=logger, deterministic=False, enable_pl_optimizer=True,
+    #                                     resume_from_checkpoint='./PL_checkpoints/GestureFlowDevelopment/acdd270bd2f44bb8843b0dcbaebea8b0/checkpoints/epoch=1-step=93.ckpt')
 
     trainer.fit(model)
