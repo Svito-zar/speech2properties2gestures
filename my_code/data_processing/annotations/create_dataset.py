@@ -2,6 +2,7 @@ import h5py
 import numpy as np
 import os
 import bisect
+import pympi
 
 from my_code.data_processing.tools import calculate_spectrogram, average
 
@@ -23,11 +24,12 @@ def correct_the_time(time_st):
     return time_st
 
 
-def create_dataset(general_folder, specific_subfolder, feature_name, dataset_name, feature_dim):
+def create_dataset(raw_data_folder, general_folder, specific_subfolder, feature_name, dataset_name, feature_dim):
     """
 
     Args:
-        general_folder:     folder where all the data is stored
+        raw_data_folder:    folder where all the raw data is stored
+        general_folder:     folder where all the used data is stored
         specific_subfolder: name of a specific subfolder
         feature_name:       name of the feature we are considering
         dataset_name:       name of the dataset
@@ -47,7 +49,7 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
     Y_dataset = []
     A_dataset = []
 
-    audio_dir = "/home/tarask/Documents/Datasets/SaGa/Raw/Audios/"
+    audio_dir = "/home/tarask/Documents/Datasets/SaGa/Raw/Audios/enhanced/"
 
     # go though the dataset recordings
     for recording_id in range(1, 26):
@@ -95,8 +97,8 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
             duration = (end_time - start_time).round(1)
             total_number_of_frames = int(duration * 5) + 1  # 0.2s time-steps
 
-            audio_file_name = audio_dir + "V" + str(recording_id) + "K3.mov.wav"
-            curr_file_A_data = extract_audio_from_the_current_file(audio_file_name, start_time, end_time, total_number_of_frames, context_length)
+            audio_file_name = audio_dir + "V" + str(recording_id) + "K3.mov_enhanced.wav"
+            curr_file_audio_data = extract_audio_from_the_current_file(audio_file_name, start_time, end_time, total_number_of_frames, context_length)
 
             curr_file_X_data = extract_text_from_the_current_file(text_hf, start_time, end_time, total_number_of_frames)
 
@@ -127,6 +129,20 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
             if feature_name == "Phrase":
                 curr_file_Y_data = remove_redundant_phrases(curr_file_Y_data)
 
+            # See if the time difference between the two time steps is always the same
+            time_dif = (curr_file_Y_data[1:, 1] - curr_file_Y_data[:-1, 1]).round(1)
+            max_td = np.max(time_dif)
+            min_td = np.min(time_dif)
+            if max_td != 0.2 or min_td != 0.2:
+                print("WRONG TIMING IN : ", np.where(time_dif != 0.2))
+            print("Time difference is in [", min_td, ", ", max_td, "]")
+
+            # remove data when interlocutor speaks
+            curr_file_A_data, curr_file_Y_data = remove_data_when_interlocutors_speaks(curr_file_audio_data,
+                                                                                       curr_file_Y_data, start_time,
+                                                                                       end_time, recording_id,
+                                                                                       raw_data_folder)
+
             if len(X_dataset) == 0:
                 X_dataset = curr_file_X_data
                 A_dataset = curr_file_A_data
@@ -140,19 +156,11 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
             print(np.asarray(A_dataset, dtype=np.float32).shape)
             print(np.asarray(Y_dataset, dtype=np.float32).shape)
 
-            time_dif = (curr_file_Y_data[1:, 1] - curr_file_Y_data[:-1, 1]).round(1)
-            max_td = np.max(time_dif)
-            min_td = np.min(time_dif)
-            if max_td != 0.2 or min_td != 0.2:
-                print("WRONG TIMING IN : ", np.where(time_dif != 0.2))
-            print("Time difference is in [", min_td, ", ", max_td, "]")
-
             # ensure synchronization
-            assert X_dataset.shape[0] == Y_dataset.shape[0] == A_dataset.shape[0]
+            assert Y_dataset.shape[0] == A_dataset.shape[0] # X_dataset.shape[0] ==
 
     # create dataset file
     Audio_feat = np.asarray(A_dataset, dtype=np.float32)
-    np.save(gen_folder + dataset_name + "_A_" + feature_name + ".npy", Audio_feat)
 
     Y = np.asarray(Y_dataset, dtype=np.float32)
     X = np.asarray(X_dataset, dtype=np.float32)
@@ -173,6 +181,77 @@ def create_dataset(general_folder, specific_subfolder, feature_name, dataset_nam
     # save files
     np.save(gen_folder + dataset_name+ "_Y_" + feature_name + ".npy", Y)
     np.save(gen_folder + dataset_name + "_X_" + feature_name + ".npy", X)
+    np.save(gen_folder + dataset_name + "_A_" + feature_name + ".npy", Audio_feat)
+
+
+def remove_data_when_interlocutors_speaks(curr_file_audio_data, curr_file_prop_data, record_start_time, record_end_time, recording_id, raw_data_folder):
+    """
+    Delete all the frames when interlocutor was speakers
+    Args:
+        curr_file_audio_data:     current file audio data
+        curr_file_prop_data:      current file properties data
+        record_start_time:        starting time of the current recording
+        record_end_time:          ending time of the current recording
+        recording_id:             recording ID
+        raw_data_folder:          folder where all the raw data is stored
+
+    Returns:
+        curr_file_audio_data:     new current file audio data
+        curr_file_prop_data:      new current file properties data
+    """
+
+    elan_file_name = raw_data_folder + str(recording_id).zfill(2) + "_video.eaf"
+    elan = pympi.Elan.Eaf(file_path=elan_file_name)
+
+    if "F.S.Form" not in elan.tiers:
+        return curr_file_audio_data, curr_file_prop_data
+    else:
+        curr_tier = elan.tiers["F.S.Form"][0]
+
+    time_key = elan.timeslots
+
+    indices_to_delete = []
+
+    for key, value in curr_tier.items():
+        (st_t, end_t, word, _) = value
+
+        if word is not None:
+
+            # Only consider words which are clearly not back channels
+            word = word.lstrip()
+            if word != "" and word != " ":
+                if word != "mhm" and word != "hm" and word != 'OK' and word != 'ja' and word != "ah" and word != "äh":
+
+                    # convert ms to s
+                    curr_word_st_time = round(time_key[st_t] / 1000, 1)
+                    curr_word_end_time = round(time_key[end_t] / 1000, 1)
+
+                    # make sure that the time step fit in the general step
+                    curr_word_st_time = correct_the_time(curr_word_st_time)
+
+                    if curr_word_st_time > record_end_time:
+                        break
+
+                    if curr_word_end_time < record_start_time:
+                        continue
+
+                    for time_st in np.arange(curr_word_st_time, curr_word_end_time, 0.2):
+
+                        if time_st < record_start_time:
+                            continue
+
+                        time_ind = int(((time_st - record_start_time) * 5).round())
+
+                        indices_to_delete.append(time_ind)
+
+    # remove repetitions
+    indices_to_delete = np.unique(indices_to_delete)
+
+    # Delete all the frames when interlocutor speaks
+    curr_file_A_data = np.delete(curr_file_audio_data, indices_to_delete, 0)
+    curr_file_Y_data = np.delete(curr_file_prop_data, indices_to_delete, 0)
+
+    return curr_file_A_data, curr_file_Y_data
 
 
 def merge_sp_semantic_feat(Y):
@@ -457,20 +536,22 @@ def upsample(X, Y, n_features):
 
 
 if __name__ == "__main__":
-
+    raw_data_folder = "/home/tarask/Documents/Datasets/SaGa/Raw/All_the_transcripts/"
     gen_folder = "/home/tarask/Documents/Datasets/SaGa/Processed/feat/"
     dataset_name = subfolder = "train_n_val"
 
     feature_dim = 8
     feature_name = "R.S.Semantic Feature"
+    create_dataset(raw_data_folder, gen_folder, subfolder, feature_name, dataset_name, feature_dim)
 
     feature_dim = 4
     feature_name = "Semantic"
+    create_dataset(raw_data_folder, gen_folder, subfolder, feature_name, dataset_name, feature_dim)
 
     feature_dim = 7
     feature_name = "Phrase"
+    create_dataset(raw_data_folder, gen_folder, subfolder, feature_name, dataset_name, feature_dim)
 
     feature_dim = 5
     feature_name = "Phase"
-
-    create_dataset(gen_folder, subfolder, feature_name, dataset_name, feature_dim)
+    create_dataset(raw_data_folder, gen_folder, subfolder, feature_name, dataset_name, feature_dim)
