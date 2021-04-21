@@ -21,7 +21,7 @@ def correct_the_time(time_st):
     """
     if int(time_st * 10) % 2 == 1:
         time_st += 0.1
-    return time_st
+    return round(time_st, 1)
 
 
 def create_dataset(raw_data_folder, general_folder, specific_subfolder, feature_name, dataset_name, feature_dim):
@@ -203,6 +203,7 @@ def remove_data_when_interlocutors_speaks(curr_file_audio_data, curr_file_prop_d
     elan_file_name = raw_data_folder + str(recording_id).zfill(2) + "_video.eaf"
     elan = pympi.Elan.Eaf(file_path=elan_file_name)
 
+    # Take the part of the speech that belongs to the interlocutor.
     if "F.S.Form" not in elan.tiers:
         return curr_file_audio_data, curr_file_prop_data
     else:
@@ -235,16 +236,23 @@ def remove_data_when_interlocutors_speaks(curr_file_audio_data, curr_file_prop_d
                     if curr_word_end_time < record_start_time:
                         continue
 
+                    time_ind = int(((curr_word_st_time - record_start_time) * 5).round())
+
                     for time_st in np.arange(curr_word_st_time, curr_word_end_time, 0.2):
 
                         if time_st < record_start_time:
                             continue
 
-                        time_ind = int(((time_st - record_start_time) * 5).round())
+                        if time_st > record_end_time:
+                            continue
 
                         indices_to_delete.append(time_ind)
 
+                        time_ind += 1
+
     # remove repetitions
+    # they occur, because sometimes incrementing 0.2 above results in numerical difference:
+    # [46.2, 46.8] becomes [46.2, 46.79999]
     indices_to_delete = np.unique(indices_to_delete)
 
     # Delete all the frames when interlocutor speaks
