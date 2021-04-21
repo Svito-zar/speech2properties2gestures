@@ -2,16 +2,12 @@ import os
 from argparse import ArgumentParser, Namespace
 import yaml
 import torch
-import numpy as np
 
 from my_code.predict_ges_properites.text2prop import PropPredictor
 from my_code.predict_ges_properites.GestPropDataset import GesturePropDataset
-from my_code.misc.shared import RANDOM_SEED
 from pytorch_lightning import Trainer, seed_everything
 
 from sklearn.model_selection import KFold
-
-seed_everything(RANDOM_SEED)
 
 torch.set_default_tensor_type('torch.FloatTensor')
 
@@ -44,6 +40,8 @@ def get_hparams():
 if __name__ == "__main__":
 
     hparams, conf_name = get_hparams()
+
+    seed_everything(hparams.seed)
 
     # Configuration K-fold cross validation
     k_folds = 5

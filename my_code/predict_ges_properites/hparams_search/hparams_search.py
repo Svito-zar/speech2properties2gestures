@@ -19,16 +19,12 @@ from pytorch_lightning import Trainer, seed_everything
 import os
 from my_code.predict_ges_properites.text2prop import PropPredictor
 from my_code.predict_ges_properites.trainer import get_hparams
-from my_code.misc.shared import BASE_DIR, CONFIG, DATA_DIR, RANDOM_SEED
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning import loggers as pl_loggers
 from my_code.predict_ges_properites.hparams_search import hparams_range_of_values as hparam_configs
 from my_code.predict_ges_properites.GestPropDataset import GesturePropDataset
 
 from sklearn.model_selection import KFold
-
-
-seed_everything(RANDOM_SEED)
 
 
 class FailedTrial(Exception):
@@ -58,7 +54,6 @@ def prepare_hparams(trial):
         hparams_json = json.loads(jsmin(open(override_params.hparams_file).read()))
     elif override_params.hparams_file.endswith(".yaml"):
         hparams_json = yaml.load(open(override_params.hparams_file))
-    hparams_json["dataset_root"] = str(DATA_DIR)
 
     params = vars(default_params)
     params.update(hparams_json)
@@ -71,6 +66,8 @@ def prepare_hparams(trial):
 
 
 def run(hparams, return_dict, trial, batch_size, current_date):
+
+    seed_everything(hparams.seed)
 
     log_path = os.path.join("logs", conf_name, f"{current_date}")
     if os.path.exists(log_path):
@@ -188,10 +185,6 @@ def objective(trial):
 
 if __name__ == "__main__":
     conf_vars = {}
-    if CONFIG["optuna"]["rdbs_storage"]:
-        conf_vars["storage"] = optuna.storages.RDBStorage(
-            url=CONFIG["optuna"]["rdbs_storage"],
-        )
 
     study = optuna.create_study(
         **conf_vars,

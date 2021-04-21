@@ -6,10 +6,7 @@ import numpy as np
 
 from my_code.predict_ges_properites.text2prop import PropPredictor
 from my_code.predict_ges_properites.GestPropDataset import GesturePropDataset
-from my_code.misc.shared import RANDOM_SEED
 from pytorch_lightning import Trainer, seed_everything
-
-seed_everything(RANDOM_SEED)
 
 torch.set_default_tensor_type('torch.FloatTensor')
 
@@ -42,6 +39,8 @@ def get_hparams():
 if __name__ == "__main__":
 
     hparams, conf_name = get_hparams()
+
+    seed_everything(hparams.seed)
 
     assert os.path.exists(
         hparams.data_root
@@ -113,7 +112,7 @@ if __name__ == "__main__":
         model = PropPredictor(hparams, fold + 999, train_ids, test_ids, upsample=True)
 
         # Define the trainer
-        trainer = Trainer.from_argparse_args(hparams, logger=logger)  # , profiler="simple") # profiler="advanced"
+        trainer = Trainer.from_argparse_args(hparams, logger=logger, deterministic=False)  # , profiler="simple") # profiler="advanced"
 
         # Train
         trainer.fit(model)
