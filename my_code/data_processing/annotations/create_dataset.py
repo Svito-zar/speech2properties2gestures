@@ -100,7 +100,7 @@ def create_dataset(raw_data_folder, general_folder, specific_subfolder, feature_
             audio_file_name = audio_dir + "V" + str(recording_id) + "K3.mov_enhanced.wav"
             curr_file_audio_data = extract_audio_from_the_current_file(audio_file_name, start_time, end_time, total_number_of_frames, context_length)
 
-            curr_file_X_data = extract_text_from_the_current_file(text_hf, start_time, end_time, total_number_of_frames)
+            curr_file_text_data = extract_text_from_the_current_file(text_hf, start_time, end_time, total_number_of_frames)
 
             spec_feat_hf = feat_hf.get(right_feat_name)
             if feature_name == "Semantic":
@@ -138,7 +138,8 @@ def create_dataset(raw_data_folder, general_folder, specific_subfolder, feature_
             print("Time difference is in [", min_td, ", ", max_td, "]")
 
             # remove data when interlocutor speaks
-            curr_file_A_data, curr_file_Y_data = remove_data_when_interlocutors_speaks(curr_file_audio_data,
+            curr_file_A_data, curr_file_X_data, curr_file_Y_data = remove_data_when_interlocutors_speaks(curr_file_audio_data,
+                                                                                       curr_file_text_data,
                                                                                        curr_file_Y_data, start_time,
                                                                                        end_time, recording_id,
                                                                                        raw_data_folder)
@@ -157,7 +158,7 @@ def create_dataset(raw_data_folder, general_folder, specific_subfolder, feature_
             print(np.asarray(Y_dataset, dtype=np.float32).shape)
 
             # ensure synchronization
-            assert Y_dataset.shape[0] == A_dataset.shape[0] # X_dataset.shape[0] ==
+            assert Y_dataset.shape[0] == A_dataset.shape[0] == X_dataset.shape[0]
 
     # create dataset file
     Audio_feat = np.asarray(A_dataset, dtype=np.float32)
@@ -184,11 +185,12 @@ def create_dataset(raw_data_folder, general_folder, specific_subfolder, feature_
     np.save(gen_folder + dataset_name + "_A_" + feature_name + ".npy", Audio_feat)
 
 
-def remove_data_when_interlocutors_speaks(curr_file_audio_data, curr_file_prop_data, record_start_time, record_end_time, recording_id, raw_data_folder):
+def remove_data_when_interlocutors_speaks(curr_file_audio_data, curr_file_text_data, curr_file_prop_data, record_start_time, record_end_time, recording_id, raw_data_folder):
     """
     Delete all the frames when interlocutor was speakers
     Args:
         curr_file_audio_data:     current file audio data
+        curr_file_text_data:      current file text data
         curr_file_prop_data:      current file properties data
         record_start_time:        starting time of the current recording
         record_end_time:          ending time of the current recording
@@ -205,7 +207,7 @@ def remove_data_when_interlocutors_speaks(curr_file_audio_data, curr_file_prop_d
 
     # Take the part of the speech that belongs to the interlocutor.
     if "F.S.Form" not in elan.tiers:
-        return curr_file_audio_data, curr_file_prop_data
+        return curr_file_audio_data, curr_file_text_data, curr_file_prop_data
     else:
         curr_tier = elan.tiers["F.S.Form"][0]
 
@@ -257,9 +259,11 @@ def remove_data_when_interlocutors_speaks(curr_file_audio_data, curr_file_prop_d
 
     # Delete all the frames when interlocutor speaks
     curr_file_A_data = np.delete(curr_file_audio_data, indices_to_delete, 0)
+    curr_file_X_data = np.delete(curr_file_text_data, indices_to_delete, 0)
     curr_file_Y_data = np.delete(curr_file_prop_data, indices_to_delete, 0)
 
-    return curr_file_A_data, curr_file_Y_data
+
+    return curr_file_A_data, curr_file_X_data, curr_file_Y_data
 
 
 def merge_sp_semantic_feat(Y):
