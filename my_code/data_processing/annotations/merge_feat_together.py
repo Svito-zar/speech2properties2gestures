@@ -13,16 +13,19 @@ def obtain_data_for_feature(gen_folder, prop):
     return X_train_n_val, Y_train_n_val
 
 
-gen_folder = "/home/tarask/Documents/Datasets/SaGa/Processed/feat/"
+gen_folder = "/home/tarask/Documents/Datasets/SaGa/Processed/feat/TextBased/"
 
 # Read all the features
-X_phrase, Y_phrase = obtain_data_for_feature(gen_folder, "Phrase")
-X_g_semant, Y_g_semant = obtain_data_for_feature(gen_folder, "Semantic")
-X_s_semant, Y_s_semant = obtain_data_for_feature(gen_folder, "R.S.Semantic Feature")
+X_phrase, Y_phrase = obtain_data_for_feature(gen_folder+ "Phrase/", "Phrase")
+X_phase, Y_phase = obtain_data_for_feature(gen_folder+ "Phase/", "Phase")
+X_g_semant, Y_g_semant = obtain_data_for_feature(gen_folder+'G_Semantic/', "Semantic")
+X_s_semant, Y_s_semant = obtain_data_for_feature(gen_folder+"S_Semantic/", "R.S.Semantic Feature")
 
+assert np.array_equal(X_phase, X_phrase)
 assert np.array_equal(X_phrase, X_g_semant)
 assert np.array_equal(X_s_semant, X_g_semant)
 
+assert np.array_equal(Y_phase[:,:2], Y_phrase[:,:2])
 assert np.array_equal(Y_phrase[:,:2], Y_g_semant[:,:2])
 assert np.array_equal(Y_g_semant[:,:2], Y_s_semant[:,:2])
 
@@ -31,14 +34,14 @@ X_all = X_phrase
 print("\nTotal Text shape: ", X_all.shape)
 
 # Combine all the features together
-Y_all = np.concatenate((Y_s_semant, Y_g_semant[:,2:], Y_phrase[:,2:]), axis=1)
+Y_all = np.concatenate((Y_s_semant, Y_g_semant[:,2:], Y_phrase[:,2:],  Y_phase[:,2:]), axis=1)
 print("Total features shape: ", Y_all.shape)
 
 
 ### Save new files
 
-new_Y_file_name = gen_folder + "EVERYTHING/train_n_val_Y_all.npy"
+new_Y_file_name = gen_folder + "AllTogether/train_n_val_Y_all.npy"
 np.save(new_Y_file_name, Y_all)
 
-new_X_file_name = gen_folder + "EVERYTHING/train_n_val_X_all.npy"
+new_X_file_name = gen_folder + "AllTogether/train_n_val_X_all.npy"
 np.save(new_X_file_name, X_all)
