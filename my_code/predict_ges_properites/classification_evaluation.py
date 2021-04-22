@@ -32,7 +32,7 @@ def evaluation(prediction, truth):
     for label in range(feat_dim):
 
         # ignore features which were basically not present in the validation set
-        if sum(truth[:, label]) < 3:
+        if sum(truth[:, label]) < 5:
             print("\nIGNORING feature ", label, " in this validation")
             n_present_features -= 1
             continue
@@ -56,6 +56,9 @@ def evaluation(prediction, truth):
         log['Rec/' + prefix + str(label)] = label_recall
         recall_sum += label_recall
 
+    if n_present_features == 0:
+        return log
+
     mean_acc_phr = acc_sum / (n_present_features )
     log["Acc/" + prefix + "av"] = mean_acc_phr
 
@@ -65,5 +68,5 @@ def evaluation(prediction, truth):
     log["Prec/" + prefix + "av"] =  prec_sum / (n_present_features)
 
     log["Rec/" + prefix + "av"] = recall_sum / (n_present_features)
-
+    
     return log

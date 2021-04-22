@@ -55,7 +55,7 @@ log_save_interval: 80
 log_root: results/gesture_flow/log/
 logger: true
 lr: 1.0e-03
-max_epochs: 50
+max_epochs: 100
 max_steps: null
 min_epochs: 1
 min_steps: null
