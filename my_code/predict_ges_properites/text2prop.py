@@ -23,6 +23,7 @@ class PropPredictor(LightningModule):
 
         self.data_root = hparams.data_root
         self.upsample = upsample
+        self.should_stop = False
 
         self.hparams = hparams
 
@@ -126,16 +127,20 @@ class PropPredictor(LightningModule):
     def accuracy(self, prediction, truth):
 
         # convert from likelihood to labels
-        prediction = torch.sigmoid(prediction + 1e-6).round()
+        prediction = (torch.sigmoid(prediction + 1e-6)).round()
 
         # calculate metrics
         logs = evaluation(prediction.cpu(), truth.cpu())
+
+	# terminate training if there is nothing to validation on
+        if len(logs) == 0:
+            self.should_stop = True
+
         for metric in logs:
             self.log(metric + "/" + str(self.fold), logs[metric])
 
 
     def training_step(self, batch, batch_idx):
-
         prediction = self(batch).float()
         true_lab = batch["property"][:, 2:].float() # ignore extra info, keep only the label
 
@@ -152,18 +157,25 @@ class PropPredictor(LightningModule):
         return loss_value
 
 
+    def training_epoch_end(self, training_step_outputs):
+        # do something with all training_step outputs
+        if self.should_stop:
+            raise KeyboardInterrupt
+
+
     def validation_step(self, batch, batch_idx):
 
         prediction = self(batch).float()
         true_lab = batch["property"][:,2:].float()
 
         # plot sequences
-        if batch_idx == 2:
+        if batch_idx == 0:
+
             x = batch["property"][:, 1].cpu()
             # convert from raw values to likelihood
             predicted_prob = torch.sigmoid(prediction + 1e-6)
             for feat in range(self.output_dim):
-                plt.ylim([0, 1])
+                plt.ylim([-0.01, 1.01])
                 plt.plot(x, batch["property"][:, feat+2].cpu(), 'r--', x, predicted_prob[:, feat].cpu(), 'bs--')
                 image_file_name = "fig/valid_res_"+str(self.current_epoch) + "_" + str(feat) + ".png"
                 plt.savefig(fname=image_file_name)
@@ -268,6 +280,7 @@ class PropPredictor(LightningModule):
             dataset=self.train_dataset,
             batch_size=self.hparams.batch_size,
             num_workers=8,
+            pin_memory=True,
             sampler=train_subsampler
         )
         return loader
@@ -282,6 +295,7 @@ class PropPredictor(LightningModule):
             dataset=self.val_dataset,
             batch_size=val_batch_size,
             num_workers=8,
+            pin_memory=True,
             sampler=val_sampler
         )
         return loader
