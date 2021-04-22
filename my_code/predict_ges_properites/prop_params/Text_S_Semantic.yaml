@@ -1,14 +1,14 @@
 CNN:
   input_dim: 769
   seq_length: 7
-  hidden_dim: 32
-  n_layers: 1
+  hidden_dim: 128
+  n_layers: 3
   output_dim: 6
-  kernel_size: 5
-  dropout: 0.38
+  kernel_size: 7
+  dropout: 0.39
 Loss:
   beta: 0.86
-  alpha: 0.65
+  alpha: 0.68
   gamma: 3.0
 Optim:
   Schedule:
@@ -54,7 +54,7 @@ log_gpu_memory: null
 log_save_interval: 80
 log_root: results/gesture_flow/log/
 logger: true
-lr: 0.0012
+lr: 0.0008
 max_epochs: 150
 max_steps: null
 min_epochs: 1
@@ -86,5 +86,5 @@ val_percent_check: 0.2
 weights_save_path: null
 weights_summary: top
 comet_logger:
-  api_key: None
-  project_name: Text2Prop_sp_semant_no_zeros
+  api_key: DVWPz8OdEU7HGvsUjlJhh5Q5p
+  project_name: Text2Prop_sp_semant

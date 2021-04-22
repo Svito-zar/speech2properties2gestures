@@ -1,14 +1,14 @@
 CNN:
   input_dim: 769
-  hidden_dim: 96
-  n_layers: 2
+  hidden_dim: 128
+  n_layers: 3
   output_dim: 4
-  kernel_size: 3
-  dropout: 0.24
+  kernel_size: 7
+  dropout: 0.13
 Loss:
-  alpha: 0.8
-  beta: 0.88
-  gamma: 3
+  alpha: 0.6
+  beta: 0.79
+  gamma: 6
 Optim:
   Schedule:
     args:
@@ -41,7 +41,7 @@ batch_size: 512
 benchmark: true
 check_val_every_n_epoch: 3
 checkpoint_callback: true
-data_root: /home/taras/Documents/storage/Saga/GestPropPred/TextBased/Phrase/no_zero/
+data_root: /home/taras/Documents/storage/Saga/GestPropPred/TextBased/Phrase/
 data_feat: Phrase
 dropout: 0.2
 default_root_dir: null
@@ -54,8 +54,8 @@ log_gpu_memory: null
 log_save_interval: 80
 log_root: results/gesture_flow/log/
 logger: true
-lr: 4.0e-04
-max_epochs: 10
+lr: 0.0018
+max_epochs: 60
 max_steps: null
 min_epochs: 1
 min_steps: null
@@ -87,4 +87,4 @@ weights_save_path: null
 weights_summary: top
 comet_logger:
   api_key: DVWPz8OdEU7HGvsUjlJhh5Q5p
-  project_name: Text2Prop_phrase_no_zero
+  project_name: Text2Prop_phrase

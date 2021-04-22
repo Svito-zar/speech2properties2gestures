@@ -1,14 +1,14 @@
 CNN:
   input_dim: 769
   seq_length: 7
-  hidden_dim: 128
-  n_layers: 3
+  hidden_dim: 64
+  n_layers: 2
   output_dim: 5
-  kernel_size: 5
-  dropout: 0.3
+  kernel_size: 7
+  dropout: 0.24
 Loss:
-  beta: 0.9
-  alpha: 0.75
+  beta: 0.86
+  alpha: 0.68
   gamma: 4.0
 Optim:
   Schedule:
@@ -38,11 +38,11 @@ amp_level: O1
 auto_lr_find: false
 auto_scale_batch_size: false
 auto_select_gpus: false
-batch_size: 128
+batch_size: 684
 benchmark: true
-check_val_every_n_epoch: 1
+check_val_every_n_epoch: 3
 checkpoint_callback: true
-data_root: /home/taras/Documents/storage/Saga/GestPropPred/TextBased/Phase/no_zero/
+data_root: /home/taras/Documents/storage/Saga/GestPropPred/TextBased/Phase/
 data_feat: Phase
 default_root_dir: null
 deterministic: true
@@ -54,8 +54,8 @@ log_gpu_memory: null
 log_save_interval: 80
 log_root: results/gesture_flow/log/
 logger: true
-lr: 0.0008
-max_epochs: 50
+lr: 0.002
+max_epochs: 80
 max_steps: null
 min_epochs: 1
 min_steps: null
@@ -87,4 +87,4 @@ weights_save_path: null
 weights_summary: top
 comet_logger:
   api_key: DVWPz8OdEU7HGvsUjlJhh5Q5p
-  project_name: text2prop_phase_no_zero
+  project_name: text2prop_phase
