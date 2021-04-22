@@ -25,9 +25,6 @@ class GesturePropDataset(Dataset):
         # read dataset
         self.x_dataset = np.load(self.x_file_name)
         self.y_dataset = np.load(self.y_file_name)
-        # convert binary encoding to labels for StratifiedKFold split
-        y_labels = [int("".join(str(int(i)) for i in bin_list[2:]),2) for bin_list in self.y_dataset]
-        self.y_labels =  np.array(y_labels)
 
         self.len = self.y_dataset.shape[0]
 
