@@ -290,14 +290,12 @@ class PropPredictor(LightningModule):
         # Validate on the whole dataset at once
         val_batch_size = len(self.val_dataset.y_dataset)
 
-        val_sampler = torch.utils.data.SequentialSampler(self.val_dataset)
-
         loader = torch.utils.data.DataLoader(
             dataset=self.val_dataset,
             batch_size=val_batch_size,
             num_workers=8,
             pin_memory=True,
-            sampler=val_sampler
+            shuffle=False
         )
 
         return loader
