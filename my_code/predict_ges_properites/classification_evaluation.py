@@ -1,5 +1,5 @@
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
-
+import torch
 
 def evaluation(prediction, truth):
     """
@@ -32,8 +32,9 @@ def evaluation(prediction, truth):
     for label in range(feat_dim):
 
         # ignore features which were basically not present in the validation set
-        if sum(truth[:, label]) < 5:
-            print("\nIGNORING feature ", label, " in this validation")
+        if torch.sum(truth[:, label]) < 5:
+            print("\nIGNORING feature ", label, " in this validation as it was present only in ", sum(truth[:, label]),
+                  " samples")
             n_present_features -= 1
             continue
 

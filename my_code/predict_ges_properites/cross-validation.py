@@ -74,7 +74,6 @@ if __name__ == "__main__":
 
     # K-fold LEAVE-ONE-OUT Cross Validation model evaluation
     for curr_record_id in recordings:
-        break
 
         # Print
         print(f'Testing on hold out recording {curr_record_id}')
