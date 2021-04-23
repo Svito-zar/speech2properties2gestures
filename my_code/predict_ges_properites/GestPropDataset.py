@@ -10,7 +10,7 @@ torch.set_default_tensor_type('torch.FloatTensor')
 class GesturePropDataset(Dataset):
     """Gesture Properties from the SAGA dataset."""
 
-    def __init__(self, root_dir, dataset_type, features_name):
+    def __init__(self, root_dir, dataset_type, features_name, indices_to_subsample = None):
         """
         Args:
             root_dir (string): Directory with the datasat.
@@ -25,6 +25,11 @@ class GesturePropDataset(Dataset):
         # read dataset
         self.x_dataset = np.load(self.x_file_name)
         self.y_dataset = np.load(self.y_file_name)
+
+        # select indices if provided
+        if indices_to_subsample is not None:
+            self.x_dataset = self.x_dataset[indices_to_subsample]
+            self.y_dataset = self.y_dataset[indices_to_subsample]
 
         self.len = self.y_dataset.shape[0]
 

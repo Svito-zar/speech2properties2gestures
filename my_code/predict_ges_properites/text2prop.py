@@ -28,9 +28,9 @@ class PropPredictor(LightningModule):
         self.hparams = hparams
 
         # obtain datasets
-        self.load_datasets()
         self.train_ids = train_ids
         self.val_ids = val_ids
+        self.load_datasets()
         self.fold = fold
 
         # define key parameters
@@ -84,7 +84,7 @@ class PropPredictor(LightningModule):
     def load_datasets(self):
         try:
             self.train_dataset = GesturePropDataset(self.data_root, "train_n_val", self.hparams.data_feat)
-            self.val_dataset = GesturePropDataset(self.data_root, "train_n_val", self.hparams.data_feat)
+            self.val_dataset = GesturePropDataset(self.data_root, "train_n_val", self.hparams.data_feat, self.val_ids)
             self.class_freq = self.train_dataset.get_freq()
         except FileNotFoundError as err:
             abs_data_dir = os.path.abspath(self.data_root)
@@ -166,7 +166,7 @@ class PropPredictor(LightningModule):
     def validation_step(self, batch, batch_idx):
 
         prediction = self(batch).float()
-        true_lab = batch["property"][:,2:].float()
+        true_lab = batch["property"][:,2:].int()
 
         # plot sequences
         if batch_idx == 0:
@@ -287,9 +287,10 @@ class PropPredictor(LightningModule):
 
     def val_dataloader(self):
 
-        val_sampler = torch.utils.data.SequentialSampler(self.val_ids)
+        # Validate on the whole dataset at once
+        val_batch_size = len(self.val_dataset.y_dataset)
 
-        val_batch_size = len(self.val_ids)
+        val_sampler = torch.utils.data.SequentialSampler(self.val_dataset)
 
         loader = torch.utils.data.DataLoader(
             dataset=self.val_dataset,
@@ -298,4 +299,5 @@ class PropPredictor(LightningModule):
             pin_memory=True,
             sampler=val_sampler
         )
+
         return loader
