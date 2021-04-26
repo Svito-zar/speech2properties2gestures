@@ -3,7 +3,7 @@ from argparse import ArgumentParser, Namespace
 import yaml
 import torch
 
-from my_code.predict_ges_properites.text2prop import PropPredictor
+from my_code.predict_ges_properites.text2ges_exist import PropPredictor
 from my_code.predict_ges_properites.GestPropDataset import GesturePropDataset
 from pytorch_lightning import Trainer, seed_everything
 
@@ -70,25 +70,23 @@ if __name__ == "__main__":
         logger = pl_loggers.TensorBoardLogger('lightning_logs/')
 
     hparams.num_dataloader_workers = 0
-    hparams.gpus = 0
+    hparams.gpus = [1]
 
     # Start print
     print('--------------------------------')
 
     # K-fold Cross Validation model evaluation
     for fold, (train_ids, test_ids) in enumerate(kfold.split(train_n_val_dataset)):
+        
         # Print
         print(f'FOLD {fold}')
         print('--------------------------------')
-
-        if test_ids[-1] > 67436:
-            continue
 
         # Define the model
         model = PropPredictor(hparams, fold, train_ids, test_ids, upsample=True)
 
         # Define the trainer
-        trainer = Trainer.from_argparse_args(hparams, logger=logger) #, profiler="simple") # profiler="advanced"
+        trainer = Trainer.from_argparse_args(hparams, logger=logger, deterministic=False) #, profiler="simple") # profiler="advanced"
 
         # Train
         trainer.fit(model)
