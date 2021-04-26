@@ -3,8 +3,8 @@ from argparse import ArgumentParser, Namespace
 import yaml
 import torch
 
-from my_code.predict_ges_properites.text2ges_exist import PropPredictor
-from my_code.predict_ges_properites.GestPropDataset import GesturePropDataset
+from my_code.predict_ges_existance.text2ges_exist import GestPredictor
+from my_code.predict_ges_existance.GestPropDataset import GesturePropDataset
 from pytorch_lightning import Trainer, seed_everything
 
 from sklearn.model_selection import KFold
@@ -55,7 +55,6 @@ if __name__ == "__main__":
 
     # Load dataset
     train_n_val_dataset = GesturePropDataset(hparams.data_root, "train_n_val", hparams.data_feat)
-    class_freq = train_n_val_dataset.get_freq()
 
     if hparams.comet_logger["api_key"] != "None":
         from pytorch_lightning.loggers import CometLogger
@@ -70,7 +69,7 @@ if __name__ == "__main__":
         logger = pl_loggers.TensorBoardLogger('lightning_logs/')
 
     hparams.num_dataloader_workers = 0
-    hparams.gpus = [1]
+    hparams.gpus = 0 # [1]
 
     # Start print
     print('--------------------------------')
@@ -83,7 +82,7 @@ if __name__ == "__main__":
         print('--------------------------------')
 
         # Define the model
-        model = PropPredictor(hparams, fold, train_ids, test_ids, upsample=True)
+        model = GestPredictor(hparams, fold, train_ids, test_ids, upsample=True)
 
         # Define the trainer
         trainer = Trainer.from_argparse_args(hparams, logger=logger, deterministic=False) #, profiler="simple") # profiler="advanced"

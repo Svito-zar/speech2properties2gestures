@@ -12,12 +12,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import urllib.request
 
-from my_code.predict_ges_properites.GestPropDataset import GesturePropDataset
-from my_code.predict_ges_properites.classification_evaluation import evaluation
-from my_code.predict_ges_properites.class_balanced_loss import ClassBalancedLoss
+from my_code.predict_ges_existance.GestPropDataset import GesturePropDataset
+from my_code.predict_ges_existance.classification_evaluation import evaluation
+from my_code.predict_ges_existance.class_balanced_loss import FocalLoss
 
 
-class PropPredictor(LightningModule):
+class GestPredictor(LightningModule):
     def __init__(self, hparams, fold, train_ids, val_ids, upsample=False):
         super().__init__()
 
@@ -41,9 +41,7 @@ class PropPredictor(LightningModule):
         self.hidden_dim = hparams.CNN["hidden_dim"]
         self.n_layers = hparams.CNN["n_layers"]
 
-        self.loss_funct = ClassBalancedLoss(self.class_freq, self.output_dim,
-                                            self.hparams.Loss["beta"],  self.hparams.Loss["alpha"],
-                                            self.hparams.Loss["gamma"])
+        self.loss_funct = FocalLoss(self.hparams.Loss["alpha"],self.hparams.Loss["gamma"])
 
         assert(self.kernel_size % 2 == 1)
 
@@ -85,7 +83,6 @@ class PropPredictor(LightningModule):
         try:
             self.train_dataset = GesturePropDataset(self.data_root, "train_n_val", self.hparams.data_feat)
             self.val_dataset = GesturePropDataset(self.data_root, "train_n_val", self.hparams.data_feat, self.val_ids)
-            self.class_freq = self.train_dataset.get_freq()
         except FileNotFoundError as err:
             abs_data_dir = os.path.abspath(self.data_root)
             if not os.path.isdir(abs_data_dir):
@@ -254,26 +251,6 @@ class PropPredictor(LightningModule):
 
 
     def train_dataloader(self):
-
-        if self.upsample:
-            # prepare to upsample under-represented classes
-            n_features = self.output_dim
-
-            max_freq = np.max(self.class_freq)
-            multipliers = [int(max_freq // self.class_freq[feat]) for feat in range(n_features)]
-
-            # upsample under-represented classes in the training set
-            train_ids_upsampled = list(np.copy(self.train_ids))
-
-            for frame_ind in range(self.train_ids.shape[0]):
-                multipl_factor = 1
-                for curr_feat in range(n_features):
-                    if self.train_dataset.y_dataset[frame_ind, curr_feat + 2] == 1:  # first two numbers are containing extra info
-                        multipl_factor = max(multipl_factor, multipliers[curr_feat]) # we take the highest multiplier of all features that are present in the frame
-                if multipl_factor > 1:
-                    train_ids_upsampled += [self.train_ids[frame_ind]] * multipl_factor
-
-            self.train_ids = train_ids_upsampled
 
         train_subsampler = torch.utils.data.SubsetRandomSampler(self.train_ids)
 
