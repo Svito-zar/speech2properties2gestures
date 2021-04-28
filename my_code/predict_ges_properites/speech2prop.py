@@ -58,6 +58,13 @@ class ModalityEncoder(nn.Module):
 
 
     def forward(self, x):
+        """
+        Args:
+            x:   input speech sequences [batch_size, sequence length, speech_modality_dim]
+
+        Returns:
+            speech encoding vectors [batch_size, modality_enc_dim]
+        """
 
         # reshape
         input_seq_tr = torch.transpose(x, dim0=2, dim1=1)
@@ -107,6 +114,13 @@ class Decoder(nn.Module):
 
 
     def forward(self, x):
+        """
+        Args:
+            x:  speech encoding vectors [batch_size, speech_enc_dim]
+
+        Returns:
+            output: probabilities for gesture properties [batch_size, prop_dim]
+        """
 
         hid = self.start(x)
 
@@ -161,8 +175,8 @@ class PropPredictor(LightningModule):
 
         # define the loss function
         self.loss_funct = ClassBalancedLoss(self.class_freq, self.decoder.output_dim,
-                                            self.hparams.Loss["beta"], self.hparams.Loss["alpha"],
-                                            self.hparams.Loss["gamma"])
+                                            beta=self.hparams.Loss["beta"], alpha=self.hparams.Loss["alpha"],
+                                            gamma=self.hparams.Loss["gamma"])
 
 
     def load_datasets(self):
@@ -362,7 +376,7 @@ class PropPredictor(LightningModule):
         loader = torch.utils.data.DataLoader(
             dataset=self.train_dataset,
             batch_size=self.hparams.batch_size,
-            num_workers=0,
+            num_workers=8,
             pin_memory=True,
             sampler=train_subsampler
         )
@@ -376,7 +390,7 @@ class PropPredictor(LightningModule):
         loader = torch.utils.data.DataLoader(
             dataset=self.val_dataset,
             batch_size=val_batch_size,
-            num_workers=0,
+            num_workers=8,
             pin_memory=True,
             shuffle=False
         )

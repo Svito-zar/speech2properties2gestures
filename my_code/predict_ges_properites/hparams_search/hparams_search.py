@@ -17,7 +17,7 @@ from optuna.integration import PyTorchLightningPruningCallback
 from pytorch_lightning import Trainer, seed_everything
 
 import os
-from my_code.predict_ges_properites.text2prop import PropPredictor
+from my_code.predict_ges_properites.speech2prop import PropPredictor
 from my_code.predict_ges_properites.trainer import get_hparams
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning import loggers as pl_loggers
