@@ -60,7 +60,7 @@ def prepare_hparams(trial):
     params.update(vars(override_params))
     hparams = Namespace(**params)
 
-    hparams.gpus = [1] # [0,1]
+    hparams.gpus = [0] # [0,1]
 
     return hparam_configs.hparam_options(hparams, trial)
 
@@ -98,7 +98,7 @@ def run(hparams, return_dict, trial, batch_size, current_date):
     kfold = KFold(n_splits=k_folds)
 
     # Load dataset
-    train_n_val_dataset = GesturePropDataset(hparams.data_root, "train_n_val", hparams.data_feat)
+    train_n_val_dataset = GesturePropDataset(hparams.data_root, "train_n_val", hparams.data_feat, hparams.speech_modality)
 
     # Start print
     print('--------------------------------')
@@ -108,8 +108,8 @@ def run(hparams, return_dict, trial, batch_size, current_date):
     # K-fold Cross Validation model evaluation
     for fold, (train_ids, test_ids) in enumerate(kfold.split(train_n_val_dataset)):
 
-        if test_ids[-1] > 68000:
-            continue
+        if fold > 6:
+            break
 
         # Print
         print(f'FOLD {fold}')
