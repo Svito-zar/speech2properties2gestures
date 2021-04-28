@@ -64,18 +64,17 @@ class GesturePropDataset(Dataset):
 
         if self.sp_mod == "text":
             text = self.t_dataset[idx]
-            audio = None
+            sample = {'text': text, 'property': property}
         elif self.sp_mod == "audio":
             audio = self.a_dataset[idx]
-            text = None
+            sample = {'audio': audio, 'property': property}
         elif self.sp_mod == "both":
             text = self.t_dataset[idx]
             audio = self.a_dataset[idx]
+            sample = {'audio': audio, 'text': text, 'property': property}
 
         if len(property) == 0:
             raise Exception("Missing datapoint!")
-
-        sample = {'audio': audio, 'text': text, 'property': property}
 
         return sample
 
