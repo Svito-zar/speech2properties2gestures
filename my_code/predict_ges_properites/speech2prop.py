@@ -17,6 +17,115 @@ from my_code.predict_ges_properites.classification_evaluation import evaluation
 from my_code.predict_ges_properites.class_balanced_loss import ClassBalancedLoss
 
 
+class ModalityEncoder(nn.Module):
+    def __init__(self, modality, hparams):
+        super().__init__()
+
+        if modality == "audio":
+            params = hparams.audio_enc
+        elif modality == "text":
+            params = hparams.text_enc
+        else:
+            raise NotImplementedError("The modality '", modality,"' is not implemented")
+
+        # read all the params
+        self.kernel_size = params["kernel_size"]
+        self.input_dim = params["input_dim"]
+        self.output_dim = params["output_dim"]
+        self.hidden_dim = params["hidden_dim"]
+        self.n_layers = params["n_layers"]
+        self.dropout = params["dropout"]
+
+        assert (self.kernel_size % 2 == 1)
+
+        # define the network
+        self.in_layers = torch.nn.ModuleList()
+
+        start = torch.nn.Conv1d(self.input_dim, self.hidden_dim, 1)
+        start = torch.nn.utils.weight_norm(start, name='weight')
+        self.start = start
+
+        for i in range(self.n_layers):
+            dilation = 2 ** i
+            padding = int((self.kernel_size * dilation - dilation) / 2)
+
+            in_layer = torch.nn.Conv1d(self.hidden_dim, self.hidden_dim, self.kernel_size,
+                                       dilation=dilation, padding=padding)
+            in_layer = torch.nn.utils.weight_norm(in_layer, name='weight')
+            self.in_layers.append(in_layer)
+
+        self.end = nn.Linear(self.hidden_dim, self.output_dim)
+
+
+    def forward(self, x):
+
+        # reshape
+        input_seq_tr = torch.transpose(x, dim0=2, dim1=1)
+
+        # encode
+        h_seq = self.start(input_seq_tr)
+
+        # apply dilated convolutions
+        for i in range(self.n_layers):
+            h_seq = self.in_layers[i](h_seq)
+
+        # take only the current time step
+        seq_length = h_seq.shape[2]
+        hid = h_seq[:, :, seq_length // 2 + 1]
+
+        # adjust the output dim
+        return self.end(hid)
+
+
+class Decoder(nn.Module):
+    def __init__(self, enc_dim, hparams):
+        super().__init__()
+
+        # read params
+        params = hparams.decoder
+        self.input_dim = enc_dim
+        self.output_dim = params["output_dim"]
+        self.hidden_dim = params["hidden_dim"]
+        self.n_layers = params["n_layers"]
+        self.dropout = params["dropout"]
+        self.params = hparams
+
+        # define the network
+        start = torch.nn.Linear(self.input_dim, self.hidden_dim)
+        self.start = torch.nn.utils.weight_norm(start, name='weight')
+
+        self.in_layers = torch.nn.ModuleList()
+        for i in range(self.n_layers):
+            in_layer = torch.nn.Linear(self.hidden_dim, self.hidden_dim,
+                                       nn.Dropout(p=self.dropout))
+            in_layer = torch.nn.utils.weight_norm(in_layer, name='weight')
+            self.in_layers.append(in_layer)
+
+        end_linear = torch.nn.Linear(self.hidden_dim, self.output_dim,
+                                     nn.Dropout(p=self.dropout))
+        self.end = end_linear.apply(self.weights_init)
+
+
+    def forward(self, x):
+
+        hid = self.start(x)
+
+        for i in range(self.n_layers):
+            hid = self.in_layers[i](hid)
+
+        return self.end(hid)
+
+
+    def weights_init(self, m):
+        """Initialize the given linear layer using special initialization."""
+        classname = m.__class__.__name__
+        if classname.find('Linear') != -1:
+            # m.weight.data should be zero
+            m.weight.data.fill_(0.0)
+            # m.bias.data
+            m.bias.data.fill_(-np.log(self.output_dim - 1))
+
+
 class PropPredictor(LightningModule):
     def __init__(self, hparams, fold, train_ids, val_ids, upsample=False):
         super().__init__()
@@ -35,56 +144,31 @@ class PropPredictor(LightningModule):
 
         # define key parameters
         self.hparams = hparams
-        self.kernel_size = hparams.CNN["kernel_size"]
-        self.input_dim = hparams.CNN["input_dim"]
-        self.output_dim = hparams.CNN["output_dim"]
-        self.hidden_dim = hparams.CNN["hidden_dim"]
-        self.n_layers = hparams.CNN["n_layers"]
+        self.sp_mod = hparams.speech_modality
 
-        self.loss_funct = ClassBalancedLoss(self.class_freq, self.output_dim,
-                                            self.hparams.Loss["beta"],  self.hparams.Loss["alpha"],
+        # Define modality encoders depending on the speech modality used
+        enc_dim = 0
+        if self.sp_mod == "text" or self.sp_mod == "both":
+            self.text_enc = ModalityEncoder("text", hparams)
+            enc_dim += hparams.text_enc["output_dim"]
+
+        if self.sp_mod == "audio" or self.sp_mod == "both":
+            self.audio_enc = ModalityEncoder("audio", hparams)
+            enc_dim += hparams.audio_enc["output_dim"]
+
+        # define the encoding -> output network
+        self.decoder = Decoder(enc_dim, hparams)
+
+        # define the loss function
+        self.loss_funct = ClassBalancedLoss(self.class_freq, self.decoder.output_dim,
+                                            self.hparams.Loss["beta"], self.hparams.Loss["alpha"],
                                             self.hparams.Loss["gamma"])
-
-        assert(self.kernel_size % 2 == 1)
-
-        self.in_layers = torch.nn.ModuleList()
-
-        start = torch.nn.Conv1d(self.input_dim, self.hidden_dim, 1)
-        start = torch.nn.utils.weight_norm(start, name='weight')
-        self.start = start
-
-        for i in range(self.n_layers):
-            dilation = 2 ** i
-            padding = int((self.kernel_size*dilation - dilation)/2)
-
-            in_layer = torch.nn.Conv1d(self.hidden_dim, self.hidden_dim, self.kernel_size,
-                                       dilation=dilation, padding=padding)
-            in_layer = torch.nn.utils.weight_norm(in_layer, name='weight')
-            self.in_layers.append(in_layer)
-
-        # Initializing last layer to 0 makes the affine coupling layers
-        # do nothing at first.  This helps with training stability
-        end_linear = torch.nn.Sequential(nn.Linear(hparams.CNN["hidden_dim"],
-                                                   hparams.CNN["output_dim"]), nn.Dropout(p=hparams.CNN["dropout"]))
-        end_linear = end_linear.apply(self.weights_init)
-        self.end = end_linear
-
-
-    def weights_init(self, m):
-        """Initialize the given linear layer using zero initialization."""
-        classname = m.__class__.__name__
-        if classname.find('Linear') != -1:
-            n = m.in_features * m.out_features
-            # m.weight.data should be zero
-            m.weight.data.fill_(0.0)
-            # m.bias.data
-            m.bias.data.fill_(-np.log(self.hparams.CNN["output_dim"] - 1))
 
 
     def load_datasets(self):
         try:
-            self.train_dataset = GesturePropDataset(self.data_root, "train_n_val", self.hparams.data_feat)
-            self.val_dataset = GesturePropDataset(self.data_root, "train_n_val", self.hparams.data_feat, self.val_ids)
+            self.train_dataset = GesturePropDataset(self.data_root, "train_n_val", self.hparams.data_feat, self.hparams.speech_modality)
+            self.val_dataset = GesturePropDataset(self.data_root, "train_n_val", self.hparams.data_feat, self.hparams.speech_modality, self.val_ids)
             self.class_freq = self.train_dataset.get_freq()
         except FileNotFoundError as err:
             abs_data_dir = os.path.abspath(self.data_root)
@@ -98,21 +182,20 @@ class PropPredictor(LightningModule):
 
     def forward(self, batch):
 
-        text_inp = batch["text"].float()
+        if self.sp_mod == "text" or self.sp_mod == "both":
+            input_text_seq = batch["text"].float()
+            text_enc = self.text_enc(input_text_seq)
+            enc = text_enc
 
-        # reshape
-        input_seq_tr = torch.transpose(text_inp, dim0=2, dim1=1)
+        if self.sp_mod == "audio" or self.sp_mod == "both":
+            input_audio_seq = batch["audio"].float()
+            audio_enc = self.audio_enc(input_audio_seq)
+            enc = audio_enc
 
-        h_seq = self.start(input_seq_tr)
+        if self.sp_mod == "both":
+            enc = torch.cat((text_enc, audio_enc), 1)
 
-        for i in range(self.n_layers):
-            h_seq = self.in_layers[i](h_seq)
-
-        # take only the current time step
-        seq_length = h_seq.shape[2]
-        hid = h_seq[:, :, seq_length // 2 + 1]
-
-        output = self.end(hid)
+        output = self.decoder(enc)
 
         return output
 
@@ -174,7 +257,7 @@ class PropPredictor(LightningModule):
             x = batch["property"][:, 1].cpu()
             # convert from raw values to likelihood
             predicted_prob = torch.sigmoid(prediction + 1e-6)
-            for feat in range(self.output_dim):
+            for feat in range(self.decoder.output_dim):
                 plt.ylim([-0.01, 1.01])
                 plt.plot(x, batch["property"][:, feat+2].cpu(), 'r--', x, predicted_prob[:, feat].cpu(), 'bs--')
                 image_file_name = "fig/valid_res_"+str(self.current_epoch) + "_" + str(feat) + ".png"
@@ -256,7 +339,7 @@ class PropPredictor(LightningModule):
 
         if self.upsample:
             # prepare to upsample under-represented classes
-            n_features = self.output_dim
+            n_features = self.decoder.output_dim
 
             max_freq = np.max(self.class_freq)
             multipliers = [int(max_freq // self.class_freq[feat]) for feat in range(n_features)]
@@ -279,7 +362,7 @@ class PropPredictor(LightningModule):
         loader = torch.utils.data.DataLoader(
             dataset=self.train_dataset,
             batch_size=self.hparams.batch_size,
-            num_workers=8,
+            num_workers=0,
             pin_memory=True,
             sampler=train_subsampler
         )
@@ -293,7 +376,7 @@ class PropPredictor(LightningModule):
         loader = torch.utils.data.DataLoader(
             dataset=self.val_dataset,
             batch_size=val_batch_size,
-            num_workers=8,
+            num_workers=0,
             pin_memory=True,
             shuffle=False
         )

@@ -4,7 +4,7 @@ import yaml
 import torch
 import numpy as np
 
-from my_code.predict_ges_properites.text2prop import PropPredictor
+from my_code.predict_ges_properites.speech2prop import PropPredictor
 from my_code.predict_ges_properites.GestPropDataset import GesturePropDataset
 from pytorch_lightning import Trainer, seed_everything
 
@@ -47,7 +47,7 @@ if __name__ == "__main__":
     ), "Failed to find root dir `{}` of dataset.".format(hparams.data_root)
 
     # Load dataset
-    train_n_val_dataset = GesturePropDataset(hparams.data_root, "train_n_val", hparams.data_feat)
+    train_n_val_dataset = GesturePropDataset(hparams.data_root, "train_n_val", hparams.data_feat, hparams.speech_modality)
     class_freq = train_n_val_dataset.get_freq()
 
     if hparams.comet_logger["api_key"] != "None":
