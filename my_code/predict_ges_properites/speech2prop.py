@@ -268,12 +268,12 @@ class PropPredictor(LightningModule):
         # plot sequences
         if batch_idx == 0:
 
-            x = batch["property"][:, 1].cpu()
+            x = batch["property"][10:60, 1].cpu()
             # convert from raw values to likelihood
             predicted_prob = torch.sigmoid(prediction + 1e-6)
             for feat in range(self.decoder.output_dim):
                 plt.ylim([-0.01, 1.01])
-                plt.plot(x, batch["property"][:, feat+2].cpu(), 'r--', x, predicted_prob[:, feat].cpu(), 'bs--')
+                plt.plot(x, batch["property"][10:60, feat+2].cpu(), 'r--', x, predicted_prob[10:60, feat].cpu(), 'bs--')
                 image_file_name = "fig/valid_res_"+str(self.current_epoch) + "_" + str(feat) + ".png"
                 plt.savefig(fname=image_file_name)
                 self.logger.experiment.log_image(image_file_name)
