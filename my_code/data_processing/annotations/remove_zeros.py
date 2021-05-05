@@ -4,11 +4,13 @@ import numpy as np
 gen_folder = "/home/tarask/Documents/Datasets/SaGa/Processed/feat/EVERYTHING/"
 gen_folder = "/home/tarask/Documents/Datasets/SaGa/Processed/feat/AudioBased/G_Semantic/"
 #gen_folder = "/home/tarask/Documents/Datasets/SaGa/Processed/feat/S_Semantics/"
-prop = "Semantic"
+gen_folder = "/home/tarask/Documents/Datasets/SaGa/Processed/feat/Text_n_AudioBased/G_Semantic/"
+gen_folder = "/home/tarask/Documents/Datasets/SaGa/Processed/feat/ProsBased/"
+gen_folder = "/home/tarask/Documents/Datasets/SaGa/Processed/feat/Text_n_AudioBased/AllTogether/"
 prop = "R.S.Semantic Feature"
-prop = "Phrase"
-prop = "all"
 prop = "Semantic"
+prop = "Phase"
+prop = "all"
 
 file_name = gen_folder + "train_n_val_Y_" + prop + ".npy"
 Y_train_n_val = np.load(file_name, allow_pickle=True)
@@ -27,21 +29,17 @@ print(A_train_n_val.shape)
 feat_sum = np.sum(Y_train_n_val[:,2:], axis=1)
 zero_ids = np.where(feat_sum == 0)
 
-fraction = 0.95 # keep 5 percent
-zeros_numb = len(zero_ids[0])
-remove_n_zeros = int(zeros_numb * fraction)
-zero_ids_index = np.random.choice(zero_ids[0], remove_n_zeros, replace=False)
-
 # remove "empty" vectors
-Y_train_n_val_new = np.delete(Y_train_n_val, zero_ids_index, 0)
-X_train_n_val_new = np.delete(X_train_n_val, zero_ids_index, 0)
-A_train_n_val_new = np.delete(A_train_n_val, zero_ids_index, 0)
+Y_train_n_val_new = np.delete(Y_train_n_val, zero_ids, 0)
+X_train_n_val_new = np.delete(X_train_n_val, zero_ids, 0)
+A_train_n_val_new = np.delete(A_train_n_val, zero_ids, 0)
 
 print(Y_train_n_val_new.shape)
 print(X_train_n_val_new.shape)
+print(A_train_n_val_new.shape)
 
-n_features = 14
-n_features = 4
+n_features = 19
+#n_features = 5
 freq = np.zeros(n_features)
 for feat in range(n_features):
         column = Y_train_n_val_new[:, 2 + feat]
