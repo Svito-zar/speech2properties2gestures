@@ -4,7 +4,7 @@ import os
 import bisect
 import pympi
 
-from my_code.data_processing.tools import calculate_spectrogram, average
+from my_code.data_processing.tools import calculate_spectrogram, extract_prosodic_features
 
 
 def correct_the_time(time_st):
@@ -403,6 +403,7 @@ def extract_audio_from_the_current_file(audio_file, start_time, end_time, total_
     print("Timing: [", start_time, ", ", end_time, "]")
     print("Number of frames: ", total_number_of_frames)
 
+    """
     # extract spectrogram for the whole audio file
     print("Calculating spectrogram ... ")
     audio_array = calculate_spectrogram(audio_file, fps)
@@ -411,6 +412,13 @@ def extract_audio_from_the_current_file(audio_file, start_time, end_time, total_
     end = 4 * int(len(audio_array) / 4)
     audio_array = np.mean(audio_array[:end].reshape(-1, audio_array.shape[1], 4), 2)
     fps = 5 # steps are 0.2s
+    print("SPECTRORAM Audio array shape: ", audio_array.shape)
+    """
+
+    # extract prosodic features for the whole audio file
+    print("Calculating prosodic features ... ")
+    audio_array = extract_prosodic_features(audio_file)
+    print("PROSODIC Audio array shape: ", audio_array.shape)
 
     # create a list of sequences with a fixed past and future context length ( overlap them to use data more efficiently)
     start_ind = int(start_time*fps)
