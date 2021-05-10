@@ -403,6 +403,8 @@ def extract_audio_from_the_current_file(audio_file, start_time, end_time, total_
     print("Timing: [", start_time, ", ", end_time, "]")
     print("Number of frames: ", total_number_of_frames)
 
+    fps = 5  # steps are 0.2s
+
     """
     # extract spectrogram for the whole audio file
     print("Calculating spectrogram ... ")
@@ -411,8 +413,9 @@ def extract_audio_from_the_current_file(audio_file, start_time, end_time, total_
     # reduce the fps from 20 to 5, so 4 times
     end = 4 * int(len(audio_array) / 4)
     audio_array = np.mean(audio_array[:end].reshape(-1, audio_array.shape[1], 4), 2)
-    fps = 5 # steps are 0.2s
+    
     print("SPECTRORAM Audio array shape: ", audio_array.shape)
+
     """
 
     # extract prosodic features for the whole audio file
@@ -564,14 +567,16 @@ if __name__ == "__main__":
     feature_name = "R.S.Semantic Feature"
     create_dataset(raw_data_folder, gen_folder, subfolder, feature_name, dataset_name, feature_dim)
 
-    feature_dim = 4
-    feature_name = "Semantic"
-    create_dataset(raw_data_folder, gen_folder, subfolder, feature_name, dataset_name, feature_dim)
-
     feature_dim = 7
     feature_name = "Phrase"
     create_dataset(raw_data_folder, gen_folder, subfolder, feature_name, dataset_name, feature_dim)
 
     feature_dim = 5
     feature_name = "Phase"
+    create_dataset(raw_data_folder, gen_folder, subfolder, feature_name, dataset_name, feature_dim)
+
+    exit(0)
+
+    feature_dim = 4
+    feature_name = "Semantic"
     create_dataset(raw_data_folder, gen_folder, subfolder, feature_name, dataset_name, feature_dim)
