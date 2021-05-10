@@ -276,6 +276,7 @@ def encode_g_semant(total_dict, curr_file):
             if len(curr_phrase_tier) == 0:
                 curr_phrase_tier = curr_tiers[phrase][1]
         else:
+            print("WARNING: A file " + curr_file + " is ignored for " + hand + " hand since it contains no " + hand + " Phrase tier")
             break
 
         # read semant tier
@@ -284,6 +285,7 @@ def encode_g_semant(total_dict, curr_file):
             if len(curr_semant_tier) == 0:
                 curr_semant_tier = curr_tiers[semant][1]
         else:
+            print("WARNING: A file " + curr_file + " is ignored for " + hand + " hand since it contains no " + hand + " Semantic tier")
             break
 
         # go over all the semantic labels
