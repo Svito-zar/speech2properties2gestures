@@ -237,6 +237,91 @@ def encode_main_g_features(total_dict, curr_file):
     hf.close()
 
 
+def encode_g_semant(total_dict, curr_file):
+    """
+       Encode gesture semantic features of a current file and save into hdf5 dataset
+       Args:
+           total_dict:           dictionary for the binary coding
+           curr_file:            file with the ELAN annotations
+       Returns:
+           nothing, saves features in hdf5 file
+       """
+
+
+    elan = pympi.Elan.Eaf(file_path=curr_file)
+    curr_tiers = elan.tiers
+    time_key = elan.timeslots
+
+    # create hdf5 file
+    hdf5_file_name = "feat/" + curr_file[61:63] + "_feat.hdf5"
+    hf = h5py.File(name=hdf5_file_name, mode='a')
+
+    hands = ["Right", "Left"]
+    #main_columns = ["R.G.Left.Phrase", "R.G.Right.Phrase", "R.G.Right Semantic", "R.G.Left Semantic"]
+
+    for hand in hands:
+
+        phrase = "R.G." + hand + ".Phrase"
+        semant = "R.G." + hand + " Semantic"
+
+        # Take dictionary mapping labels into numbers
+        curr_semant_dict = total_dict[semant]
+
+        # empty list to store the features
+        curr_column_features = []
+
+        # read phrase tier
+        if phrase in curr_tiers:
+            curr_phrase_tier = curr_tiers[phrase][0]
+            if len(curr_phrase_tier) == 0:
+                curr_phrase_tier = curr_tiers[phrase][1]
+        else:
+            break
+
+        # read semant tier
+        if semant in curr_tiers:
+            curr_semant_tier = curr_tiers[semant][0]
+            if len(curr_semant_tier) == 0:
+                curr_semant_tier = curr_tiers[semant][1]
+        else:
+            break
+
+        # go over all the semantic labels
+        for key, value in curr_semant_tier.items():
+            (sem_st_t, sem_end_t, semant_val, _) = value
+
+            if semant_val is not None:
+                # remove leading whitespace
+                semant_val = semant_val.lstrip()
+                if semant_val != "" and semant_val != " ":
+
+                    semant_features = [0 for _ in range(len(curr_semant_dict))]
+
+                    # map a string (semant_val) to a binary vector (semant_features)
+                    for dict_key in curr_semant_dict:
+                        if semant_val.find(curr_semant_dict[dict_key]) != -1:
+                            semant_features[dict_key] = 1
+
+                    # find the Phrase it corresponds to
+                    for key, value in curr_phrase_tier.items():
+                        (phr_st_t, phr_end_t, phrase_val, _) = value
+                        if time_key[phr_st_t] is None or time_key[phr_end_t] is None:
+                            continue
+                        if time_key[phr_end_t] >= time_key[sem_st_t]:
+                            break
+
+                    # use timing for the whole Phrase
+                    time_n_feat = [time_key[phr_st_t] / 1000] + [time_key[phr_end_t] / 1000] + semant_features
+
+                    curr_column_features.append(np.array(time_n_feat))
+
+        curr_column_features = np.array(curr_column_features)
+
+        hf.create_dataset(semant, data=curr_column_features)
+
+    hf.close()
+
+
 if __name__ == "__main__":
 
     curr_folder = "/home/tarask/Documents/Datasets/SaGa/Raw/All_the_transcripts/"
@@ -251,8 +336,8 @@ if __name__ == "__main__":
     print(total_dict)
 
     columns_to_consider = ["R.G.Left.Phase", "R.G.Right.Phase",
-                           "R.G.Left.Phrase", "R.G.Right.Phrase",
-                           "R.G.Right Semantic", "R.G.Left Semantic", "R.S.Semantic Feature"]
+                           "R.G.Left.Phrase", "R.G.Right.Phrase",  "R.S.Semantic Feature"]
+                           #"R.G.Right Semantic", "R.G.Left Semantic",]
 
     # go though the gesture features
     for item in os.listdir(curr_folder):
@@ -263,6 +348,10 @@ if __name__ == "__main__":
         print(curr_file)
 
         encode_other_features(total_dict, curr_file, columns_to_consider)
+
+        encode_main_g_features(total_dict, curr_file)
+
+        encode_g_semant(total_dict, curr_file)
 
         feature_file = "feat/" + curr_file[61:63] + "_feat.hdf5"
         hf = h5py.File(name=feature_file, mode='r')
