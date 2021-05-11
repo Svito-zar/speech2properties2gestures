@@ -17,6 +17,19 @@ import torch.nn as nn
 import matplotlib.pyplot as plt
 
 
+class BasicLoss(nn.Module):
+    """
+    Cross-Validation
+    """
+
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, pred_logits, target):
+        ce = F.binary_cross_entropy_with_logits(pred_logits, target, reduction='none')
+        return ce
+
+
 class FocalLoss(nn.Module):
     """ Focal Loss - https://arxiv.org/abs/1708.02002
     Focal loss = -alpha_t * (1-pt)^gamma * log(pt)

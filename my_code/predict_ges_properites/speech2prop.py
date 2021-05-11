@@ -14,7 +14,7 @@ import urllib.request
 
 from my_code.predict_ges_properites.GestPropDataset import GesturePropDataset
 from my_code.predict_ges_properites.classification_evaluation import evaluation
-from my_code.predict_ges_properites.class_balanced_loss import ClassBalancedLoss
+from my_code.predict_ges_properites.class_balanced_loss import ClassBalancedLoss, FocalLoss, BasicLoss
 
 
 class ModalityEncoder(nn.Module):
@@ -174,10 +174,21 @@ class PropPredictor(LightningModule):
         self.decoder = Decoder(enc_dim, hparams)
 
         # define the loss function
-        self.loss_funct = ClassBalancedLoss(self.class_freq, self.decoder.output_dim,
-                                            beta=self.hparams.Loss["beta"], alpha=self.hparams.Loss["alpha"],
-                                            gamma=self.hparams.Loss["gamma"])
+        if hparams.CB["loss_type"] == "CB":
+            print("\nUsing Class-Balancing Loss\n")
+            self.loss_funct = ClassBalancedLoss(self.class_freq, self.decoder.output_dim,
+                                                beta=self.hparams.Loss["beta"], alpha=self.hparams.Loss["alpha"],
+                                                gamma=self.hparams.Loss["gamma"])
 
+        elif hparams.CB["loss_type"] == "focal":
+            print("\nUsing Focal Loss\n")
+            self.loss_funct = FocalLoss(alpha=self.hparams.Loss["alpha"],
+                                        gamma=self.hparams.Loss["gamma"])
+        elif hparams.CB["loss_type"] == "normal":
+            print("\nUsing Normal Loss\n")
+            self.loss_funct = BasicLoss()
+        else:
+            raise NotImplementedError("The loss '", hparams.CB["loss_type"],"' is not implemented")
 
     def load_datasets(self):
         try:
@@ -216,7 +227,7 @@ class PropPredictor(LightningModule):
 
     def loss(self, prediction, label):
 
-        loss_val = self.loss_funct(prediction, label)
+        loss_val = self.loss_funct(prediction.float(), label.float())
 
         return loss_val
 
