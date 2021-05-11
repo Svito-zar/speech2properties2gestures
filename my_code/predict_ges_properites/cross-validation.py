@@ -63,7 +63,7 @@ if __name__ == "__main__":
         logger = pl_loggers.TensorBoardLogger('lightning_logs/')
 
     hparams.num_dataloader_workers = 8
-    hparams.gpus = [0]
+    hparams.gpus = [1]
 
     # Start print
     print('--------------------------------')
@@ -74,6 +74,8 @@ if __name__ == "__main__":
 
     # K-fold LEAVE-ONE-OUT Cross Validation model evaluation
     for curr_record_id in recordings:
+
+        break
 
         # Print
         print(f'Testing on hold out recording {curr_record_id}')
@@ -93,7 +95,7 @@ if __name__ == "__main__":
         assert not any(np.isin(train_ids[0], test_ids[0]))
 
         # Define the model
-        model = PropPredictor(hparams, curr_record_id, train_ids[0], test_ids[0], upsample=True)
+        model = PropPredictor(hparams, curr_record_id, train_ids[0], test_ids[0], upsample=hparams.CB["upsample"])
 
         # Define the trainer
         trainer = Trainer.from_argparse_args(hparams, deterministic=False, enable_pl_optimizer=True, logger=logger)
@@ -137,7 +139,7 @@ if __name__ == "__main__":
         assert not any(np.isin(train_ids,test_ids))
 
         # Define the model
-        model = PropPredictor(hparams, "a" + str(fold), train_ids, test_ids, upsample=True)
+        model = PropPredictor(hparams, "a" + str(fold), train_ids, test_ids, upsample=hparams.CB["upsample"])
 
         # Define the trainer
         trainer = Trainer.from_argparse_args(hparams, deterministic=False, enable_pl_optimizer=True, logger=logger)

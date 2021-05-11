@@ -116,7 +116,7 @@ def run(hparams, return_dict, trial, batch_size, current_date):
         print('--------------------------------')
 
         trainer = Trainer.from_argparse_args(trainer_params, deterministic=False, enable_pl_optimizer=True)
-        model = PropPredictor(hparams, fold, train_ids, test_ids, upsample=True)
+        model = PropPredictor(hparams, fold, train_ids, test_ids, upsample=hparams.CB["upsample"])
 
         try:
            trainer.fit(model)

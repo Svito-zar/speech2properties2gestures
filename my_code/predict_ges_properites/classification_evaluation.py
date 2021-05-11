@@ -29,6 +29,8 @@ def evaluation(prediction, truth):
 
     log = {}
 
+    print("\nValidating on ", truth.shape[0], " samples with ", torch.sum(truth.float()), " ones")
+
     for label in range(feat_dim):
 
         # ignore features which were basically not present in the validation set
@@ -58,6 +60,7 @@ def evaluation(prediction, truth):
         recall_sum += label_recall
 
     if n_present_features == 0:
+        print("Will skip this fold because there are no properties to evaluate on")
         return log
 
     mean_acc_phr = acc_sum / (n_present_features )
