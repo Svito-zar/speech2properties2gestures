@@ -27,7 +27,7 @@ class BasicLoss(nn.Module):
 
     def forward(self, pred_logits, target):
         ce = F.binary_cross_entropy_with_logits(pred_logits, target, reduction='none')
-        return ce
+        return torch.sum(ce)
 
 
 class FocalLoss(nn.Module):
@@ -38,7 +38,7 @@ class FocalLoss(nn.Module):
     Taken from https://github.com/NVIDIA/retinanet-examples/blob/f1671353cb657126354543e9e94ecb6b65c5ddfd/retinanet/loss.py
     """
 
-    def __init__(self, alpha=0.25, gamma=2):
+    def __init__(self, alpha, gamma):
         """
         Args:
             alpha:  Float between 0 and 1. weight factor for positive examples
@@ -48,12 +48,16 @@ class FocalLoss(nn.Module):
         self.alpha = alpha
         self.gamma = gamma
 
-    def forward(self, pred_logits, target):
+    def forward(self, pred_logits, target, sum=True):
         pred = pred_logits.sigmoid()
         ce = F.binary_cross_entropy_with_logits(pred_logits, target, reduction='none')
         alpha = target * self.alpha + (1. - target) * (1. - self.alpha)
         pt = torch.where(target == 1,  pred, 1 - pred)
-        return alpha * (1. - pt) ** self.gamma * ce
+        focal_loss = alpha * (1. - pt) ** self.gamma * ce
+        if sum:
+            return torch.sum(focal_loss)
+        else:
+            return focal_loss
 
 
 class ClassBalancedLoss(nn.Module):
@@ -63,7 +67,7 @@ class ClassBalancedLoss(nn.Module):
         where Loss is one of the standard losses used for Neural Networks.
     """
 
-    def __init__(self, samples_per_class, numb_of_classes, beta=0.95, alpha=0.25, gamma=2):
+    def __init__(self, samples_per_class, numb_of_classes, beta, alpha, gamma):
         """
         Args:
               samples_per_class: A python list of size [no_of_classes].
@@ -77,7 +81,7 @@ class ClassBalancedLoss(nn.Module):
 
         effective_num = 1.0 - np.power(beta, samples_per_class)
         weights = (1.0 - beta) / np.array(effective_num)
-        weights = weights / np.sum(weights) * numb_of_classes
+        weights = weights / np.sum(weights) * numb_of_classes # normalize weights
         self.cb_weights = weights
 
     def forward(self, pred_logits, labels):
@@ -86,7 +90,7 @@ class ClassBalancedLoss(nn.Module):
 
         weights = torch.tensor(self.cb_weights).float().to(pred_logits.device)
 
-        cb_loss = self.FocalLoss(pred_logits, labels_one_hot)
+        cb_loss = self.FocalLoss(pred_logits, labels_one_hot, sum=False)
 
         weighted_loss = weights * cb_loss
 
