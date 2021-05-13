@@ -108,7 +108,8 @@ class Decoder(nn.Module):
         self.in_layers = torch.nn.ModuleList()
         for i in range(self.n_layers):
             in_layer = torch.nn.Sequential(
-                torch.nn.Linear(self.hidden_dim, self.hidden_dim), nn.Dropout(p=self.dropout),
+                torch.nn.Linear(self.hidden_dim, self.hidden_dim),
+                nn.BatchNorm1d(self.hidden_dim), nn.Dropout(p=self.dropout),
                 torch.nn.LeakyReLU())
 
             self.in_layers.append(in_layer)
@@ -116,7 +117,8 @@ class Decoder(nn.Module):
         if hparams.data_feat == "Phase":
             # use Softmax
             self.end = torch.nn.Sequential(
-                torch.nn.Linear(self.hidden_dim, self.output_dim), nn.Dropout(p=self.dropout),
+                torch.nn.Linear(self.hidden_dim, self.output_dim),
+                nn.BatchNorm1d(self.output_dim), nn.Dropout(p=self.dropout),
                 torch.nn.Softmax())
         else:
             # stick to Sigmoid (which is actually integrated in the loss function)
