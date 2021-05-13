@@ -108,9 +108,16 @@ class Decoder(nn.Module):
             in_layer = torch.nn.utils.weight_norm(in_layer, name='weight')
             self.in_layers.append(in_layer)
 
-        end_linear = torch.nn.Linear(self.hidden_dim, self.output_dim,
-                                     nn.Dropout(p=self.dropout))
-        self.end = end_linear.apply(self.weights_init)
+        if hparams.data_feat == "Phase":
+            # use Softmax
+            self.end = torch.nn.Sequential(
+                torch.nn.Linear(self.hidden_dim, self.output_dim, nn.Dropout(p=self.dropout)),
+                torch.nn.Softmax())
+        else:
+            # stick to Sigmoid (which is actually integrated in the loss function)
+            end_linear = torch.nn.Linear(self.hidden_dim, self.output_dim,
+                                         nn.Dropout(p=self.dropout))
+            self.end = end_linear.apply(self.weights_init)
 
 
     def forward(self, x):
@@ -174,19 +181,22 @@ class PropPredictor(LightningModule):
         self.decoder = Decoder(enc_dim, hparams)
 
         # define the loss function
+        integrated_sigmoid = hparams.data_feat != "Phase"
+        print("Integrated sigmoid: ", integrated_sigmoid)
         if hparams.CB["loss_type"] == "CB":
             print("\nUsing Class-Balancing Loss\n")
             self.loss_funct = ClassBalancedLoss(self.class_freq, self.decoder.output_dim,
                                                 beta=self.hparams.Loss["beta"], alpha=self.hparams.Loss["alpha"],
-                                                gamma=self.hparams.Loss["gamma"])
+                                                gamma=self.hparams.Loss["gamma"], integrated_sigmoid=integrated_sigmoid)
 
         elif hparams.CB["loss_type"] == "focal":
             print("\nUsing Focal Loss\n")
             self.loss_funct = FocalLoss(alpha=self.hparams.Loss["alpha"],
-                                        gamma=self.hparams.Loss["gamma"])
+                                        gamma=self.hparams.Loss["gamma"],
+                                        integrated_sigmoid = integrated_sigmoid)
         elif hparams.CB["loss_type"] == "normal":
             print("\nUsing Normal Loss\n")
-            self.loss_funct = BasicLoss()
+            self.loss_funct = BasicLoss(integrated_sigmoid)
         else:
             raise NotImplementedError("The loss '", hparams.CB["loss_type"],"' is not implemented")
 

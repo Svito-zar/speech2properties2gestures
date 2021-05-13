@@ -22,11 +22,15 @@ class BasicLoss(nn.Module):
     Cross-Validation
     """
 
-    def __init__(self):
+    def __init__(self, integrated_sigmoid=True):
         super().__init__()
+        self.integrated_sigmoid = integrated_sigmoid
 
     def forward(self, pred_logits, target):
-        ce = F.binary_cross_entropy_with_logits(pred_logits, target, reduction='none')
+        if self.integrated_sigmoid:
+            ce = F.binary_cross_entropy_with_logits(pred_logits, target, reduction='none')
+        else:
+            ce = F.binary_cross_entropy(pred_logits, target, reduction='none')
         return torch.sum(ce)
 
 
@@ -38,19 +42,26 @@ class FocalLoss(nn.Module):
     Taken from https://github.com/NVIDIA/retinanet-examples/blob/f1671353cb657126354543e9e94ecb6b65c5ddfd/retinanet/loss.py
     """
 
-    def __init__(self, alpha, gamma):
+    def __init__(self, alpha, gamma, integrated_sigmoid=True):
         """
         Args:
             alpha:  Float between 0 and 1. weight factor for positive examples
             gamma:  Float 1 or higher to indicate the emphasis on misclassified examples
+            integrated_sigmoid:  binary flag - weather we are applying sigmoid when calculating the CE loss function
         """
         super().__init__()
         self.alpha = alpha
         self.gamma = gamma
+        self.integrated_sigmoid = integrated_sigmoid
+
 
     def forward(self, pred_logits, target, sum=True):
-        pred = pred_logits.sigmoid()
-        ce = F.binary_cross_entropy_with_logits(pred_logits, target, reduction='none')
+        if self.integrated_sigmoid:
+            pred = pred_logits.sigmoid()
+            ce = F.binary_cross_entropy_with_logits(pred_logits, target, reduction='none')
+        else:
+            pred = pred_logits
+            ce = F.binary_cross_entropy(pred_logits, target, reduction='none')
         alpha = target * self.alpha + (1. - target) * (1. - self.alpha)
         pt = torch.where(target == 1,  pred, 1 - pred)
         focal_loss = alpha * (1. - pt) ** self.gamma * ce
@@ -67,7 +78,7 @@ class ClassBalancedLoss(nn.Module):
         where Loss is one of the standard losses used for Neural Networks.
     """
 
-    def __init__(self, samples_per_class, numb_of_classes, beta, alpha, gamma):
+    def __init__(self, samples_per_class, numb_of_classes, beta, alpha, gamma, integrated_sigmoid=True):
         """
         Args:
               samples_per_class: A python list of size [no_of_classes].
@@ -75,9 +86,10 @@ class ClassBalancedLoss(nn.Module):
               beta: float. Hyperparameter for Class balanced loss.
               gamma: float. Hyperparameter for Focal loss.
               alpha: float. Hyperparameter for Focal loss.
+              integrated_sigmoid:  binary flag. Hyperparameter for Focal loss.
         """
         super().__init__()
-        self.FocalLoss = FocalLoss(alpha, gamma)
+        self.FocalLoss = FocalLoss(alpha, gamma, integrated_sigmoid)
 
         effective_num = 1.0 - np.power(beta, samples_per_class)
         weights = (1.0 - beta) / np.array(effective_num)
