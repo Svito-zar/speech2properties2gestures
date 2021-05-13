@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 
 class BasicLoss(nn.Module):
     """
-    Cross-Validation
+    Normal cross-entropy
     """
 
     def __init__(self, integrated_sigmoid=True):
@@ -28,10 +28,10 @@ class BasicLoss(nn.Module):
 
     def forward(self, pred_logits, target):
         if self.integrated_sigmoid:
-            ce = F.binary_cross_entropy_with_logits(pred_logits, target, reduction='none')
+            ce = F.binary_cross_entropy_with_logits(pred_logits, target, reduction='sum')
         else:
-            ce = F.binary_cross_entropy(pred_logits, target, reduction='none')
-        return torch.sum(ce)
+            ce = F.binary_cross_entropy(pred_logits, target, reduction='sum')
+        return ce
 
 
 class FocalLoss(nn.Module):
