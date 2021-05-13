@@ -49,9 +49,13 @@ class ModalityEncoder(nn.Module):
             dilation = 2 ** i
             padding = int((self.kernel_size * dilation - dilation) / 2)
 
-            in_layer = torch.nn.Conv1d(self.hidden_dim, self.hidden_dim, self.kernel_size,
-                                       dilation=dilation, padding=padding)
-            in_layer = torch.nn.utils.weight_norm(in_layer, name='weight')
+            in_layer = nn.Sequential(
+                nn.Conv1d(self.hidden_dim, self.hidden_dim, self.kernel_size,
+                          dilation=dilation, padding=padding),
+                nn.BatchNorm1d(self.hidden_dim),
+                nn.LeakyReLU()
+            )
+
             self.in_layers.append(in_layer)
 
         self.end = nn.Linear(self.hidden_dim, self.output_dim)
@@ -103,15 +107,16 @@ class Decoder(nn.Module):
 
         self.in_layers = torch.nn.ModuleList()
         for i in range(self.n_layers):
-            in_layer = torch.nn.Linear(self.hidden_dim, self.hidden_dim,
-                                       nn.Dropout(p=self.dropout))
-            in_layer = torch.nn.utils.weight_norm(in_layer, name='weight')
+            in_layer = torch.nn.Sequential(
+                torch.nn.Linear(self.hidden_dim, self.hidden_dim), nn.Dropout(p=self.dropout),
+                torch.nn.LeakyReLU())
+
             self.in_layers.append(in_layer)
 
         if hparams.data_feat == "Phase":
             # use Softmax
             self.end = torch.nn.Sequential(
-                torch.nn.Linear(self.hidden_dim, self.output_dim, nn.Dropout(p=self.dropout)),
+                torch.nn.Linear(self.hidden_dim, self.output_dim), nn.Dropout(p=self.dropout),
                 torch.nn.Softmax())
         else:
             # stick to Sigmoid (which is actually integrated in the loss function)
