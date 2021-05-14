@@ -255,11 +255,17 @@ class PropPredictor(LightningModule):
         if self.hparams.data_feat != "Phase":
             prediction = (torch.sigmoid(prediction + 1e-6)).round()
         else:
-            # find most likely class
-            max_classes = torch.argmax(prediction, dim=1)
-            # collect binary predictions
-            prediction[:,:] = 0
-            prediction[:, max_classes] = 1
+            for frame in range(prediction.shape[0]):
+                # find most likely class
+                max_classes = torch.argmax(prediction[frame])
+                # collect binary predictions
+                prediction[frame,:] = 0
+                prediction[frame,max_classes] = 1
+
+        # log statistics
+        for feat in range(prediction.shape[1]):
+            column = prediction[:, feat]
+            self.log("freq/fold_" + str(self.fold)+ "_feat_" + str(feat), torch.sum(column) / prediction.shape[0])
 
         # calculate metrics
         logs = evaluation(prediction.cpu(), truth.cpu())
