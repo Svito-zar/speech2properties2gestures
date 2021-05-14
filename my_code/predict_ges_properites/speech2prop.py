@@ -252,7 +252,14 @@ class PropPredictor(LightningModule):
     def accuracy(self, prediction, truth):
 
         # convert from likelihood to labels
-        prediction = (torch.sigmoid(prediction + 1e-6)).round()
+        if self.hparams.data_feat != "Phase":
+            prediction = (torch.sigmoid(prediction + 1e-6)).round()
+        else:
+            # find most likely class
+            max_classes = torch.argmax(prediction, dim=1)
+            # collect binary predictions
+            prediction[:,:] = 0
+            prediction[:, max_classes] = 1
 
         # calculate metrics
         logs = evaluation(prediction.cpu(), truth.cpu())
