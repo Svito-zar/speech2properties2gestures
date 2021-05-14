@@ -45,7 +45,7 @@ def evaluation(prediction, truth):
         acc_sum += label_acc
 
         # f1 score is even more important
-        label_f1 = f1_score(truth[:, label], prediction[:, label])
+        label_f1 = f1_score(truth[:, label], prediction[:, label], average="macro")
         log['F1/' + prefix + str(label)] = label_f1
         f1_sum += label_f1
 
