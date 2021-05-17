@@ -254,6 +254,8 @@ class PropPredictor(LightningModule):
         # convert from likelihood to labels
         if self.hparams.data_feat != "Phase":
             prediction = (torch.sigmoid(prediction + 1e-6)).round()
+            # calculate metrics
+            logs = evaluation(prediction.cpu(), truth.cpu())
         else:
             for frame in range(prediction.shape[0]):
                 # find most likely class
@@ -261,14 +263,13 @@ class PropPredictor(LightningModule):
                 # collect binary predictions
                 prediction[frame,:] = 0
                 prediction[frame,max_classes] = 1
+            # calculate metrics
+            logs = evaluation(prediction.cpu(), truth.cpu(), macroF1=False)
 
         # log statistics
         for feat in range(prediction.shape[1]):
             column = prediction[:, feat]
             self.log("freq/fold_" + str(self.fold)+ "_feat_" + str(feat), torch.sum(column) / prediction.shape[0])
-
-        # calculate metrics
-        logs = evaluation(prediction.cpu(), truth.cpu())
 
 	# terminate training if there is nothing to validation on
         if len(logs) == 0:

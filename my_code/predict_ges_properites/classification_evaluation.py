@@ -1,7 +1,7 @@
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 import torch
 
-def evaluation(prediction, truth):
+def evaluation(prediction, truth, macroF1=True):
     """
     Evaluate accuracy and f1 score for a given predictions
 
@@ -45,7 +45,10 @@ def evaluation(prediction, truth):
         acc_sum += label_acc
 
         # f1 score is even more important
-        label_f1 = f1_score(truth[:, label], prediction[:, label], average="macro")
+        if macroF1:
+            label_f1 = f1_score(truth[:, label], prediction[:, label], average="macro")
+        else:
+            label_f1 = f1_score(truth[:, label], prediction[:, label])
         log['F1/' + prefix + str(label)] = label_f1
         f1_sum += label_f1
 
