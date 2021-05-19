@@ -266,12 +266,51 @@ class PropPredictor(LightningModule):
             # calculate metrics
             logs = evaluation(prediction.cpu(), truth.cpu(), macroF1=False)
 
+        """
+        # FOR DEBUG - take random samples instead:
+        print("EVALUATING RANDOM")
+        # treat Phase in a special way
+        if self.hparams.data_feat == "Phase":
+            rand_sample = np.random.multinomial(1, [0.0055, 0.12243, 0.40856, 0.147994, 0.308, 0.007443], size=prediction.shape[0])
+
+            prediction = torch.zeros(prediction.shape)
+            for frame in range(prediction.shape[0]):
+                # find most likely class
+                curr_class = np.argmax(rand_sample[frame])
+                if curr_class == 5:
+                    continue
+                # set binary predictions
+                prediction[frame, curr_class] = 1
+
+            # calculate metrics
+            logs = evaluation(prediction, truth, macroF1=False)
+        else:
+            #for G_Phrase
+            rand_0 = np.random.binomial(1, 0.2905482155, size=prediction.shape[0])
+            rand_1 = np.random.binomial(1, 0.1447061637, size=prediction.shape[0])
+            rand_2 = np.random.binomial(1, 0.7202726131, size=prediction.shape[0])
+            rand_3 = np.random.binomial(1, 0.1278471932, size=prediction.shape[0])
+
+            # for G_semant
+            rand_0 = np.random.binomial(1, 0.04728881449, size=prediction.shape[0])
+            rand_1 = np.random.binomial(1, 0.1310157231, size=prediction.shape[0])
+            rand_2 = np.random.binomial(1, 0.137053865, size=prediction.shape[0])
+            rand_3 = np.random.binomial(1, 0.01942966461, size=prediction.shape[0])
+
+            prediction = np.stack((rand_0, rand_1, rand_2, rand_3), axis=1)
+            prediction = torch.from_numpy(prediction)
+
+            # calculate metrics
+            logs = evaluation(prediction, truth, macroF1=True)
+
+        """
+
         # log statistics
         for feat in range(prediction.shape[1]):
             column = prediction[:, feat]
             self.log("freq/fold_" + str(self.fold)+ "_feat_" + str(feat), torch.sum(column) / prediction.shape[0])
 
-	# terminate training if there is nothing to validation on
+        # terminate training if there is nothing to validation on
         if len(logs) == 0:
             self.should_stop = True
 
