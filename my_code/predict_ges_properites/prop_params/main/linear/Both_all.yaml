@@ -1,28 +1,28 @@
 audio_enc:
-  input_dim: 64
+  input_dim: 4
   seq_length: 11
-  hidden_dim: 96
-  n_layers: 3
-  output_dim: 16
-  kernel_size: 3
-  dropout: 0.19
-text_enc:
-  input_dim: 769
-  seq_length: 7
-  hidden_dim: 64
+  hidden_dim: 32
   n_layers: 3
   output_dim: 32
   kernel_size: 7
-  dropout: 0.56
-decoder:
-  hidden_dim: 96
+  dropout: 0.4
+text_enc:
+  input_dim: 769
+  seq_length: 7
+  hidden_dim: 128
   n_layers: 1
-  output_dim: 4
-  dropout: 0.16
+  output_dim: 64
+  kernel_size: 3
+  dropout: 0.22
+decoder:
+  hidden_dim: 128
+  n_layers: 2
+  output_dim: 19
+  dropout: 0.49
 Loss:
-  beta: 0.84
-  alpha: 0.86
-  gamma: 8.0
+  beta: 0.87
+  alpha: 0.7
+  gamma: 7.0
 Optim:
   Schedule:
     args:
@@ -53,10 +53,10 @@ auto_scale_batch_size: false
 auto_select_gpus: false
 batch_size: 512
 benchmark: true
-check_val_every_n_epoch: 3
+check_val_every_n_epoch: 4
 checkpoint_callback: true
-data_root: /home/taras/Documents/storage/Saga/GestPropPred/AudioTextBased/Phrase/no_zero/
-data_feat: Phrase
+data_root: /home/taras/Documents/storage/Saga/GestPropPred/Full_dataset_May/AllTogether/no_zero/
+data_feat: all
 default_root_dir: null
 deterministic: true
 distributed_backend: null
@@ -67,7 +67,7 @@ log_gpu_memory: null
 log_save_interval: 80
 log_root: results/gesture_flow/log/
 logger: true
-lr: 0.00016
+lr: 0.00044
 max_epochs: 50
 max_steps: null
 min_epochs: 1
@@ -102,4 +102,4 @@ weights_save_path: null
 weights_summary: top
 comet_logger:
   api_key: DVWPz8OdEU7HGvsUjlJhh5Q5p
-  project_name: Both2Phrase_no_zero
+  project_name: Both2All_no_zero

@@ -1,16 +1,28 @@
-CNN:
-  input_dim: 64
+audio_enc:
+  input_dim: 4
   seq_length: 11
-  hidden_dim: 128
+  hidden_dim: 64
+  n_layers: 2
+  output_dim: 96
+  kernel_size: 9
+  dropout: 0.34
+text_enc:
+  input_dim: 769
+  seq_length: 7
+  hidden_dim: 96
+  n_layers: 1
+  output_dim: 64
+  kernel_size: 7
+  dropout: 0.26
+decoder:
+  hidden_dim: 96
   n_layers: 2
   output_dim: 4
-  kernel_size: 7
-  dropout: 0.12
+  dropout: 0.37
 Loss:
-  beta: 0.81
-  alpha: 0.78
+  beta: 0.86
+  alpha: 0.81
   gamma: 9.0
-  keep_zeros_fraction: 0.97
 Optim:
   Schedule:
     args:
@@ -22,7 +34,7 @@ Optim:
         gamma: 0.95
         step_size: 10
     name: step
-    warm_up: 300
+    warm_up: 1000
   args:
     adam:
       betas:
@@ -39,11 +51,11 @@ amp_level: O1
 auto_lr_find: false
 auto_scale_batch_size: false
 auto_select_gpus: false
-batch_size: 512
+batch_size: 64
 benchmark: true
-check_val_every_n_epoch: 1
+check_val_every_n_epoch: 3
 checkpoint_callback: true
-data_root: /home/taras/Documents/storage/Saga/GestPropPred/AudioBased/G_Semantic/no_zero/
+data_root: /home/taras/Documents/storage/Saga/GestPropPred/Full_dataset_May/G_Semantic/no_zero/
 data_feat: Semantic
 default_root_dir: null
 deterministic: true
@@ -55,8 +67,8 @@ log_gpu_memory: null
 log_save_interval: 80
 log_root: results/gesture_flow/log/
 logger: true
-lr: 0.01
-max_epochs: 10
+lr: 0.00021
+max_epochs: 60
 max_steps: null
 min_epochs: 1
 min_steps: null
@@ -76,10 +88,12 @@ reload_dataloaders_every_epoch: false
 replace_sampler_ddp: true
 resume_from_checkpoint: null
 row_log_interval: 10
+seed: 12345
+speech_modality: both
 terminate_on_nan: false
 test_percent_check: 1.0
 track_grad_norm: -1
-train_percent_check: 0.1
+train_percent_check: 1.0
 truncated_bptt_steps: null
 val_check_interval: 1.0
 val_gest_dir: ./results/gesture_flow/val_res
@@ -88,4 +102,4 @@ weights_save_path: null
 weights_summary: top
 comet_logger:
   api_key: DVWPz8OdEU7HGvsUjlJhh5Q5p
-  project_name: Audio2Feat-semantic-no-zero
+  project_name: Both2G_semant_no_zero
