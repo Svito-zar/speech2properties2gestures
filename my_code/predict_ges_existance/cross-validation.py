@@ -48,7 +48,7 @@ if __name__ == "__main__":
     ), "Failed to find root dir `{}` of dataset.".format(hparams.data_root)
 
     # Load dataset
-    train_n_val_dataset = GesturePropDataset(hparams.data_root, "train_n_val", hparams.data_feat)
+    train_n_val_dataset = GesturePropDataset(hparams.data_root, "train_n_val", hparams.data_feat, speech_modality=hparams.speech_modality)
 
     if hparams.comet_logger["api_key"] != "None":
         from pytorch_lightning.loggers import CometLogger
@@ -74,6 +74,9 @@ if __name__ == "__main__":
 
     # K-fold LEAVE-ONE-OUT Cross Validation model evaluation
     for curr_record_id in recordings:
+
+        # FOR NOE
+        break
 
         # Print
         print(f'Testing on hold out recording {curr_record_id}')
@@ -137,7 +140,7 @@ if __name__ == "__main__":
         assert not any(np.isin(train_ids,test_ids))
 
         # Define the model
-        model = PropPredictor(hparams, "a" + str(fold), train_ids, test_ids, upsample=True)
+        model = GestPredictor(hparams, "a" + str(fold), train_ids, test_ids, upsample=True)
 
         # Define the trainer
         trainer = Trainer.from_argparse_args(hparams, deterministic=False, enable_pl_optimizer=True, logger=logger)
