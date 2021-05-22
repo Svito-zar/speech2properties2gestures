@@ -17,6 +17,23 @@ import torch.nn as nn
 import matplotlib.pyplot as plt
 
 
+class BasicLoss(nn.Module):
+    """
+    Normal cross-entropy
+    """
+
+    def __init__(self, integrated_sigmoid=True):
+        super().__init__()
+        self.integrated_sigmoid = integrated_sigmoid
+
+    def forward(self, pred_logits, target):
+        if self.integrated_sigmoid:
+            ce = F.binary_cross_entropy_with_logits(pred_logits, target, reduction='sum')
+        else:
+            ce = F.binary_cross_entropy(pred_logits, target, reduction='sum')
+        return ce
+
+
 class FocalLoss(nn.Module):
     """ Focal Loss - https://arxiv.org/abs/1708.02002
     Focal loss = -alpha_t * (1-pt)^gamma * log(pt)
@@ -25,44 +42,141 @@ class FocalLoss(nn.Module):
     Taken from https://github.com/NVIDIA/retinanet-examples/blob/f1671353cb657126354543e9e94ecb6b65c5ddfd/retinanet/loss.py
     """
 
-    def __init__(self, alpha=0.25, gamma=2):
+    def __init__(self, alpha, gamma, integrated_sigmoid=True):
         """
         Args:
             alpha:  Float between 0 and 1. weight factor for positive examples
             gamma:  Float 1 or higher to indicate the emphasis on misclassified examples
+            integrated_sigmoid:  binary flag - weather we are applying sigmoid when calculating the CE loss function
         """
         super().__init__()
         self.alpha = alpha
         self.gamma = gamma
+        self.integrated_sigmoid = integrated_sigmoid
 
-    def forward(self, pred_logits, target):
-        target = target.float()
-        pred = pred_logits.sigmoid()
-        ce = F.binary_cross_entropy_with_logits(pred_logits, target, reduction='none')
+
+    def forward(self, pred_logits, target, sum=True):
+        if self.integrated_sigmoid:
+            pred = pred_logits.sigmoid()
+            ce = F.binary_cross_entropy_with_logits(pred_logits, target, reduction='none')
+        else:
+            pred = pred_logits
+            ce = F.binary_cross_entropy(pred_logits, target, reduction='none')
         alpha = target * self.alpha + (1. - target) * (1. - self.alpha)
         pt = torch.where(target == 1,  pred, 1 - pred)
-        loss = alpha * (1. - pt) ** self.gamma * ce
-        return torch.sum(loss)
+        focal_loss = alpha * (1. - pt) ** self.gamma * ce
+        if sum:
+            return torch.sum(focal_loss)
+        else:
+            return focal_loss
 
+
+class ClassBalancedLoss(nn.Module):
+    """Compute the Class Balanced Loss between `logits` and the ground truth `labels`.
+
+        Class Balanced Loss: ((1-beta)/(1-beta^n))*Loss(labels, logits)
+        where Loss is one of the standard losses used for Neural Networks.
+    """
+
+    def __init__(self, samples_per_class, numb_of_classes, beta, alpha, gamma, integrated_sigmoid=True):
+        """
+        Args:
+              samples_per_class: A python list of size [no_of_classes].
+              numb_of_classes: total number of classes. int
+              beta: float. Hyperparameter for Class balanced loss.
+              gamma: float. Hyperparameter for Focal loss.
+              alpha: float. Hyperparameter for Focal loss.
+              integrated_sigmoid:  binary flag. Hyperparameter for Focal loss.
+        """
+        super().__init__()
+        self.FocalLoss = FocalLoss(alpha, gamma, integrated_sigmoid)
+
+        effective_num = 1.0 - np.power(beta, samples_per_class)
+        weights = (1.0 - beta) / np.array(effective_num)
+        weights = weights / np.sum(weights) * numb_of_classes # normalize weights
+        self.cb_weights = weights
+
+    def forward(self, pred_logits, labels):
+
+        labels_one_hot = labels.float()
+
+        weights = torch.tensor(self.cb_weights).float().to(pred_logits.device)
+
+        cb_loss = self.FocalLoss(pred_logits, labels_one_hot, sum=False)
+
+        weighted_loss = weights * cb_loss
+
+        return torch.sum(weighted_loss)
 
 
 def test_val():
 
-    labels = torch.tensor([[0],
-                           [0]]).float()
-    predictions = torch.tensor([[0.8042],
-                                [0.217]]).float()
+    no_of_classes = 3
+
+    labels = torch.tensor([[0, 1, 1],
+                           [0, 0, 0]]).float()
+    predictions = torch.tensor([[0.2642, 0.3076, 0.2010],
+                                [0.1917, 0.9089, 0.6967]]).float()
 
     logits = np.log(predictions / (1 - predictions))
 
+    beta = 0.95
     gamma = 5.0
+    samples_per_cls = [20, 300, 1]
     alpha = 0.9
 
-    cb_loss_function = FocalLoss( alpha, gamma)
+    cb_loss_function = ClassBalancedLoss(samples_per_cls, no_of_classes, beta, alpha, gamma)
 
     cb_loss = cb_loss_function(logits, labels)
 
     print(cb_loss)
+
+
+def plot_values():
+    no_of_classes = 3
+
+    labels = torch.tensor([1, 0, 0]).float()
+    predictions = torch.tensor([0.3642, 0.01, 0.01]).float()
+
+    beta = 0.95
+    gamma = 5.0
+    samples_per_cls = [20, 300, 1]  # ,2,2]
+    alpha = 0.8
+
+    cb_loss_function = ClassBalancedLoss(samples_per_cls, no_of_classes, beta, alpha, gamma)
+
+    x = np.linspace(0.0001, 0.999, 10)
+
+    y = [0 for range in range(len(x))]
+
+    for i in range(len(x)):
+        predictions[0] = x[i]
+        logits = np.log(predictions / (1 - predictions))
+        cb_loss = cb_loss_function(logits, labels)
+        y[i] = cb_loss
+
+    # Create plots with pre-defined labels.
+    fig, ax = plt.subplots()
+
+    ax.plot(x, y, label='line 1')  # + str(gamma)
+
+    gamma = 1.0
+
+    cb_loss_function = ClassBalancedLoss(samples_per_cls, no_of_classes, beta, alpha, gamma)
+
+    x = np.linspace(0.0001, 0.999, 10)
+
+    y = [0 for range in range(len(x))]
+
+    for i in range(len(x)):
+        predictions[0] = x[i]
+        logits = np.log(predictions / (1 - predictions))
+        cb_loss = cb_loss_function(logits, labels)
+        y[i] = cb_loss
+
+    ax.plot(x, y, label='line 2')  # + str(gamma)
+
+    plt.show()
 
 
 if __name__ == '__main__':

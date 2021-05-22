@@ -14,7 +14,126 @@ import urllib.request
 
 from my_code.predict_ges_existance.GestPropDataset import GesturePropDataset
 from my_code.predict_ges_existance.classification_evaluation import evaluation
-from my_code.predict_ges_existance.class_balanced_loss import FocalLoss
+from my_code.predict_ges_existance.class_balanced_loss import BasicLoss, FocalLoss, ClassBalancedLoss
+
+
+class ModalityEncoder(nn.Module):
+    def __init__(self, modality, hparams):
+        super().__init__()
+
+        if modality == "audio":
+            params = hparams.audio_enc
+        elif modality == "text":
+            params = hparams.text_enc
+        else:
+            raise NotImplementedError("The modality '", modality,"' is not implemented")
+
+        # read all the params
+        self.kernel_size = params["kernel_size"]
+        self.input_dim = params["input_dim"]
+        self.output_dim = params["output_dim"]
+        self.hidden_dim = params["hidden_dim"]
+        self.n_layers = params["n_layers"]
+        self.dropout = params["dropout"]
+
+        assert (self.kernel_size % 2 == 1)
+
+        # define the network
+        self.in_layers = torch.nn.ModuleList()
+
+        start = torch.nn.Conv1d(self.input_dim, self.hidden_dim, 1)
+        start = torch.nn.utils.weight_norm(start, name='weight')
+        self.start = start
+
+        for i in range(self.n_layers):
+            dilation = 2 ** i
+            padding = int((self.kernel_size * dilation - dilation) / 2)
+
+            in_layer = nn.Sequential(
+                nn.Conv1d(self.hidden_dim, self.hidden_dim, self.kernel_size,
+                          dilation=dilation, padding=padding),
+                nn.BatchNorm1d(self.hidden_dim),
+                nn.LeakyReLU()
+            )
+
+            self.in_layers.append(in_layer)
+
+        self.end = nn.Linear(self.hidden_dim, self.output_dim)
+
+
+    def forward(self, x):
+        """
+        Args:
+            x:   input speech sequences [batch_size, sequence length, speech_modality_dim]
+
+        Returns:
+            speech encoding vectors [batch_size, modality_enc_dim]
+        """
+
+        # reshape
+        input_seq_tr = torch.transpose(x, dim0=2, dim1=1)
+
+        # encode
+        h_seq = self.start(input_seq_tr)
+
+        # apply dilated convolutions
+        for i in range(self.n_layers):
+            h_seq = self.in_layers[i](h_seq)
+
+        # take only the current time step
+        seq_length = h_seq.shape[2]
+        hid = h_seq[:, :, seq_length // 2 + 1]
+
+        # adjust the output dim
+        return self.end(hid)
+
+
+class Decoder(nn.Module):
+    def __init__(self, enc_dim, hparams):
+        super().__init__()
+
+        # read params
+        params = hparams.decoder
+        self.input_dim = enc_dim
+        self.output_dim = params["output_dim"]
+        self.hidden_dim = params["hidden_dim"]
+        self.n_layers = params["n_layers"]
+        self.dropout = params["dropout"]
+        self.params = hparams
+
+        # define the network
+        start = torch.nn.Linear(self.input_dim, self.hidden_dim)
+        self.start = torch.nn.utils.weight_norm(start, name='weight')
+
+        self.in_layers = torch.nn.ModuleList()
+        for i in range(self.n_layers):
+            in_layer = torch.nn.Sequential(
+                torch.nn.Linear(self.hidden_dim, self.hidden_dim),
+                nn.BatchNorm1d(self.hidden_dim), nn.Dropout(p=self.dropout),
+                torch.nn.LeakyReLU())
+
+            self.in_layers.append(in_layer)
+
+        # use Sigmoid (which is actually integrated in the loss function)
+        self.end = torch.nn.Linear(self.hidden_dim, self.output_dim,
+                                         nn.Dropout(p=self.dropout))
+
+
+    def forward(self, x):
+        """
+        Args:
+            x:  speech encoding vectors [batch_size, speech_enc_dim]
+
+        Returns:
+            output: probabilities for gesture properties [batch_size, prop_dim]
+        """
+
+        hid = self.start(x)
+
+        for i in range(self.n_layers):
+            hid = self.in_layers[i](hid)
+
+        return self.end(hid)
 
 
 class GestPredictor(LightningModule):
@@ -35,54 +154,48 @@ class GestPredictor(LightningModule):
 
         # define key parameters
         self.hparams = hparams
-        self.kernel_size = hparams.CNN["kernel_size"]
-        self.input_dim = hparams.CNN["input_dim"]
-        self.output_dim = hparams.CNN["output_dim"]
-        self.hidden_dim = hparams.CNN["hidden_dim"]
-        self.n_layers = hparams.CNN["n_layers"]
+        self.sp_mod = hparams.speech_modality
 
-        self.loss_funct = FocalLoss(self.hparams.Loss["alpha"],self.hparams.Loss["gamma"])
+        # Define modality encoders depending on the speech modality used
+        enc_dim = 0
+        if self.sp_mod == "text" or self.sp_mod == "both":
+            self.text_enc = ModalityEncoder("text", hparams)
+            enc_dim += hparams.text_enc["output_dim"]
 
-        assert(self.kernel_size % 2 == 1)
+        if self.sp_mod == "audio" or self.sp_mod == "both":
+            self.audio_enc = ModalityEncoder("audio", hparams)
+            enc_dim += hparams.audio_enc["output_dim"]
 
-        self.in_layers = torch.nn.ModuleList()
+        # define the encoding -> output network
+        self.decoder = Decoder(enc_dim, hparams)
 
-        start = torch.nn.Conv1d(self.input_dim, self.hidden_dim, 1)
-        start = torch.nn.utils.weight_norm(start, name='weight')
-        self.start = start
+        # define the loss function
+        integrated_sigmoid = hparams.data_feat != "Phase"
+        print("Integrated sigmoid: ", integrated_sigmoid)
+        if hparams.CB["loss_type"] == "CB":
+            print("\nUsing Class-Balancing Loss\n")
+            self.loss_funct = ClassBalancedLoss(self.class_freq, self.decoder.output_dim,
+                                                beta=self.hparams.Loss["beta"], alpha=self.hparams.Loss["alpha"],
+                                                gamma=self.hparams.Loss["gamma"], integrated_sigmoid=integrated_sigmoid)
 
-        for i in range(self.n_layers):
-            dilation = 2 ** i
-            padding = int((self.kernel_size*dilation - dilation)/2)
-
-            in_layer = torch.nn.Conv1d(self.hidden_dim, self.hidden_dim, self.kernel_size,
-                                       dilation=dilation, padding=padding)
-            in_layer = torch.nn.utils.weight_norm(in_layer, name='weight')
-            self.in_layers.append(in_layer)
-
-        # Initializing last layer to 0 makes the affine coupling layers
-        # do nothing at first.  This helps with training stability
-        end_linear = torch.nn.Sequential(nn.Linear(hparams.CNN["hidden_dim"],
-                                                   hparams.CNN["output_dim"]), nn.Dropout(p=hparams.CNN["dropout"]))
-        end_linear = end_linear.apply(self.weights_init)
-        self.end = end_linear
-
-
-    def weights_init(self, m):
-        """Initialize the given linear layer using zero initialization."""
-        classname = m.__class__.__name__
-        if classname.find('Linear') != -1:
-            n = m.in_features * m.out_features
-            # m.weight.data should be zero
-            m.weight.data.fill_(0.0)
-            # m.bias.data
-            m.bias.data.fill_(0.0)
+        elif hparams.CB["loss_type"] == "focal":
+            print("\nUsing Focal Loss\n")
+            self.loss_funct = FocalLoss(alpha=self.hparams.Loss["alpha"],
+                                        gamma=self.hparams.Loss["gamma"],
+                                        integrated_sigmoid=integrated_sigmoid)
+        elif hparams.CB["loss_type"] == "normal":
+            print("\nUsing Normal Loss\n")
+            self.loss_funct = BasicLoss(integrated_sigmoid)
+        else:
+            raise NotImplementedError("The loss '", hparams.CB["loss_type"],"' is not implemented")
 
 
     def load_datasets(self):
         try:
-            self.train_dataset = GesturePropDataset(self.data_root, "train_n_val", self.hparams.data_feat)
-            self.val_dataset = GesturePropDataset(self.data_root, "train_n_val", self.hparams.data_feat, self.val_ids)
+            self.train_dataset = GesturePropDataset(self.data_root, "train_n_val", self.hparams.data_feat,
+                                                  speech_modality=self.hparams.speech_modality)
+            self.val_dataset = GesturePropDataset(self.data_root, "train_n_val", self.hparams.data_feat,
+                                                  self.hparams.speech_modality, self.val_ids)
         except FileNotFoundError as err:
             abs_data_dir = os.path.abspath(self.data_root)
             if not os.path.isdir(abs_data_dir):
@@ -95,28 +208,27 @@ class GestPredictor(LightningModule):
 
     def forward(self, batch):
 
-        text_inp = batch["text"].float()
+        if self.sp_mod == "text" or self.sp_mod == "both":
+            input_text_seq = batch["text"].float()
+            text_enc = self.text_enc(input_text_seq)
+            enc = text_enc
 
-        # reshape
-        input_seq_tr = torch.transpose(text_inp, dim0=2, dim1=1)
+        if self.sp_mod == "audio" or self.sp_mod == "both":
+            input_audio_seq = batch["audio"].float()
+            audio_enc = self.audio_enc(input_audio_seq)
+            enc = audio_enc
 
-        h_seq = self.start(input_seq_tr)
+        if self.sp_mod == "both":
+            enc = torch.cat((text_enc, audio_enc), 1)
 
-        for i in range(self.n_layers):
-            h_seq = self.in_layers[i](h_seq)
-
-        # take only the current time step
-        seq_length = h_seq.shape[2]
-        hid = h_seq[:, :, seq_length // 2 + 1]
-
-        output = self.end(hid)
+        output = self.decoder(enc)
 
         return output
 
 
     def loss(self, prediction, label):
 
-        loss_val = self.loss_funct(prediction, label)
+        loss_val = self.loss_funct(prediction.float(), label.float())
 
         return loss_val
 
@@ -129,7 +241,7 @@ class GestPredictor(LightningModule):
         # calculate metrics
         logs = evaluation(prediction.cpu(), truth.cpu())
 
-	# terminate training if there is nothing to validation on
+        # terminate training if there is nothing to validation on
         if len(logs) == 0:
             self.should_stop = True
 
@@ -139,7 +251,7 @@ class GestPredictor(LightningModule):
 
     def training_step(self, batch, batch_idx):
         prediction = self(batch).float()
-        true_lab = batch["property"][:, 2:].float() # ignore extra info, keep only the label
+        true_lab = batch["property"][:, 2:] # ignore extra info, keep only the label
 
         loss_array = self.loss(prediction, true_lab)
 
@@ -164,7 +276,7 @@ class GestPredictor(LightningModule):
     def validation_step(self, batch, batch_idx):
 
         prediction = self(batch).float()
-        true_lab = batch["property"][:,2:].int()
+        true_lab = batch["property"][:,2:]
 
         # plot sequences
         if batch_idx == 0:
@@ -172,7 +284,7 @@ class GestPredictor(LightningModule):
             x = batch["property"][:, 1].cpu()
             # convert from raw values to likelihood
             predicted_prob = torch.sigmoid(prediction + 1e-6)
-            for feat in range(self.output_dim):
+            for feat in range(self.decoder.output_dim):
                 plt.ylim([-0.01, 1.01])
                 plt.plot(x, batch["property"][:, feat+2].cpu(), 'r--', x, predicted_prob[:, feat].cpu(), 'bs--')
                 image_file_name = "fig/valid_res_"+str(self.current_epoch) + "_" + str(feat) + ".png"
