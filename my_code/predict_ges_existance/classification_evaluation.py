@@ -43,7 +43,7 @@ def evaluation(prediction, truth):
         acc_sum += label_acc
 
         # f1 score is even more important
-        label_f1 = f1_score(truth[:, label], prediction[:, label])
+        label_f1 = f1_score(truth[:, label], prediction[:, label], average="macro")
         log['F1/' + prefix + str(label)] = label_f1
         f1_sum += label_f1
 
@@ -59,15 +59,5 @@ def evaluation(prediction, truth):
 
     if n_present_features == 0:
         return log
-
-    mean_acc_phr = acc_sum / (n_present_features )
-    log["Acc/" + prefix + "av"] = mean_acc_phr
-
-    mean_f1_phr = f1_sum / (n_present_features)
-    log["F1/" + prefix + "av"] = mean_f1_phr
-
-    log["Prec/" + prefix + "av"] =  prec_sum / (n_present_features)
-
-    log["Rec/" + prefix + "av"] = recall_sum / (n_present_features)
     
     return log
