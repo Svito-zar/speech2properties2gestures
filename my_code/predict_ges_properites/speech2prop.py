@@ -16,7 +16,6 @@ from my_code.predict_ges_properites.GestPropDataset import GesturePropDataset
 from my_code.predict_ges_properites.classification_evaluation import evaluation
 from my_code.predict_ges_properites.class_balanced_loss import ClassBalancedLoss, FocalLoss, BasicLoss
 
-
 class ModalityEncoder(nn.Module):
     def __init__(self, modality, hparams):
         super().__init__()
@@ -83,6 +82,68 @@ class ModalityEncoder(nn.Module):
         # take only the current time step
         seq_length = h_seq.shape[2]
         hid = h_seq[:, :, seq_length // 2 + 1]
+
+        # adjust the output dim
+        return self.end(hid)
+
+
+class MLP_ModalityEncoder(nn.Module):
+    def __init__(self, modality, hparams):
+        super().__init__()
+
+        if modality == "audio":
+            params = hparams.audio_enc
+        elif modality == "text":
+            params = hparams.text_enc
+        else:
+            raise NotImplementedError("The modality '", modality,"' is not implemented")
+
+        # read all the params
+        self.input_dim = params["input_dim"]
+        self.output_dim = params["output_dim"]
+        self.hidden_dim = params["hidden_dim"]
+        self.n_layers = params["n_layers"]
+        self.dropout = params["dropout"]
+
+        # define the network
+
+        start = torch.nn.Linear(self.input_dim * params["seq_length"], self.hidden_dim)
+        start = torch.nn.utils.weight_norm(start, name='weight')
+        self.start = start
+
+        self.in_layers = torch.nn.ModuleList()
+
+        for i in range(self.n_layers):
+
+            in_layer = nn.Sequential(
+                nn.Linear(self.hidden_dim, self.hidden_dim),
+                nn.BatchNorm1d(self.hidden_dim),
+                nn.LeakyReLU()
+            )
+
+            self.in_layers.append(in_layer)
+
+        self.end = nn.Linear(self.hidden_dim, self.output_dim)
+
+
+    def forward(self, x):
+        """
+        Args:
+            x:   input speech sequences [batch_size, sequence length, speech_modality_dim]
+
+        Returns:
+            speech encoding vectors [batch_size, modality_enc_dim]
+        """
+
+        # reshape
+        input_flattened = torch.flatten(x, start_dim=1)
+
+        # encode
+        hid = self.start(input_flattened)
+
+        # apply dilated convolutions
+        for i in range(self.n_layers):
+            hid = self.in_layers[i](hid)
 
         # adjust the output dim
         return self.end(hid)
@@ -177,11 +238,11 @@ class PropPredictor(LightningModule):
         # Define modality encoders depending on the speech modality used
         enc_dim = 0
         if self.sp_mod == "text" or self.sp_mod == "both":
-            self.text_enc = ModalityEncoder("text", hparams)
+            self.text_enc = MLP_ModalityEncoder("text", hparams)
             enc_dim += hparams.text_enc["output_dim"]
 
         if self.sp_mod == "audio" or self.sp_mod == "both":
-            self.audio_enc = ModalityEncoder("audio", hparams)
+            self.audio_enc = MLP_ModalityEncoder("audio", hparams)
             enc_dim += hparams.audio_enc["output_dim"]
 
         # define the encoding -> output network
