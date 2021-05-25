@@ -39,8 +39,9 @@ class ModalityEncoder(nn.Module):
 
         # define the network
         self.in_layers = torch.nn.ModuleList()
+        self.res_skip_layers = torch.nn.ModuleList()
 
-        start = torch.nn.Conv1d(self.input_dim, self.hidden_dim, 1)
+        start = torch.nn.Conv1d(self.input_dim, 2 * self.hidden_dim, 1)
         start = torch.nn.utils.weight_norm(start, name='weight')
         self.start = start
 
@@ -49,13 +50,22 @@ class ModalityEncoder(nn.Module):
             padding = int((self.kernel_size * dilation - dilation) / 2)
 
             in_layer = nn.Sequential(
-                nn.Conv1d(self.hidden_dim, self.hidden_dim, self.kernel_size,
+                nn.Conv1d(self.hidden_dim, 2 * self.hidden_dim, self.kernel_size,
                           dilation=dilation, padding=padding),
                 nn.BatchNorm1d(self.hidden_dim),
                 nn.LeakyReLU()
             )
 
             self.in_layers.append(in_layer)
+
+            # last one is not necessary
+            if i < self.n_layers - 1:
+                res_skip_channels = 2 * self.hidden_dim
+            else:
+                res_skip_channels = self.hidden_dim
+            res_skip_layer = torch.nn.Conv1d(self.hidden_dim, res_skip_channels, 1)
+            res_skip_layer = torch.nn.utils.weight_norm(res_skip_layer, name='weight')
+            self.res_skip_layers.append(res_skip_layer)
 
         self.end = nn.Linear(self.hidden_dim, self.output_dim)
 
@@ -69,22 +79,34 @@ class ModalityEncoder(nn.Module):
             speech encoding vectors [batch_size, modality_enc_dim]
         """
 
+        # define output representation shape - [batch_size, speech_modality_dim]
+        output = torch.zeros_like(x.shape[0], x.shape[2])
+
         # reshape
         input_seq_tr = torch.transpose(x, dim0=2, dim1=1)
 
         # encode
         h_seq = self.start(input_seq_tr)
+        seq_length = h_seq.shape[2]
 
         # apply dilated convolutions
         for i in range(self.n_layers):
             h_seq = self.in_layers[i](h_seq)
 
-        # take only the current time step
-        seq_length = h_seq.shape[2]
-        hid = h_seq[:, :, seq_length // 2 + 1]
+            acts = (self.in_layers[i](h_seq),)
+
+            res_skip_acts = self.res_skip_layers[i](acts)
+
+            # half of the neurons go to hidden layer and half - directly to the output
+            if i < self.n_layers - 1:
+                h_seq = h_seq + res_skip_acts[:, :self.n_channels, :]
+                # take only the current time step for the output
+                output = output + res_skip_acts[:, self.n_channels:, seq_length // 2 + 1]
+            else:
+                output = output + res_skip_acts[:, :, seq_length // 2 + 1]
 
         # adjust the output dim
-        return self.end(hid)
+        return self.end(output)
 
 
 class MLP_ModalityEncoder(nn.Module):
