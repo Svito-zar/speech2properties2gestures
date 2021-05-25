@@ -41,7 +41,7 @@ class ModalityEncoder(nn.Module):
         self.in_layers = torch.nn.ModuleList()
         self.res_skip_layers = torch.nn.ModuleList()
 
-        start = torch.nn.Conv1d(self.input_dim, 2 * self.hidden_dim, 1)
+        start = torch.nn.Conv1d(self.input_dim, self.hidden_dim, 1)
         start = torch.nn.utils.weight_norm(start, name='weight')
         self.start = start
 
@@ -50,15 +50,14 @@ class ModalityEncoder(nn.Module):
             padding = int((self.kernel_size * dilation - dilation) / 2)
 
             in_layer = nn.Sequential(
-                nn.Conv1d(self.hidden_dim, 2 * self.hidden_dim, self.kernel_size,
+                nn.Conv1d(self.hidden_dim, self.hidden_dim, self.kernel_size,
                           dilation=dilation, padding=padding),
-                nn.BatchNorm1d(self.hidden_dim),
                 nn.LeakyReLU()
             )
 
             self.in_layers.append(in_layer)
 
-            # last one is not necessary
+            # last residual layer is not necessary
             if i < self.n_layers - 1:
                 res_skip_channels = 2 * self.hidden_dim
             else:
@@ -80,29 +79,35 @@ class ModalityEncoder(nn.Module):
         """
 
         # define output representation shape - [batch_size, speech_modality_dim]
-        output = torch.zeros_like(x.shape[0], x.shape[2])
+        output = torch.zeros(x.shape[0], self.hidden_dim)
 
         # reshape
         input_seq_tr = torch.transpose(x, dim0=2, dim1=1)
 
-        # encode
+        # encode into hiddden_dim channels
         h_seq = self.start(input_seq_tr)
         seq_length = h_seq.shape[2]
 
-        # apply dilated convolutions
+        # go through all the layers
         for i in range(self.n_layers):
-            h_seq = self.in_layers[i](h_seq)
 
-            acts = (self.in_layers[i](h_seq),)
+            # apply dilated convolutions
+            acts = self.in_layers[i](h_seq)
 
+            # apply residual network
             res_skip_acts = self.res_skip_layers[i](acts)
 
-            # half of the neurons go to hidden layer and half - directly to the output
+            # half of the outputs from ResLayer go to hidden layer and half - directly to the output
+            # both in a residual way (by summing)
             if i < self.n_layers - 1:
-                h_seq = h_seq + res_skip_acts[:, :self.n_channels, :]
-                # take only the current time step for the output
-                output = output + res_skip_acts[:, self.n_channels:, seq_length // 2 + 1]
+                # add first half of ResLayer output to the hidden layer
+                h_seq = h_seq + res_skip_acts[:, :self.hidden_dim, :]
+                # add the second half of ResLayer output to the output vector
+                # take only the current time step
+                output = output + res_skip_acts[:, self.hidden_dim:, seq_length // 2 + 1]
             else:
+                # add the ResLayer output to the output vector
+                # take only the current time step
                 output = output + res_skip_acts[:, :, seq_length // 2 + 1]
 
         # adjust the output dim
@@ -260,11 +265,11 @@ class PropPredictor(LightningModule):
         # Define modality encoders depending on the speech modality used
         enc_dim = 0
         if self.sp_mod == "text" or self.sp_mod == "both":
-            self.text_enc = MLP_ModalityEncoder("text", hparams)
+            self.text_enc = ModalityEncoder("text", hparams)
             enc_dim += hparams.text_enc["output_dim"]
 
         if self.sp_mod == "audio" or self.sp_mod == "both":
-            self.audio_enc = MLP_ModalityEncoder("audio", hparams)
+            self.audio_enc = ModalityEncoder("audio", hparams)
             enc_dim += hparams.audio_enc["output_dim"]
 
         # define the encoding -> output network
