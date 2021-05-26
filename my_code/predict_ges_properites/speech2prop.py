@@ -39,7 +39,8 @@ class ModalityEncoder(nn.Module):
 
         # define the network
         self.in_layers = torch.nn.ModuleList()
-        self.res_skip_layers = torch.nn.ModuleList()
+        self.res_skip_CNNs = torch.nn.ModuleList()
+        self.res_skip_MLPs = torch.nn.ModuleList()
 
         start = torch.nn.Conv1d(self.input_dim, self.hidden_dim, 1)
         start = torch.nn.utils.weight_norm(start, name='weight')
@@ -62,9 +63,17 @@ class ModalityEncoder(nn.Module):
                 res_skip_channels = 2 * self.hidden_dim
             else:
                 res_skip_channels = self.hidden_dim
-            res_skip_layer = torch.nn.Conv1d(self.hidden_dim, res_skip_channels, 1)
-            res_skip_layer = torch.nn.utils.weight_norm(res_skip_layer, name='weight')
-            self.res_skip_layers.append(res_skip_layer)
+
+            # Now ResLayer consist of CNN and MLP
+            res_skip_cnn = nn.Sequential(
+                torch.nn.Conv1d(self.hidden_dim, res_skip_channels, 1),
+                nn.LeakyReLU(),
+            )
+            res_skip_mlp = torch.nn.Linear(res_skip_channels, res_skip_channels)
+
+            res_skip_mlp = res_skip_mlp.apply(self.zero_init)
+            self.res_skip_CNNs.append(res_skip_cnn)
+            self.res_skip_MLPs.append(res_skip_mlp)
 
         self.end = nn.Linear(self.hidden_dim, self.output_dim)
 
@@ -95,7 +104,7 @@ class ModalityEncoder(nn.Module):
             acts = self.in_layers[i](h_seq)
 
             # apply residual network
-            res_skip_acts = self.res_skip_layers[i](acts)
+            res_skip_acts = self.apply_residual_net(acts, i)
 
             # half of the outputs from ResLayer go to hidden layer and half - directly to the output
             # both in a residual way (by summing)
@@ -112,6 +121,34 @@ class ModalityEncoder(nn.Module):
 
         # adjust the output dim
         return self.end(output)
+
+
+    def apply_residual_net(self, input_tensor, i):
+
+        # apply residual CNN
+        cnn_acts = self.res_skip_CNNs[i](input_tensor)
+
+        # transpose from [B, D, T] to [B, T, D]
+        transp_cnn_acts = torch.transpose(cnn_acts, 2, 1)
+
+        # apply residual MLP
+        transp_mlp_acts = self.res_skip_MLPs[i](transp_cnn_acts)
+
+        # transpose back from [B, T, D] to [B, D, T]
+        mlp_acts = torch.transpose(transp_mlp_acts, 2, 1)
+
+        return mlp_acts
+
+
+
+    def zero_init(self, m):
+        """Initialize the given linear layer using special initialization."""
+        classname = m.__class__.__name__
+        if classname.find('Linear') != -1:
+            # m.weight.data should be zero
+            m.weight.data.fill_(0.0)
+            # m.bias.data
+            m.bias.data.fill_(0.0)
 
 
 class MLP_ModalityEncoder(nn.Module):
