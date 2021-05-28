@@ -16,7 +16,78 @@ from my_code.predict_ges_properites.GestPropDataset import GesturePropDataset
 from my_code.predict_ges_properites.classification_evaluation import evaluation
 from my_code.predict_ges_properites.class_balanced_loss import ClassBalancedLoss, FocalLoss, BasicLoss
 
-class ModalityEncoder(nn.Module):
+
+class SimpleModalityEncoder(nn.Module):
+    def __init__(self, modality, hparams):
+        super().__init__()
+
+        if modality == "audio":
+            params = hparams.audio_enc
+        elif modality == "text":
+            params = hparams.text_enc
+        else:
+            raise NotImplementedError("The modality '", modality,"' is not implemented")
+
+        # read all the params
+        self.kernel_size = params["kernel_size"]
+        self.input_dim = params["input_dim"]
+        self.output_dim = params["output_dim"]
+        self.hidden_dim = params["hidden_dim"]
+        self.n_layers = params["n_layers"]
+        self.dropout = params["dropout"]
+
+        assert (self.kernel_size % 2 == 1)
+
+        # define the network
+        self.in_layers = torch.nn.ModuleList()
+
+        start = torch.nn.Conv1d(self.input_dim, self.hidden_dim, 1)
+        start = torch.nn.utils.weight_norm(start, name='weight')
+        self.start = start
+
+        for i in range(self.n_layers):
+            dilation = 2 ** i
+            padding = int((self.kernel_size * dilation - dilation) / 2)
+
+            in_layer = nn.Sequential(
+                nn.Conv1d(self.hidden_dim, self.hidden_dim, self.kernel_size,
+                          dilation=dilation, padding=padding),
+                nn.BatchNorm1d(self.hidden_dim),
+                nn.LeakyReLU()
+            )
+
+            self.in_layers.append(in_layer)
+
+        self.end = nn.Linear(self.hidden_dim, self.output_dim)
+
+
+    def forward(self, x):
+        """
+        Args:
+            x:   input speech sequences [batch_size, sequence length, speech_modality_dim]
+        Returns:
+            speech encoding vectors [batch_size, modality_enc_dim]
+        """
+
+        # reshape
+        input_seq_tr = torch.transpose(x, dim0=2, dim1=1)
+
+        # encode
+        h_seq = self.start(input_seq_tr)
+
+        # apply dilated convolutions
+        for i in range(self.n_layers):
+            h_seq = self.in_layers[i](h_seq)
+
+        # take only the current time step
+        seq_length = h_seq.shape[2]
+        hid = h_seq[:, :, seq_length // 2 + 1]
+
+        # adjust the output dim
+        return self.end(hid)
+
+
+class ResidualModalityEncoder(nn.Module):
     def __init__(self, modality, hparams):
         super().__init__()
 
@@ -302,11 +373,11 @@ class PropPredictor(LightningModule):
         # Define modality encoders depending on the speech modality used
         enc_dim = 0
         if self.sp_mod == "text" or self.sp_mod == "both":
-            self.text_enc = ModalityEncoder("text", hparams)
+            self.text_enc = SimpleModalityEncoder("text", hparams)
             enc_dim += hparams.text_enc["output_dim"]
 
         if self.sp_mod == "audio" or self.sp_mod == "both":
-            self.audio_enc = ModalityEncoder("audio", hparams)
+            self.audio_enc = SimpleModalityEncoder("audio", hparams)
             enc_dim += hparams.audio_enc["output_dim"]
 
         # define the encoding -> output network
