@@ -357,6 +357,7 @@ class PropPredictor(LightningModule):
         self.data_root = hparams.data_root
         self.upsample = upsample
         self.should_stop = False
+        self.use_speaker_ID = hparams.use_speaker_ID
 
         self.hparams = hparams
 
@@ -379,6 +380,9 @@ class PropPredictor(LightningModule):
         if self.sp_mod == "audio" or self.sp_mod == "both":
             self.audio_enc = SimpleModalityEncoder("audio", hparams)
             enc_dim += hparams.audio_enc["output_dim"]
+
+        if self.use_speaker_ID:
+            enc_dim += 1
 
         # define the encoding -> output network
         self.decoder = Decoder(enc_dim, hparams)
@@ -432,6 +436,10 @@ class PropPredictor(LightningModule):
 
         if self.sp_mod == "both":
             enc = torch.cat((text_enc, audio_enc), 1)
+
+        if self.use_speaker_ID:
+            speaker_ID = batch["property"][:, 0].unsqueeze(1)
+            enc =  torch.cat((text_enc, audio_enc, speaker_ID), 1)
 
         output = self.decoder(enc)
 
