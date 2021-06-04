@@ -1,27 +1,27 @@
 audio_enc:
   input_dim: 4
   seq_length: 11
-  hidden_dim: 16
-  n_layers: 1
-  output_dim: 96
-  kernel_size: 3
-  dropout: 0.128
+  hidden_dim: 64
+  n_layers: 0
+  output_dim: 32
+  kernel_size: 7
+  dropout: 0.25
 text_enc:
   input_dim: 769
   seq_length: 7
-  hidden_dim: 96
+  hidden_dim: 64
   n_layers: 2
-  output_dim: 64
+  output_dim: 32
   kernel_size: 5
-  dropout: 0.4
+  dropout: 0.21
 decoder:
-  hidden_dim: 128
+  hidden_dim: 96
   n_layers: 0
   output_dim: 4
-  dropout: 0.22
+  dropout: 0.34
 Loss:
-  beta: 0.84
-  alpha: 0.93
+  beta: 0.93
+  alpha: 0.81
   gamma: 4.0
 Optim:
   Schedule:
@@ -34,7 +34,7 @@ Optim:
         gamma: 0.95
         step_size: 10
     name: step
-    warm_up: 1000
+    warm_up: 843
   args:
     adam:
       betas:
@@ -48,15 +48,15 @@ Optim:
   name: adam
 CB:
   upsample: true
-  loss_type: CB
+  loss_type: normal
 accumulate_grad_batches: 1
 amp_level: O1
 auto_lr_find: false
 auto_scale_batch_size: false
 auto_select_gpus: false
-batch_size: 128
+batch_size: 512
 benchmark: true
-check_val_every_n_epoch: 3
+check_val_every_n_epoch: 5
 checkpoint_callback: true
 data_root: /home/taras/Documents/storage/Saga/GestPropPred/Full_dataset_May/Phrase/no_zero/
 data_feat: Phrase
@@ -70,8 +70,8 @@ log_gpu_memory: null
 log_save_interval: 80
 log_root: results/gesture_flow/log/
 logger: true
-lr: 0.00006
-max_epochs: 40
+lr: 0.00044
+max_epochs: 60
 max_steps: null
 min_epochs: 1
 min_steps: null
@@ -105,4 +105,4 @@ weights_save_path: null
 weights_summary: top
 comet_logger:
   api_key: DVWPz8OdEU7HGvsUjlJhh5Q5p
-  project_name: new_cb_with_upsampl_phrase
+  project_name: new_cb_with_upsample_phrase

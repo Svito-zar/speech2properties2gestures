@@ -1,28 +1,28 @@
 audio_enc:
   input_dim: 4
   seq_length: 11
-  hidden_dim: 128
-  n_layers: 3
-  output_dim: 96
+  hidden_dim: 96
+  n_layers: 1
+  output_dim: 32
   kernel_size: 7
-  dropout: 0.2
+  dropout: 0.4
 text_enc:
   input_dim: 769
   seq_length: 7
   hidden_dim: 96
-  n_layers: 1
-  output_dim: 32
+  n_layers: 3
+  output_dim: 16
   kernel_size: 5
-  dropout: 0.25
+  dropout: 0.14
 decoder:
-  hidden_dim: 128
-  n_layers: 2
+  hidden_dim: 32
+  n_layers: 3
   output_dim: 4
-  dropout: 0.199
+  dropout: 0.12
 Loss:
-  beta: 0.73
-  alpha: 0.92
-  gamma: 2.0
+  beta: 0.78
+  alpha: 0.8
+  gamma: 4.0
 Optim:
   Schedule:
     args:
@@ -34,7 +34,7 @@ Optim:
         gamma: 0.95
         step_size: 10
     name: step
-    warm_up: 1000
+    warm_up: 431
   args:
     adam:
       betas:
@@ -45,18 +45,18 @@ Optim:
       eps: 1.0e-08
     sgd:
       momentum: 0.9
-  name: adam
+  name: rmsprop
 CB:
   upsample: true
-  loss_type: CB
+  loss_type: normal
 accumulate_grad_batches: 1
 amp_level: O1
 auto_lr_find: false
 auto_scale_batch_size: false
 auto_select_gpus: false
-batch_size: 512
+batch_size: 64
 benchmark: true
-check_val_every_n_epoch: 3
+check_val_every_n_epoch: 5
 checkpoint_callback: true
 data_root: /home/taras/Documents/storage/Saga/GestPropPred/Full_dataset_May/G_Semantic/no_zero/
 data_feat: Semantic
@@ -70,8 +70,8 @@ log_gpu_memory: null
 log_save_interval: 80
 log_root: results/gesture_flow/log/
 logger: true
-lr: 0.00096
-max_epochs: 40
+lr: 0.00069
+max_epochs: 60
 max_steps: null
 min_epochs: 1
 min_steps: null

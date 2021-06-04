@@ -101,6 +101,7 @@ truncated_bptt_steps: null
 val_check_interval: 1.0
 val_gest_dir: ./results/gesture_flow/val_res
 val_percent_check: 0.2
+use_speaker_ID: false
 weights_save_path: null
 weights_summary: top
 comet_logger:
