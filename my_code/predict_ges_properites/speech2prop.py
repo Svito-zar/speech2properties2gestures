@@ -10,12 +10,40 @@ from torch.optim.lr_scheduler import LambdaLR, MultiplicativeLR, StepLR
 from torch.utils.data import DataLoader
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 import urllib.request
 
 from my_code.predict_ges_properites.GestPropDataset import GesturePropDataset
 from my_code.predict_ges_properites.classification_evaluation import evaluation
 from my_code.predict_ges_properites.class_balanced_loss import ClassBalancedLoss, FocalLoss, BasicLoss
 
+mpl.rcParams.update(mpl.rcParamsDefault)
+# adjust parameters
+rcParams = {'text.latex.preamble':r'\usepackage{amsmath}',
+                'text.usetex': False,
+                'savefig.pad_inches': 0.0,
+                'figure.autolayout': False,
+                'figure.constrained_layout.use': True,
+                'figure.constrained_layout.h_pad':  0.05,
+                'figure.constrained_layout.w_pad':  0.05,
+                'figure.constrained_layout.hspace': 0.0,
+                'figure.constrained_layout.wspace': 0.0,
+                'font.size':        16,
+                'axes.labelsize':   'small',
+                'legend.fontsize':  'small',
+                'xtick.labelsize':  'x-small',
+                'ytick.labelsize':  'x-small',
+                'mathtext.default': 'regular',
+                'font.family' :     'sans-serif',
+                'axes.labelpad': 1,
+                #'xtick.direction': 'in',
+                #'ytick.direction': 'in',
+                'xtick.major.pad': 2,
+                'ytick.major.pad': 2,
+                'xtick.minor.pad': 2,
+                'ytick.minor.pad': 2
+               }
+mpl.rcParams.update(rcParams)
 
 class SimpleModalityEncoder(nn.Module):
     def __init__(self, modality, hparams):
@@ -159,7 +187,7 @@ class ResidualModalityEncoder(nn.Module):
         """
 
         # define output representation shape - [batch_size, speech_modality_dim]
-        output = torch.zeros(x.shape[0], self.hidden_dim)
+        output = torch.zeros(x.shape[0], self.hidden_dim, device="cuda")
 
         # reshape
         input_seq_tr = torch.transpose(x, dim0=2, dim1=1)
@@ -359,6 +387,11 @@ class PropPredictor(LightningModule):
         self.should_stop = False
         self.use_speaker_ID = hparams.use_speaker_ID
 
+        if self.upsample:
+             print("\nUpsampling will be used\n")
+        else:
+             print("\nNo Upsampling this time\n")
+
         self.hparams = hparams
 
         # obtain datasets
@@ -428,18 +461,22 @@ class PropPredictor(LightningModule):
             input_text_seq = batch["text"].float()
             text_enc = self.text_enc(input_text_seq)
             enc = text_enc
+            if self.use_speaker_ID:
+               speaker_ID = batch["property"][:, 0].unsqueeze(1)
+               enc =  torch.cat((text_enc, speaker_ID), 1)
 
         if self.sp_mod == "audio" or self.sp_mod == "both":
             input_audio_seq = batch["audio"].float()
             audio_enc = self.audio_enc(input_audio_seq)
             enc = audio_enc
+            if self.use_speaker_ID:
+               speaker_ID = batch["property"][:, 0].unsqueeze(1)
+               enc =  torch.cat((audio_enc, speaker_ID), 1)
 
         if self.sp_mod == "both":
             enc = torch.cat((text_enc, audio_enc), 1)
-
-        if self.use_speaker_ID:
-            speaker_ID = batch["property"][:, 0].unsqueeze(1)
-            enc =  torch.cat((text_enc, audio_enc, speaker_ID), 1)
+            if self.use_speaker_ID:
+               enc =  torch.cat((text_enc, audio_enc, speaker_ID), 1)
 
         output = self.decoder(enc)
 
@@ -505,8 +542,7 @@ class PropPredictor(LightningModule):
             prediction = torch.from_numpy(prediction)
 
             # calculate metrics
-            logs = evaluation(prediction, truth, macroF1=True)
-
+            logs = evaluation(prediction.cpu(), truth.cpu(), macroF1=True)
         """
 
         # log statistics
@@ -542,6 +578,7 @@ class PropPredictor(LightningModule):
     def training_epoch_end(self, training_step_outputs):
         # do something with all training_step outputs
         if self.should_stop:
+            print("\nSTOPPPING")
             raise KeyboardInterrupt
 
 
@@ -557,12 +594,28 @@ class PropPredictor(LightningModule):
             # convert from raw values to likelihood
             predicted_prob = torch.sigmoid(prediction + 1e-6)
             for feat in range(self.decoder.output_dim):
+                plt.figure(figsize=(5.196, 3.63), dpi=300)
                 plt.ylim([-0.01, 1.01])
-                plt.plot(x, batch["property"][10:60, feat+2].cpu(), 'r--', x, predicted_prob[10:60, feat].cpu(), 'bs--')
-                image_file_name = "fig/valid_res_"+str(self.current_epoch) + "_" + str(feat) + ".png"
-                plt.savefig(fname=image_file_name)
+                plt.plot(x, batch["property"][110:160, feat+2].cpu(), 'r--', x, predicted_prob[110:160, feat].cpu(), 'bs--', markersize=1)
+                image_file_name = "fig/valid_res_"+str(self.current_epoch) + "_" + str(feat) + "_1.jpg"
+                #spines = plt.gca().spines
+                #spines['right'].set_visible(False)
+                #spines['top'].set_visible(False)
+                plt.savefig(fname=image_file_name, dpi=600)
                 self.logger.experiment.log_image(image_file_name)
                 plt.clf()
+
+                plt.figure(figsize=(5.196, 3.63), dpi=300)
+                plt.ylim([-0.01, 1.01])
+                plt.plot(x, batch["property"][610:660, feat+2].cpu(), 'r--', x, predicted_prob[610:660, feat].cpu(), 'bs--', markersize=1)
+                image_file_name = "fig/valid_res_"+str(self.current_epoch) + "_" + str(feat) + "_2.jpg"
+                #spines = plt.gca().spines
+                #spines['right'].set_visible(False)
+                #spines['top'].set_visible(False)
+                plt.savefig(fname=image_file_name, dpi=600)
+                self.logger.experiment.log_image(image_file_name)
+                plt.clf()
+
 
         loss_array = self.loss(prediction, true_lab)
 
