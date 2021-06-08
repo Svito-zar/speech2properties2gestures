@@ -1,3 +1,7 @@
+"""
+This is the main model file for Speech2Prop prediction model
+"""
+
 import os
 
 import optuna
@@ -45,7 +49,12 @@ rcParams = {'text.latex.preamble':r'\usepackage{amsmath}',
                }
 mpl.rcParams.update(rcParams)
 
+
+# I guess all those modality encoders could be put in a separate file
 class SimpleModalityEncoder(nn.Module):
+    """
+    The main modality encoder - dilated CNN without any skip or residual connections
+    """
     def __init__(self, modality, hparams):
         super().__init__()
 
@@ -149,6 +158,7 @@ class ResidualModalityEncoder(nn.Module):
             dilation = 2 ** i
             padding = int((self.kernel_size * dilation - dilation) / 2)
 
+            # normal hidden layer - is a dilated CNN
             in_layer = nn.Sequential(
                 nn.Conv1d(self.hidden_dim, self.hidden_dim, self.kernel_size,
                           dilation=dilation, padding=padding),

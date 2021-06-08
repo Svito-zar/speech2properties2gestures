@@ -102,7 +102,7 @@ if __name__ == "__main__":
         # Train
         trainer.fit(model)
 
-    # K-fold mix 10% of each Cross Validation model evaluation
+    # K-fold mix 5% of each Cross Validation model evaluation
     fold_numb = 20
     for fold in range(fold_numb):
         # Print
@@ -112,7 +112,7 @@ if __name__ == "__main__":
         train_ids = []
         test_ids = []
 
-        # Take 10% of each recording into the validation set
+        # Take 5% of each recording into the validation set
         for curr_record_id in recordings:
             curr_record_indices = np.where(recordings_ids == curr_record_id)[0]
             len_curr_ids = len(curr_record_indices)
