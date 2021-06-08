@@ -42,8 +42,6 @@ def create_dataset(raw_data_folder, general_folder, specific_subfolder, feature_
 
     curr_folder = general_folder + specific_subfolder + "/"
 
-    context_length = 5
-
     # Initialize empty lists for the dataset input and output
     X_dataset = []
     Y_dataset = []
@@ -62,6 +60,7 @@ def create_dataset(raw_data_folder, general_folder, specific_subfolder, feature_
 
             feat_hf = h5py.File(name=curr_folder + feat_file, mode='r')
 
+            # Set the correct property name, since the notation differ
             if feature_name == "Semantic":
                 right_feat_name = "R.G.Right " + feature_name
                 left_feat_name = "R.G.Left " + feature_name
@@ -98,7 +97,7 @@ def create_dataset(raw_data_folder, general_folder, specific_subfolder, feature_
             total_number_of_frames = int(duration * 5) + 1  # 0.2s time-steps
 
             audio_file_name = audio_dir + "V" + str(recording_id) + "K3.mov_enhanced.wav"
-            curr_file_audio_data = extract_audio_from_the_current_file(audio_file_name, start_time, end_time, total_number_of_frames, context_length)
+            curr_file_audio_data = extract_audio_from_the_current_file(audio_file_name, start_time, end_time, total_number_of_frames)
 
             curr_file_text_data = extract_text_from_the_current_file(text_hf, start_time, end_time, total_number_of_frames)
 
@@ -268,12 +267,16 @@ def remove_data_when_interlocutors_speaks(curr_file_audio_data, curr_file_text_d
 
 def merge_sp_semantic_feat(Y):
     """
+    Merge certain speech semantic features (which are very similar or duplicate)
+
+    'R.S.Semantic Feature': {0: 'Amount', 1: 'Direction', 2: 'Deictic', 3: 'Shape', 4: 'Property', 5: 'relative Position', 6: 'Size', 7: 'Entity'}}
+    'R.S.Semantic Feature': {0: 'Amount', 1: 'Direction', 2: 'Shape', 3: 'Property', 4: 'Size', 5: 'Entity'}}
 
     Args:
         Y:                  output dataset with binary gesture properties
 
     Returns:
-        Y_train_n_val:      fixed input dataset with the features merged together
+        Y_train_n_val:      fixed output dataset with the features merged together
 
     """
 
@@ -379,7 +382,7 @@ def extract_text_from_the_current_file(text_hf, start_time, end_time, total_numb
     return curr_file_X_data
 
 
-def extract_audio_from_the_current_file(audio_file, start_time, end_time, total_number_of_frames, context_length):
+def extract_audio_from_the_current_file(audio_file, start_time, end_time, total_number_of_frames):
     """
     Extract audio features from a given file
 
@@ -388,14 +391,13 @@ def extract_audio_from_the_current_file(audio_file, start_time, end_time, total_
         start_time:             start time
         end_time:               end time
         total_number_of_frames: total number of frames in the future feature file
-        context_length:         how many previous and next frames to consider
 
     Returns:
         curr_file_A_data:       [total_number_of_frames, X, Y] array of audio features
 
     """
 
-    fps = 20
+    context_length = 5
 
     start_time = start_time.round(1)
     end_time = end_time.round(1)
@@ -534,6 +536,7 @@ def upsample(X, Y, n_features):
     Y_upsampled = list(np.copy(Y))
     X_upsampled = list(np.copy(X))
 
+    # upsample
     for frame_ind in range(Y.shape[0]):
         multipl_factor = 1
         for curr_feat in range(n_features):
@@ -563,6 +566,9 @@ if __name__ == "__main__":
     gen_folder = "/home/tarask/Documents/Datasets/SaGa/Processed/feat/"
     dataset_name = subfolder = "train_n_val"
 
+    # currently we extract features for one property at a time, but it could be significantly
+    # improved, since input features are always the same and don't need to be recalculated
+
     feature_dim = 8
     feature_name = "R.S.Semantic Feature"
     create_dataset(raw_data_folder, gen_folder, subfolder, feature_name, dataset_name, feature_dim)
@@ -574,8 +580,6 @@ if __name__ == "__main__":
     feature_dim = 5
     feature_name = "Phase"
     create_dataset(raw_data_folder, gen_folder, subfolder, feature_name, dataset_name, feature_dim)
-
-    exit(0)
 
     feature_dim = 4
     feature_name = "Semantic"
