@@ -1,6 +1,35 @@
 # Gesture Differently
-Gesture differently: probabilistic speaker-independent gesture generation using normalizing flows.
+*Speech2Properties2Gestures: Gesture-Property Prediction as a Tool for Generating Representational Gestures from Speech*.   
+Taras Kucherenko, Rajmund Nagy, Michael Neff, Hedvig Kjellström and Gustav Eje Henter.
+
+*Multimodal analysis of hand gesture properties predictibility*.    
 Taras Kucherenko, Patrik Jonell, Rajmund Nagy, Michael Neff, Hedvig Kjellström and Gustav Eje Henter.
+
+# Data Processing
+
+### To encode binary gesture properties
+```
+python my_code/data_processing/annotations/create_binary_gesture_labels.py
+```
+This will create 25 files (for each recording) of gesture binary features in `feat` subfolder of the `annotations` folder
+
+### To encode text words into BERT word-embeddings
+```
+python my_code/data_processing/annotations/encode_text.py
+```
+This will create 25 files (for each recording) of text embeddings in `feat` subfolder of the `annotations` folder
+
+### To split the dataset into Test and Train_n_Val
+I always did this part manually by putting the corresponding files from `feat` subfolder here to `test` and `train_n_val` subfolders in the folder where I want to keep the data.
+
+### To create the dataset files
+```
+python my_code/data_processing/annotations/create_dataset.py
+```
+This will create dataset files in the form `train_n_val_A_Semantic.npy` in the root folder of the same folder where `train_n_val` subfolder was placed.
+
+
+# GestureFlow
 
 ### To start visualization server
 ```
