@@ -63,12 +63,14 @@ class GesturePropDataset(Dataset):
         property = self.y_dataset[idx]
 
         if self.sp_mod == "text":
+	    #text = self.t_dataset[idx, :, 1:]
             text = self.t_dataset[idx]
             sample = {'text': text, 'property': property}
         elif self.sp_mod == "audio":
             audio = self.a_dataset[idx]
             sample = {'audio': audio, 'property': property}
         elif self.sp_mod == "both":
+            #text = self.t_dataset[idx, :, 1:]
             text = self.t_dataset[idx]
             audio = self.a_dataset[idx]
             sample = {'audio': audio, 'text': text, 'property': property}
