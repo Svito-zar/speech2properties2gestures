@@ -55,25 +55,25 @@ def text_to_feat(tokenizer, model, text):
     last_hidden_states = outputs[0]
     sub_word_encodings = last_hidden_states[0, :]
 
-    actual_tokens = tokenizer.convert_ids_to_tokens(input_ids.tolist()[0])
-    actual_tokens = actual_tokens
+    sub_word_tokens = tokenizer.convert_ids_to_tokens(input_ids.tolist()[0])
 
-    id = 0
+    # For each word, we merge the sub-word embeddings (if there are more than one) into a single vector 
     word_encodings = []
-    while id < len(actual_tokens):
-        curr_word = [actual_tokens[id]]
-        curr_enc = [sub_word_encodings[id]]
-        if id < len(actual_tokens) - 1:
-            while actual_tokens[id + 1][0] == "#":
-                id += 1
-                curr_word.append(actual_tokens[id])
-                curr_enc.append(sub_word_encodings[id])
-                if id == len(actual_tokens) - 1:
+    token_idx = 0
+    while token_idx < len(sub_word_tokens):
+        curr_enc = [sub_word_encodings[token_idx]]
+        if token_idx < len(sub_word_tokens) - 1:
+            # Related sub-words are denoted by a # character
+            # e.g. the word 'incoming' may be split into [in, #com, #ing]
+            while sub_word_tokens[token_idx + 1][0] == "#":
+                token_idx += 1
+                curr_enc.append(sub_word_encodings[token_idx])
+                if token_idx == len(sub_word_tokens) - 1:
                     break
-        actual_enc = np.mean(curr_enc, keepdims=1)
-        actual_enc = actual_enc[0]
-        id += 1
-        word_encodings.append(actual_enc)
+        merged_word_enc = np.mean(curr_enc, keepdims=1)
+        merged_word_enc = merged_word_enc[0]
+        word_encodings.append(merged_word_enc)
+        token_idx += 1
 
     text_enc = torch.stack(word_encodings)
 
@@ -111,11 +111,12 @@ def encode_text(tokenizer, model,elan_file, hdf5_file_name):
 
         if word is not None:
             word = word.lstrip()
-            if word != "" and word != " ":
+            if word != "":
                 text.append(word)
 
     # Split text into short enough parts
     numb_parts = len(text) // 400 + 1
+    
     full_text_enc = []
     for part in range(numb_parts):
         text_part = text[part*400:(part+1)*400]
@@ -125,7 +126,7 @@ def encode_text(tokenizer, model,elan_file, hdf5_file_name):
 
         full_text_enc.append(text_part_enc)
 
-    # Combine two halfs together
+    # Concatenate the text parts into a single tensor
     full_text_enc = torch.cat(full_text_enc, 0)
 
     # Now encode all the words together with their timing information
@@ -135,13 +136,12 @@ def encode_text(tokenizer, model,elan_file, hdf5_file_name):
     for key, value in curr_tier.items():
         (st_t, end_t, word, _) = value
 
-        if word is not None and word != "" and word != " ":
-
+        if word is not None and word.lstrip() != "":
             time_n_feat = [time_key[st_t] / 1000] + [time_key[end_t] / 1000] + list(full_text_enc[word_id])
 
             curr_column_features.append(np.array(time_n_feat))
 
-            word_id+=1
+            word_id += 1
 
     curr_column_features = np.array(curr_column_features)
 
