@@ -19,43 +19,44 @@ def fix_typos(label):
 
     return typo_dict[label] if label in typo_dict else label
 
-def split_label(label):
+def split_annotation_into_labels(annotation):
     """
-    Split combined labels into a list of single labels (e.g. 'deictic-beat' to ['deictic', 'beat']).
+    Split the given annotation string into a list of labels.
     """
+    # NOTE: re.split() always returns a list, so we use the flatten function to avoid 
+    #       nested lists, e.g. flatten([['deictic'], ['iconic']]) = ['deictic', 'iconic']
     flatten = itertools.chain.from_iterable
     
-    # Split on all separators (sequentially) that are found in the data
-    label_parts = [label]
+    # Split on all separators that are found in the data
+    labels = [annotation]
     for sep in ['-', '/', ',', '\n']:
-        # NOTE: 'flatten' squashes the lists that re.split() returns
-        label_parts = flatten([re.split(sep, part) for part in label_parts])
+        labels = flatten([re.split(sep, part) for part in labels])
         
-    
     # Remove leading/trailing whitespace
-    label_parts = [part.strip() for part in label_parts]
+    labels = [part.strip() for part in labels]
     
-    return label_parts
+    return labels
     
-def clean_and_split_label(label):
+def extract_labels(annotation_str):
     """
-    Fix typos and return the the given (potentially compound) label
-    as a list of individual labels.
+    Split the given annotation string into individual labels, while fixing known typos.
     """
-    label = label.lower().strip()
-
+    annotation_str = annotation_str.lower().strip()
+    if annotation_str == "":
+        return []
+        
     # Remove special characters
     special_chars = "!?@#%^&*_"
     for char in special_chars:
-        label = label.replace(char, "")
+        annotation_str = annotation_str.replace(char, "")
         
-    if label == "entity relative position":
-        label = "entity-relative position"
-    elif label == "relative positionm amount":
-        label = "relative position-amount"
+    if annotation_str == "entity relative position":
+        annotation_str = "entity-relative position"
+    elif annotation_str == "relative positionm amount":
+        annotation_str = "relative position-amount"
     
     # Split combined labels e.g. iconic-deictic -> [iconic, deictic]
-    label_parts = split_label(label)    
-    label_parts = [fix_typos(part) for part in label_parts]
+    labels = split_annotation_into_labels(annotation_str)    
+    labels = [fix_typos(label) for label in labels]
 
-    return label_parts
+    return labels
