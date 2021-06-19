@@ -7,76 +7,69 @@ import h5py
 
 from my_code.data_processing.annotations.investigate_data import clean_label
 
+def open_elan_tier_for_property(elan_file, property_name):
+    if property_name not in elan_file.tiers:
+        raise KeyError()
+    
+    tier = elan_file.tiers[property_name]
 
-def create_dict(curr_folder, columns_to_consider, dict_file):
+    return tier[0] if len(tier[0]) > 0 else tier[1]
+
+def open_or_create_label_dict(annotation_folder, dict_file):
     """
-    Build dictionary based on all the possible features in the dataset
+    Open or create a dictionary that maps property names to their index-label pairs.
+
     Args:
-        curr_folder:         folder with the dataset
-        columns_to_consider: columns to consider
-        dict_file:           file to store the created dictionary (pickle)
+        annotation_folder:  path to the annotation folder
+        dict_file:  the save path of the dictionary
 
     Returns:
-        nothing
-
+        The dictionary that maps properties to their labels.
     """
+    if path.isfile(dict_file):
+        with open(dict_file, 'rb') as handle:
+            print(f"Opening label dictionary: '{dict_file}'.")
+            return pickle.load(handle)
 
-    # Create dictionary for all the labels
-    dict = {}
+    print(f"Creating label dictionary: '{dict_file}'.")
+    label_dict = {}
 
-    # go though the gesture features
-    for column in columns_to_consider:
-
-        curr_values = []
+    for property_name in ALL_PROPERTIES:
+        possible_labels = set()
 
         # go through all the files in the dataset
-        for item in os.listdir(curr_folder):
-            if item[-3:] != "eaf":
+        for filename in os.listdir(annotation_folder):
+            if not filename.endswith("eaf"):
                 continue
-            curr_file = curr_folder + item
 
-            elan = pympi.Elan.Eaf(file_path=curr_file)
-            curr_tiers = elan.tiers
+            annotation_path = join(annotation_folder, filename)
+            elan_file = pympi.Elan.Eaf(file_path=annotation_path)
 
-            if column in curr_tiers:
-                curr_tier = curr_tiers[column][0]
-                if len(curr_tier) == 0:
-                    curr_tier = curr_tiers[column][1]
-            else:
+            try:
+                elan_tier = open_elan_tier_for_property(elan_file, property_name)
+            except KeyError:
                 break
 
-            for key, value in curr_tier.items():
-                if len(value) == 4:
-                    (st_t, end_t, label, _) = value
-                    # sometime they are messed up
-                    if label is None and _ is None:
-                        (st_t, label, _, _) = value
+            for annotation_entry in elan_tier.values():
+                assert len(annotation_entry) == 4
+                (st_t, end_t, label, _) = annotation_entry
+                # Sometimes they are messed up
+                if label is None:
+                    (st_t, label, _, _) = annotation_entry
+
                 if label is not None and label != "" and label != " ":
-                    label_cleaned = clean_label(label)
-                    for label_parts in label_cleaned:
-                        curr_values.append(label_parts)
+                    cleaned_label = clean_label(label)
+                    for label_parts in cleaned_label:
+                        possible_labels.add(label_parts)
+        # Explicitly store the label indices
+        label_dict[property_name] = {i: val for i, val in enumerate(possible_labels)}
 
-        # If this feature is actually present
-        if len(set(curr_values)) > 0:
-
-            # create a corresponding dictionary
-            dict[column] = {}
-            for idx, val in enumerate(set(curr_values)):
-                dict[column][idx] = val
-
-            print(column, len(set(curr_values)))
-            unique_values = np.array(set(curr_values))
-            print(unique_values)
-            print("\n")
-
+    # Save the dictionary
     f = open(dict_file, "wb")
-    pickle.dump(dict, f)
+    pickle.dump(label_dict, f)
     f.close()
 
-    print(dict)
-
-    print("Done!")
-
+    return label_dict
 
 def encode_other_features(total_dict, curr_file, columns_to_consider):
     """
@@ -325,8 +318,23 @@ def encode_g_semant(total_dict, curr_file):
 
 
 if __name__ == "__main__":
+    ALL_PROPERTIES = [
+        'R.G.Left Semantic', 'R.G.Right Semantic',
+        'R.G.Left.Phase',    'R.G.Right.Phase',
+        'R.G.Left.Phrase',   'R.G.Right.Phrase',
+        'R.G.Left.Practice', 'R.G.Right.Practice',
+        'R.Movement_relative_to_other_Hand',
+        'R.S.Pos' ,
+        'R.S.Semantic Feature'
+    ]
 
-    curr_folder = "/home/tarask/Documents/Datasets/SaGa/Raw/All_the_transcripts/"
+    TOP_LEVEL_PROPERTIES = [
+        "R.G.Left.Phase", "R.G.Right.Phase",
+        "R.G.Left.Phrase", "R.G.Right.Phrase",
+        "R.S.Semantic Feature"
+    ]
+    
+    curr_folder = "/home/work/Desktop/repositories/probabilistic-gesticulator/dataset/All_the_transcripts/"
 
     dict_file = "dict.pkl"
 
@@ -349,12 +357,13 @@ if __name__ == "__main__":
 
         print(curr_file)
 
-        encode_other_features(total_dict, curr_file, columns_to_consider)
+        encode_other_features(total_dict, curr_file, TOP_LEVEL_PROPERTIES)
 
         encode_main_g_features(total_dict, curr_file)
 
         encode_g_semant(total_dict, curr_file)
 
-        feature_file = "feat/" + curr_file[61:63] + "_feat.hdf5"
-        hf = h5py.File(name=feature_file, mode='r')
-        print(len(hf.keys()), hf.keys())
+        # file_idx = path.basename(annotation_file)[:2]
+        # feature_file = join("feat/", f"{file_idx}_feat.hdf5")
+        # hf = h5py.File(name=feature_file, mode='r')
+        # # print(len(hf.keys()), hf.keys())
