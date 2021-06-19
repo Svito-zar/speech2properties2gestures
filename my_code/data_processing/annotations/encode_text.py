@@ -1,3 +1,5 @@
+from tqdm import tqdm
+from os.path import join
 from transformers import DistilBertTokenizer, DistilBertModel
 import torch
 import pympi
@@ -82,37 +84,32 @@ def text_to_feat(tokenizer, model, text):
     return text_enc
 
 
-def encode_text(tokenizer, model,elan_file, hdf5_file_name):
+def encode_text(tokenizer, model, elan_object, hdf5_dataset):
     """
     Encode features of a current file and save into hdf5 dataset
     Args:
         tokenizer:            BERT tokenizer
         model:                BERT model itself
-        elan_file:            file with the ELAN annotations
-        hdf5_file_name:       file for storing the pre=processed features
+        elan_object:          ELAN object containing the annotations
+        hdf5_dataset:         the hdf5 dataset where the vectors will be saved
 
     Returns:
-        nothing, saves a new hdf5 file
+        nothing, but the text features are saved into 'hdf5_dataset'
     """
-
-    elan = pympi.Elan.Eaf(file_path=elan_file)
-    curr_tier = elan.tiers["R.S.Form"][0]
-    time_key = elan.timeslots
-
-    # create hdf5 file
-    assert os.path.isfile(hdf5_file_name) == False
-    hf = h5py.File(name=hdf5_file_name, mode='a')
+    text_tier = elan_object.tiers["R.S.Form"][0]
+    timeslot = elan_object.timeslots
 
     # Extract text to encode it first
     text = []
 
-    for key, value in curr_tier.items():
-        (st_t, end_t, word, _) = value
+    for value in text_tier.values():
+        st_t, end_t, word, _ = value
 
-        if word is not None:
-            word = word.lstrip()
-            if word != "":
-                text.append(word)
+        assert word is not None
+
+        word = word.lstrip()
+        if word != "":
+            text.append(word)
 
     # Split text into short enough parts
     numb_parts = len(text) // 400 + 1
@@ -133,11 +130,11 @@ def encode_text(tokenizer, model,elan_file, hdf5_file_name):
     curr_column_features = []
 
     word_id = 0
-    for key, value in curr_tier.items():
-        (st_t, end_t, word, _) = value
+    for value in text_tier.values():
+        st_t, end_t, word, _ = value
 
         if word is not None and word.lstrip() != "":
-            time_n_feat = [time_key[st_t] / 1000] + [time_key[end_t] / 1000] + list(full_text_enc[word_id])
+            time_n_feat = [timeslot[st_t] / 1000] + [timeslot[end_t] / 1000] + list(full_text_enc[word_id])
 
             curr_column_features.append(np.array(time_n_feat))
 
@@ -145,9 +142,19 @@ def encode_text(tokenizer, model,elan_file, hdf5_file_name):
 
     curr_column_features = np.array(curr_column_features)
 
-    hf.create_dataset(name="text", data=curr_column_features.astype(np.float64))
+    hdf5_dataset.create_dataset(name="text", data=curr_column_features.astype(np.float64))
 
-    hf.close()
+
+def create_hdf5_file(annotation_filename):
+    """
+    Create the output hdf5 object based on the ELAN filename.
+    """
+    file_idx = annotation_filename[:2]
+    hdf5_file_name = join("feat/", f"{file_idx}_text.hdf5")
+    
+    assert os.path.isfile(hdf5_file_name) == False
+    
+    return h5py.File(name=hdf5_file_name, mode='w')
 
 if __name__ == "__main__":
 
@@ -155,15 +162,16 @@ if __name__ == "__main__":
     tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-german-cased')
     model = DistilBertModel.from_pretrained('distilbert-base-german-cased')
 
-    curr_folder = "/home/tarask/Documents/Datasets/SaGa/Raw/All_the_transcripts/"
+    annotation_folder = "/home/work/Desktop/repositories/probabilistic-gesticulator/dataset/All_the_transcripts/"
 
     # go though the gesture features
-    for item in os.listdir(curr_folder):
-        if item[-3:] != "eaf":
+    for filename in tqdm(os.listdir(annotation_folder)):
+        if not filename.endswith("eaf"):
             continue
-        elan_file = curr_folder + item
-        print(elan_file)
-
-        feature_file = "feat/" + item[:2] + "_text.hdf5"
-
-        encode_text(tokenizer, model, elan_file, feature_file)
+        
+        annotation_file = join(annotation_folder, filename)
+        elan_object = pympi.Elan.Eaf(file_path=annotation_file)
+        
+        hdf5_dataset = create_hdf5_file(filename)
+        
+        encode_text(tokenizer, model, elan_object, hdf5_dataset)
