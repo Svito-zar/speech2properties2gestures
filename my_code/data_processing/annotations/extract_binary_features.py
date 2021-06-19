@@ -1,11 +1,13 @@
+from tqdm import tqdm
+from os import path
+from os.path import join
 import pympi
 import numpy as np
-import re
 import os
 import pickle
 import h5py
-
-from my_code.data_processing.annotations.investigate_data import clean_label
+from pprint import pprint
+from data_processing.annotations import utils
 
 def open_elan_tier_for_property(elan_file, property_name):
     if property_name not in elan_file.tiers:
@@ -34,7 +36,9 @@ def open_or_create_label_dict(annotation_folder, dict_file):
     print(f"Creating label dictionary: '{dict_file}'.")
     label_dict = {}
 
-    for property_name in ALL_PROPERTIES:
+    progress_bar = tqdm(ALL_PROPERTIES)
+    for property_name in progress_bar:
+        progress_bar.set_description("Parsing property")
         possible_labels = set()
 
         # go through all the files in the dataset
@@ -48,7 +52,8 @@ def open_or_create_label_dict(annotation_folder, dict_file):
             try:
                 elan_tier = open_elan_tier_for_property(elan_file, property_name)
             except KeyError:
-                break
+                # TODO(RN) This used to be break which I think is incorrect
+                continue
 
             for annotation_entry in elan_tier.values():
                 assert len(annotation_entry) == 4
@@ -58,9 +63,10 @@ def open_or_create_label_dict(annotation_folder, dict_file):
                     (st_t, label, _, _) = annotation_entry
 
                 if label is not None and label != "" and label != " ":
-                    cleaned_label = clean_label(label)
+                    cleaned_label = utils.clean_and_split_label(label)
                     for label_parts in cleaned_label:
                         possible_labels.add(label_parts)
+        
         # Explicitly store the label indices
         label_dict[property_name] = {i: val for i, val in enumerate(possible_labels)}
 
@@ -334,11 +340,13 @@ if __name__ == "__main__":
         "R.S.Semantic Feature"
     ]
     
-    curr_folder = "/home/work/Desktop/repositories/probabilistic-gesticulator/dataset/All_the_transcripts/"
+    annotation_folder = "/home/work/Desktop/repositories/probabilistic-gesticulator/dataset/All_the_transcripts/"
 
-    dict_file = "dict.pkl"
+    # create_dict(annotation_folder, "dict.pkl")
 
-    # create_dict(curr_folder, columns_to_consider, dict_file)
+    dict_file = "dict_new.pkl"
+    label_dict = open_or_create_label_dict(annotation_folder, dict_file)
+    pprint(label_dict)
 
     with open(dict_file, 'rb') as handle:
         total_dict = pickle.load(handle)
@@ -350,18 +358,19 @@ if __name__ == "__main__":
                            #"R.G.Right Semantic", "R.G.Left Semantic",]
 
     # go though the gesture features
-    for item in os.listdir(curr_folder):
-        if item[-3:] != "eaf":
+    for filename in sorted(os.listdir(annotation_folder)):
+        if not filename.endswith(".eaf"):
             continue
-        curr_file = curr_folder + item
 
-        print(curr_file)
+        annotation_file = join(annotation_folder, filename)
 
-        encode_other_features(total_dict, curr_file, TOP_LEVEL_PROPERTIES)
+        print(path.basename(annotation_file))
 
-        encode_main_g_features(total_dict, curr_file)
+        encode_other_features(label_dict, annotation_file, TOP_LEVEL_PROPERTIES)
 
-        encode_g_semant(total_dict, curr_file)
+        encode_main_g_features(label_dict, annotation_file)
+
+        encode_g_semant(label_dict, annotation_file)
 
         # file_idx = path.basename(annotation_file)[:2]
         # feature_file = join("feat/", f"{file_idx}_feat.hdf5")
