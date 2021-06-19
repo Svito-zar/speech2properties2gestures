@@ -68,7 +68,7 @@ def open_or_create_label_dict(annotation_folder, dict_file):
                         possible_labels.add(label_parts)
         
         # Explicitly store the label indices
-        label_dict[property_name] = {i: val for i, val in enumerate(possible_labels)}
+        label_dict[property_name] = {i: val for i, val in enumerate(sorted(possible_labels))}
 
     # Save the dictionary
     f = open(dict_file, "wb")
