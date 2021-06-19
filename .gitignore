@@ -135,3 +135,5 @@ dmypy.json
 data/*.hdf5
 models
 config.local.toml
+
+dataset/
