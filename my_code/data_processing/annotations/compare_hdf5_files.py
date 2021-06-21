@@ -6,7 +6,7 @@ import os
 import pickle
 
 reference_folder = "/tmp/mozilla_work0/SaGa_feat_split/train_n_val"
-folder_to_test = "feat/"
+folder_to_test = "feat/gesture_properties/"
 dict_file = "dict.pkl"
 
 with open(dict_file, 'rb') as handle:
