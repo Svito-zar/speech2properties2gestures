@@ -342,8 +342,7 @@ def remove_redundant_phrases(feature_array):
 
     return new_feature_array
 
-
-def extract_text_from_the_current_file(text_hf, start_time, end_time, total_number_of_frames):
+def extract_text_features(text_dataset, word_starts, start_time, end_time, total_number_of_frames):
     """
     Extract text features from a given file
 
@@ -357,32 +356,26 @@ def extract_text_from_the_current_file(text_hf, start_time, end_time, total_numb
         curr_file_X_data:       [total_number_of_frames, 7, 769] array of text features
 
     """
-
-    text_array = text_hf.get("text")
-    word_starts = text_array[:, 0].round(1)
-
-    # First save all the text features
-    curr_file_X_data = np.zeros((total_number_of_frames, 7, 769))
-
+    sequence_length = 7
+    n_bert_dims = 768
+    # NOTE: 
+    text_features = np.zeros((total_number_of_frames, sequence_length, 1 + n_bert_dims))
     time_ind = 0
-    for time_st in np.arange(start_time, end_time - 0.1, 0.2):
-        # find the corresponding words
-        curr_word_id = bisect.bisect(word_starts, time_st) - 1
-
-        # encode current word with the next three and previous three words
-        # while also storing time offset from the current time-step
-        input_vector = [
-            np.concatenate(([word_starts[word_id] - time_st], text_array[word_id, 2:]))
-            for word_id in range(curr_word_id - 3, curr_word_id + 4)]
-
-        curr_file_X_data[time_ind] = np.array(input_vector)
-
+    for timestep in tqdm(np.arange(start_time, end_time - 0.1, 0.2), desc="text", leave=False): # TODO(RN) why - 0.1?
+        curr_word_idx = bisect.bisect(word_starts, timestep) - 1
+        
+        # TODO(RN): The time offset is negative in the original impl.,
+        #           I think it should be the other way around
+        feature_vector = [
+            np.array( [word_starts[word_idx] - timestep] + list(text_dataset[word_idx, 2:]) )
+            for word_idx in range(curr_word_idx - 3, curr_word_idx + 4)]
+        
+        text_features[time_ind] = np.array(feature_vector)
         time_ind += 1
 
-    return curr_file_X_data
+    return text_features
 
-
-def extract_audio_from_the_current_file(audio_file, start_time, end_time, total_number_of_frames):
+def extract_audio_features(audio_file, start_time, end_time, total_number_of_frames):
     """
     Extract audio features from a given file
 
@@ -396,34 +389,13 @@ def extract_audio_from_the_current_file(audio_file, start_time, end_time, total_
         curr_file_A_data:       [total_number_of_frames, X, Y] array of audio features
 
     """
-
+    fps = 5
     context_length = 5
+    # print("Timing: [", start_time, ", ", end_time, "]")
+    # print("Number of frames: ", total_number_of_frames)
 
-    start_time = start_time.round(1)
-    end_time = end_time.round(1)
-
-    print("Timing: [", start_time, ", ", end_time, "]")
-    print("Number of frames: ", total_number_of_frames)
-
-    fps = 5  # steps are 0.2s
-
-    """
-    # extract spectrogram for the whole audio file
-    print("Calculating spectrogram ... ")
-    audio_array = calculate_spectrogram(audio_file, fps)
-
-    # reduce the fps from 20 to 5, so 4 times
-    end = 4 * int(len(audio_array) / 4)
-    audio_array = np.mean(audio_array[:end].reshape(-1, audio_array.shape[1], 4), 2)
-    
-    print("SPECTRORAM Audio array shape: ", audio_array.shape)
-
-    """
-
-    # extract prosodic features for the whole audio file
-    print("Calculating prosodic features ... ")
-    audio_array = extract_prosodic_features(audio_file)
-    print("PROSODIC Audio array shape: ", audio_array.shape)
+    prosodic_features = extract_prosodic_features(audio_file)
+    # print("PROSODIC Audio array shape: ", prosodic_features.shape)
 
     # create a list of sequences with a fixed past and future context length ( overlap them to use data more efficiently)
     start_ind = int(start_time*fps)
@@ -432,13 +404,13 @@ def extract_audio_from_the_current_file(audio_file, start_time, end_time, total_
     stop_ind = int(end_time*fps) + 1
 
     assert start_ind > context_length
-    assert stop_ind < audio_array.shape[0]
+    assert stop_ind < prosodic_features.shape[0]
 
-    curr_file_A_data = np.array([audio_array[i - context_length: i + context_length+1]
-                                    for i in range(start_ind, stop_ind, seq_step)])
+    audio_features = np.array([
+        prosodic_features[i - context_length : i + context_length + 1]
+        for i in range(start_ind, stop_ind, seq_step)])
 
-    return curr_file_A_data
-
+    return audio_features
 
 def extract_features_from_the_current_file(spec_feat_hf, recording_id, start_time, end_time, total_number_of_frames, feature_dim):
     """
@@ -500,7 +472,6 @@ def extract_features_from_the_current_file(spec_feat_hf, recording_id, start_tim
             curr_file_Y_data[time_ind] = output_vector
 
     return curr_file_Y_data
-
 
 def upsample(X, Y, n_features):
     """
