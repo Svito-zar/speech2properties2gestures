@@ -15,7 +15,6 @@ class MissingDataException(Exception):
 # TODO(RN): TEMPORARY
 ROUNDING_ERROR_COUNT = 0
 
-
 # TODO(RN): TEMPORARY
 def check_time_diff(arr):
     # See if the time difference between the two time steps is always the same
@@ -23,10 +22,13 @@ def check_time_diff(arr):
     max_td = np.max(time_dif)
     min_td = np.min(time_dif)
     if max_td != 0.2 or min_td != 0.2:
-        print("WARNING: WRONG TIMING, time difference is in [", min_td, ", ", max_td, "]")
-        print( [arr[int(i)-1:int(i)+2, 1] for i in np.argwhere(time_dif != 0.2) ] )
+        tqdm.write("WARNING: WRONG TIMING, time difference is in [", min_td, ", ", max_td, "]")
+        tqdm.write( [arr[int(i)-1:int(i)+2, 1] for i in np.argwhere(time_dif != 0.2) ] )
 
 def get_timesteps_between(start_time, end_time):
+    """
+    Get a list of 0.2s timesteps between the two given timestamps, with 'end_time' included.
+    """
     start_time = correct_the_time(start_time)
     end_time = correct_the_time(end_time)
     n_frames = calculate_number_of_frames(start_time, end_time)
@@ -47,28 +49,54 @@ def calculate_number_of_frames(start_time, end_time):
 
     return n_frames
 
-def open_property_data_for_both_hands(hdf5_dataset, property_name):
-
-    # Get left/right hand property names
+def get_left_right_property_name(property_name):
     if property_name == "Semantic":
         R_property_name = "R.G.Right " + property_name
-        L_property_name  = "R.G.Left "  + property_name
+        L_property_name = "R.G.Left "  + property_name
+
     elif property_name == "Phrase" or property_name == "Phase":
         R_property_name = "R.G.Right." + property_name
-        L_property_name  = "R.G.Left."  + property_name
-    elif property_name == "R.S.Semantic Feature":
-        R_property_name = property_name
-        L_property_name  = None
+        L_property_name = "R.G.Left."  + property_name
+
+    elif property_name == "S_Semantic":
+        # Speech semantics are not related to the hands, so we arbitrarily store them in the right hand
+        R_property_name = "R.S.Semantic Feature"
+        L_property_name = " "
+
     else:
         raise MissingDataException("Unexpected property: ", property_name)
-    
-    R_property_data = hdf5_dataset.get(R_property_name)
-    L_property_data = None if L_property_name is None else hdf5_dataset.get(L_property_name)
 
-    if R_property_data is not None:
-        R_property_data = np.array(R_property_data) 
-    if L_property_data is not None:
-        L_property_data = np.array(L_property_data)
+    return L_property_name, R_property_name
+
+def open_and_clean_property_data_for_both_hands(hdf5_dataset, property_name):
+    """
+    Return the left/right gesture property arrays from the given dataset,
+    with unwanted labels merged or removed.
+    """
+    # Get left/right hand property names
+    L_property_name, R_property_name = get_left_right_property_name(property_name)
+    
+    # Open the property arrays in the hdf5 dataset
+    L_property_data = np.array(hdf5_dataset.get(L_property_name))
+    R_property_data = np.array(hdf5_dataset.get(R_property_name))
+
+    # Clean up the property labels
+    if property_name == "Semantic":
+        if not is_empty(R_property_data):
+            # Only the right hand labels need to be cleaned
+            R_property_data = merge_redundant_gesture_semantic_labels(R_property_data)
+    
+    elif property_name == "Phrase":
+        L_property_data = remove_unwanted_phrase_labels(L_property_data)
+        R_property_data = remove_unwanted_phrase_labels(R_property_data)
+
+    elif property_name == "S_Semantic":
+        # Speech semantics are stored in the "right hand"
+        if not is_empty(R_property_data):
+            R_property_data = merge_redundant_speech_semantic_labels(R_property_data)
+
+    elif property_name != "Phase":
+        raise ValueError("Unexpected property: ", property_name)
 
     return L_property_data, R_property_data
 
@@ -95,7 +123,7 @@ def correct_the_time(time_st):
         time_st += 0.1
     return round(time_st, 1)
 
-def create_datasets(audio_dir, text_dir, gest_prop_dir, elan_dir, properties_to_consider, property_dims, output_dir):
+def create_datasets(audio_dir, text_dir, gest_prop_dir, elan_dir, property_names, property_dims, output_dir):
     """
     Create np.array datasets containing aligned audio, text and binary gesture property frames.
     
@@ -103,17 +131,17 @@ def create_datasets(audio_dir, text_dir, gest_prop_dir, elan_dir, properties_to_
         audio_dir:      the folder with the audio files
         text_dir:       the folder with the text transcriptions (see 'encode_text.py')
         gest_prop_dir:  the folder containing the property vectors (see 'extract_binary_features.py')
-        properties_to_consider: a list of gesture property names 
+        property_names: a list of gesture property names 
         property_dims:  a list of the corresponding dimensionalities
         output_dir:     the folder where the datasets will be saved
     Returns:
         nothing, but it saves the audio/text/property arrays into 'output_dir' per file
 
-    NOTE: see 'open_property_data_for_both_hands()' for the list of supported properties
+    NOTE: see 'open_and_clean_property_data_for_both_hands()' for the list of supported properties
     NOTE: each frame is 0.2 seconds long.
     """
     all_audio_features     = []
-    all_text_features       = []
+    all_text_features      = []
     all_gest_prop_features = []
     
     recording_idx_progress_bar = tqdm(range(1, 26))
@@ -122,15 +150,14 @@ def create_datasets(audio_dir, text_dir, gest_prop_dir, elan_dir, properties_to_
         recording_idx = str(recording_idx).zfill(2)
         recording_idx_progress_bar.set_description(f"Recording {recording_idx}")
        
+        # Check for missing files
         audio_file     = join(audio_dir, f"V{recording_idx}.mov_enhanced.wav")
         text_file      = join(text_dir, f"{recording_idx}_text.hdf5")
         gest_prop_file = join(gest_prop_dir, f"{recording_idx}_feat.hdf5")
-        
-        # Check for missing files
         input_files    = [audio_file, text_file, gest_prop_file]
         missing_files = [basename(file) for file in input_files if not isfile(file)]
         if len(missing_files) > 0:
-            print(f"Skipping recording {recording_idx} because of missing files: {missing_files}.")
+            tqdm.write(f"Skipping recording {recording_idx} because of missing files: {missing_files}.")
             continue
             
         # Open the encoded hdf5 datasets
@@ -140,17 +167,11 @@ def create_datasets(audio_dir, text_dir, gest_prop_dir, elan_dir, properties_to_
         # Extract timing info from the dataset
         word_starts             = text_dataset[:, 0].round(1)
         word_ends               = text_dataset[:, 1].round(1)
+        # We reserve first and last three words as context
         recording_start_time    = correct_the_time(word_starts[3])
-        recording_end_time      = correct_the_time(word_ends[-4])# - 0.3) # TODO(RN) why 0.3?
+        recording_end_time      = correct_the_time(word_ends[-4])
         total_number_of_frames  = calculate_number_of_frames(
             recording_start_time, recording_end_time)
-
-
-        text_features = extract_text_features(
-            text_dataset, word_starts, 
-            recording_start_time, recording_end_time, 
-            total_number_of_frames
-        )
 
         audio_features = extract_audio_features(
             audio_file, 
@@ -158,41 +179,51 @@ def create_datasets(audio_dir, text_dir, gest_prop_dir, elan_dir, properties_to_
             total_number_of_frames
         )
 
+        text_features = extract_text_features(
+            text_dataset, word_starts, 
+            recording_start_time, recording_end_time, 
+            total_number_of_frames
+        )
+
         gest_prop_features = create_gesture_property_datasets(
             recording_idx, gest_prop_hf, 
-            properties_to_consider, property_dims, 
+            property_names, property_dims, 
             recording_start_time, recording_end_time, 
             total_number_of_frames
         )
         
-        remove_data_when_interlocutor_speaks(
+        audio_features, text_features, gest_prop_features = remove_data_when_interlocutor_speaks(
             elan_dir, audio_features, text_features, gest_prop_features, 
             recording_idx, recording_start_time, recording_end_time
         )
-
+        
+        # Ensure that the frames are aligned
+        for property_dataset in gest_prop_features:
+            if not is_empty(property_dataset):
+                assert len(property_dataset) == len(audio_features) == len(text_features) or len(property_dataset) == 0
+     
         all_audio_features.append(audio_features)
         all_text_features.append(text_features)
         all_gest_prop_features.append(gest_prop_features)
 
-         
-    # TODO(RN) remaining stuff from old implementation:
-    # -------------------------------------------------
-    # ensure synchronization
-        # assert Y_dataset.shape[0] == A_dataset.shape[0] == X_dataset.shape[0]
 
-    # # calculate frequencies
-    # feat_dim = Y.shape[1] - 2
-    # freq = np.zeros(feat_dim)
-    # for feat in range(feat_dim):
-    #     column = Y[:, 2 + feat]
-    #     freq[feat] = np.sum(column)  # These are the binary gesture properties
+    np.save(join(output_dir, "Audio.npy"), np.concatenate(all_audio_features))
+    np.save(join(output_dir, "Text.npy"), np.concatenate(all_text_features))
+    save_property_datasets(all_gest_prop_features, property_names)
 
-    # print("Frequencies are: ", freq)
 
-    # # save files
-    # np.save(gen_folder + dataset_name+ "_Y_" + feature_name + ".npy", Y)
-    # np.save(gen_folder + dataset_name + "_X_" + feature_name + ".npy", X)
-    # np.save(gen_folder + dataset_name + "_A_" + feature_name + ".npy", Audio_feat)
+def save_property_datasets(all_gest_prop_features, property_names):
+    
+    for property_idx, property_name in enumerate(property_names):
+        curr_property_features = []
+        for file_properties in all_gest_prop_features:
+            if not is_empty(file_properties[property_idx]):
+                curr_property_features.append(file_properties[property_idx])
+        
+        output_data = np.concatenate(curr_property_features)
+        output_file = join(output_dir, f"{property_name}_properties.npy")
+        
+        np.save(output_file, output_data)
 
 
 def create_gesture_property_datasets(
@@ -203,7 +234,7 @@ def create_gesture_property_datasets(
     Transform the given hdf5 dataset of binary gesture property vectors into
     arrays with shape (total_number_of_frames, 2 + property_dim).
 
-    NOTE: See 'open_property_data_for_both_hands()' for a list of supported properties.
+    NOTE: See 'open_and_clean_property_data_for_both_hands()' for a list of supported properties.
     NOTE: The feature arrays contain the 'recording_idx' and the timestep as extra information.
     NOTE: The features vectors of the left and the right hand are merged together in each frame.
     
@@ -228,14 +259,16 @@ def create_gesture_property_datasets(
             )
             dataset_list.append(features)
         except MissingDataException as warning_msg:
-            print("WARNING:", warning_msg, ", skipping to next property.")
-            dataset_list.append(None)
+            tqdm.write(f"WARNING: {warning_msg}, skipping to next property.")
+            dataset_list.append(np.array(None))
             continue
 
         assert features.shape == (total_number_of_frames, property_dim+2)
-        # print("# rounding errors:", ROUNDING_ERROR_COUNT)
 
     return dataset_list
+
+def is_empty(array):
+    return array.shape == ()
 
 def _extract_gesture_property_features(
     recording_idx, hdf5_dataset, 
@@ -249,15 +282,11 @@ def _extract_gesture_property_features(
     
     NOTE: The two hands are merged together.
     """
-    L_property_data, R_property_data = open_property_data_for_both_hands(hdf5_dataset, property_name)
+    L_property_data, R_property_data = open_and_clean_property_data_for_both_hands(hdf5_dataset, property_name)
 
-    if L_property_data is None and R_property_data is None:
-        raise MissingDataException(f"the '{property_name}' is missing")
+    if is_empty(L_property_data) and is_empty(R_property_data):
+        raise MissingDataException(f"the '{property_name}' property is missing")
     
-    if property_name == "Semantic" and R_property_data is not None:
-        # The semantic labels for the right hand contain an extra label which we remove here
-        R_property_data = merge_redundant_semantic_labels(R_property_data)
-
     L_feature_vectors = np.zeros((total_number_of_frames, 2 + property_dim))
     R_feature_vectors = np.zeros((total_number_of_frames, 2 + property_dim))
 
@@ -275,10 +304,8 @@ def _extract_gesture_property_features(
     # TODO(RN) TEMPORARY: check rounding issues
     for i in range(1, len(timesteps)-1):
          if (timesteps[i] - timesteps[i-1]).round(1) != 0.2 or (timesteps[i+1] - timesteps[i]).round(1) != 0.2:
-            print("rounding_issues")
-            exit()
-            print(timesteps[i-1 : i+2])
-            exit()
+            tqdm.write(timesteps[i-1 : i+2])
+            raise ValueError("rounding_issues")
     #----------------------------------------------------
 
     # Process the two hands separately    
@@ -287,7 +314,7 @@ def _extract_gesture_property_features(
         [R_property_data, R_feature_vectors]
     ]:
         # One hand may be missing
-        if properties is None:
+        if is_empty(properties):
             continue
 
         # Create the feature vectors for the current hand
@@ -320,24 +347,12 @@ def remove_data_when_interlocutor_speaks(
     recording_idx, recording_start_time, recording_end_time
 ):
     """
-    Delete all the frames when interlocutor was speakers
-    Args:
-        curr_file_audio_data:     current file audio data
-        curr_file_text_data:      current file text data
-        curr_file_prop_data:      current file properties data
-        record_start_time:        starting time of the current recording
-        record_end_time:          ending time of the current recording
-        recording_id:             recording ID
-        raw_data_folder:          folder where all the raw data is stored
-
-    Returns:
-        curr_file_audio_data:     new current file audio data
-        curr_file_prop_data:      new current file properties data
     """
-    elan_file_name = join(elan_dir, f"{recording_idx}_video.eaf")
     # Open the ELAN annotation file
+    elan_file_name = join(elan_dir, f"{recording_idx}_video.eaf")
     elan = pympi.Elan.Eaf(file_path=elan_file_name)
 
+    # Interlocutor annotations might be missing
     if "F.S.Form" not in elan.tiers:
         return audio_features, text_features, list_of_gest_prop_features
 
@@ -366,24 +381,29 @@ def remove_data_when_interlocutor_speaks(
         
         timesteps = get_timesteps_between(word_start_time, word_end_time)
         for time_st in timesteps:           
-            print(time_st)
             frame_ind = timestep_to_frame_index(time_st, recording_start_time)
             indices_to_delete.append(frame_ind)
 
+    # Make sure that all indices are unique
     assert(np.array(np.array_equal(indices_to_delete, np.unique(indices_to_delete))))
     
-    # Delete all the frames when interlocutor speaks
+    # Delete the selected frames
+    n_frames = len(indices_to_delete)
+    n_seconds = round(n_frames / 5)
+    tqdm.write(f"Recording {recording_idx}:", end="\t")
+    tqdm.write(f"INFO: Deleting {n_frames:<4} frames (~{n_seconds:<3} seconds) where the interlocutor was speaking.")
+
     all_arrays = [audio_features, text_features] + list_of_gest_prop_features
     for array in all_arrays:
-        if array is None:
-            print("INFO: Detected missing gesture property.")
+        if is_empty(array):
+            tqdm.write("INFO: Detected missing gesture property.")
         else:
             np.delete(array, indices_to_delete, axis=0)
     
     return audio_features, text_features, list_of_gest_prop_features
 
 
-def merge_sp_semantic_feat(Y):
+def merge_redundant_speech_semantic_labels(Y):
     """
     Merge certain speech semantic features (which are very similar or duplicate)
 
@@ -398,7 +418,6 @@ def merge_sp_semantic_feat(Y):
 
     """
 
-    print(Y.shape)
 
     Y_train_n_val = Y
 
@@ -409,12 +428,12 @@ def merge_sp_semantic_feat(Y):
     Y_train_n_val = np.delete(Y_train_n_val, 7, 1)
     # remove "Deictic"
     Y_train_n_val = np.delete(Y_train_n_val, 4, 1)
-    print(np.array(Y_train_n_val).shape)
+   
 
     return Y_train_n_val
 
 
-def merge_redundant_semantic_labels(feature_array):
+def merge_redundant_gesture_semantic_labels(feature_array):
     """
     Merge several features which represent the same thing:
     "direction" and "relative position"
@@ -436,7 +455,7 @@ def merge_redundant_semantic_labels(feature_array):
     return new_feature_array
 
 
-def remove_redundant_phrases(feature_array):
+def remove_unwanted_phrase_labels(feature_array):
     """
     Remove several feature values which are irrelevant
 
@@ -453,7 +472,6 @@ def remove_redundant_phrases(feature_array):
 
     # remove  2: 'move', 3: 'indexing', 6: 'unclear' which are not relevant for us
     new_feature_array = np.delete(feature_array, [4,5,8], 1)
-
 
     return new_feature_array
 
@@ -478,9 +496,7 @@ def extract_text_features(text_dataset, word_starts, start_time, end_time, total
     time_ind = 0
     for timestep in tqdm(get_timesteps_between(start_time, end_time), desc="text", leave=False):
         curr_word_idx = bisect.bisect(word_starts, timestep) - 1
-        
-        # TODO(RN): The time offset is negative in the original impl.,
-        #           I think it should be the other way around
+
         feature_vector = [
             np.array( [word_starts[word_idx] - timestep] + list(text_dataset[word_idx, 2:]) )
             for word_idx in range(curr_word_idx - 3, curr_word_idx + 4)]
@@ -506,8 +522,8 @@ def extract_audio_features(audio_file, start_time, end_time, total_number_of_fra
     """
     fps = 5
     context_length = 5
-    # print("Timing: [", start_time, ", ", end_time, "]")
-    # print("Number of frames: ", total_number_of_frames)
+    # tqdm.write("Timing: [", start_time, ", ", end_time, "]")
+    # tqdm.write("Number of frames: ", total_number_of_frames)
 
     prosodic_features = extract_prosodic_features(audio_file)
 
@@ -528,67 +544,6 @@ def extract_audio_features(audio_file, start_time, end_time, total_number_of_fra
 
     return audio_features
 
-def extract_features_from_the_current_file(spec_feat_hf, recording_id, start_time, end_time, total_number_of_frames, feature_dim):
-    """
-    Extract given feature from a given file
-
-    Args:
-        spec_feat_hf:           hdf5 file for the given feature
-        recording_id:           recording ID
-        start_time:             start time
-        end_time:               end time
-        total_number_of_frames: total number of frames in the future feature file
-        feature_dim:            dimensionality of the features
-
-    Returns:
-        curr_file_X_data:       [total_number_of_frames, n_features] array of features
-    """
-
-    if spec_feat_hf is None:
-        return None
-
-    spec_feat = np.array(spec_feat_hf)
-
-    # Create dataset for Y features
-    curr_file_Y_data = np.zeros((total_number_of_frames, feature_dim + 2))
-
-    # Add recording info
-    curr_file_Y_data[:, 0] = recording_id
-    # Add timing info
-    curr_file_Y_data[:, 1] = np.linspace(start_time, end_time, num=total_number_of_frames)
-
-    for feat_id in range(spec_feat.shape[0]):
-
-        curr_feat_vec = spec_feat[feat_id]
-
-        # First two values contain st_time and end_time, other values - feature vector itself
-        curr_feat_timing = curr_feat_vec[:2].round(1)
-        curr_feat_values = curr_feat_vec[2:]
-
-        curr_feat_start_time = curr_feat_timing[0]
-
-        # make sure that the time step fit in the general step
-        curr_feat_start_time = correct_the_time(curr_feat_start_time)
-
-        for time_st in np.arange(curr_feat_start_time, curr_feat_timing[1], 0.2):
-
-            time_st = time_st.round(1)
-
-            if time_st < start_time:
-                continue
-
-            if time_st >= end_time:
-                break
-
-            # Save some extra info which might be useful later on
-            output_vector = np.concatenate(([recording_id, time_st], curr_feat_values))
-
-            time_ind = int(((time_st - start_time) * 5).round())
-
-            curr_file_Y_data[time_ind] = output_vector
-
-    return curr_file_Y_data
-
 def upsample(X, Y, n_features):
     """
 
@@ -603,7 +558,7 @@ def upsample(X, Y, n_features):
 
     """
 
-    print(Y.shape)
+    tqdm.write(Y.shape)
 
 
     freq = np.zeros(n_features)
@@ -613,12 +568,12 @@ def upsample(X, Y, n_features):
         if freq[feat] < 100:
             freq[feat] = 10000
 
-    print(freq)
+    tqdm.write(freq)
 
     max_freq = np.max(freq)
     multipliers = [int(max_freq // freq[feat]) for feat in range(n_features)]
 
-    print("Multipliers: ", multipliers)
+    tqdm.write("Multipliers: ", multipliers)
 
     Y_upsampled = list(np.copy(Y))
     X_upsampled = list(np.copy(X))
@@ -636,14 +591,14 @@ def upsample(X, Y, n_features):
     X_upsampled = np.asarray(X_upsampled, dtype=np.float32)
     Y_upsampled = np.asarray(Y_upsampled, dtype=np.float32)
 
-    print(Y_upsampled.shape)
+    tqdm.write(Y_upsampled.shape)
 
     freq = np.zeros(n_features)
     for feat in range(n_features):
         column = Y_upsampled[:, 2 + feat]
         freq[feat] = np.sum(column)
 
-    print("Freq: ", freq)
+    tqdm.write("Freq: ", freq)
 
     return X_upsampled, Y_upsampled
 
@@ -655,8 +610,8 @@ if __name__ == "__main__":
     elan_dir = "/home/work/Desktop/repositories/probabilistic-gesticulator/dataset/All_the_transcripts/"
     output_dir = "created_datasets"    
     
-    feature_dims = [8, 7, 5, 4]
-    feature_names = ["R.S.Semantic Feature", "Phrase", "Phase", "Semantic"]
+    feature_dims = [6, 4, 5, 4]
+    feature_names = ["S_Semantic", "Phrase", "Phase", "Semantic"]
     
     create_datasets(
         audio_dir, text_vec_dir, gest_prop_dir, elan_dir,
