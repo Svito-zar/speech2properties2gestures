@@ -144,6 +144,11 @@ def create_datasets(audio_dir, text_dir, gest_prop_dir, elan_dir, property_names
     all_text_features      = []
     all_gest_prop_features = []
     
+    # The speech semantic properties are missing for some recordings. Therefore we
+    # will save the audio and text separately, without the missing files, for the
+    # speech semantic property.
+    idxs_without_speech_semantics = []
+
     recording_idx_progress_bar = tqdm(range(1, 26))
     for recording_idx in recording_idx_progress_bar:
         # Update progress par
@@ -156,8 +161,10 @@ def create_datasets(audio_dir, text_dir, gest_prop_dir, elan_dir, property_names
         gest_prop_file = join(gest_prop_dir, f"{recording_idx}_feat.hdf5")
         input_files    = [audio_file, text_file, gest_prop_file]
         missing_files = [basename(file) for file in input_files if not isfile(file)]
-        if len(missing_files) > 0:
-            tqdm.write(f"Skipping recording {recording_idx} because of missing files: {missing_files}.")
+        if len(missing_files) > 0 or int(recording_idx) in [1, 13]:
+            tqdm.write('-'*40)
+            tqdm.write(f"WARNING: Skipping recording {recording_idx} because of missing files: {missing_files}.")
+            tqdm.write('-'*40)
             continue
             
         # Open the encoded hdf5 datasets
@@ -197,21 +204,32 @@ def create_datasets(audio_dir, text_dir, gest_prop_dir, elan_dir, property_names
             recording_idx, recording_start_time, recording_end_time
         )
         
-        # Ensure that the frames are aligned
+
         for property_dataset in gest_prop_features:
-            if not is_empty(property_dataset):
+            if is_empty(property_dataset):
+                # Store array index if speech semantic property is missing from current file
+                idxs_without_speech_semantics.append(len(all_audio_features))
+            else:
+                # Ensure that the frames are aligned
                 assert len(property_dataset) == len(audio_features) == len(text_features) or len(property_dataset) == 0
      
         all_audio_features.append(audio_features)
         all_text_features.append(text_features)
         all_gest_prop_features.append(gest_prop_features)
 
-
     np.save(join(output_dir, "Audio.npy"), np.concatenate(all_audio_features))
     np.save(join(output_dir, "Text.npy"), np.concatenate(all_text_features))
     save_property_datasets(all_gest_prop_features, property_names)
-
-
+    
+    # Separately save the audio/text from those files which have the speech semantic property
+    n_files = len(all_audio_features)
+    
+    kept_audio = [all_audio_features[idx] for idx in range(n_files) if idx not in idxs_without_speech_semantics]
+    kept_text  = [all_text_features[idx]  for idx in range(n_files) if idx not in idxs_without_speech_semantics]
+    
+    np.save(join(output_dir, "S_Semantic_Audio.npy"), np.concatenate(kept_audio))
+    np.save(join(output_dir, "S_Semantic_Text.npy"), np.concatenate(kept_text))
+    
 def save_property_datasets(all_gest_prop_features, property_names):
     
     for property_idx, property_name in enumerate(property_names):
@@ -259,7 +277,9 @@ def create_gesture_property_datasets(
             )
             dataset_list.append(features)
         except MissingDataException as warning_msg:
+            tqdm.write('-'*40)
             tqdm.write(f"WARNING: {warning_msg}, skipping to next property.")
+            tqdm.write('-'*40)
             dataset_list.append(np.array(None))
             continue
 
@@ -494,7 +514,7 @@ def extract_text_features(text_dataset, word_starts, start_time, end_time, total
     # NOTE: 
     text_features = np.zeros((total_number_of_frames, sequence_length, 1 + n_bert_dims))
     time_ind = 0
-    for timestep in tqdm(get_timesteps_between(start_time, end_time), desc="text", leave=False):
+    for timestep in tqdm(get_timesteps_between(start_time, end_time), desc="Processing text", leave=False):
         curr_word_idx = bisect.bisect(word_starts, timestep) - 1
 
         feature_vector = [
