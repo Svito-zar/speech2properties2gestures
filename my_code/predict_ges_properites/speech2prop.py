@@ -500,7 +500,7 @@ class PropPredictor(LightningModule):
         return loss_val
 
 
-    def accuracy(self, prediction, truth):
+    def accuracy(self, prediction, truth, train=False):
 
         # convert from likelihood to labels
         if self.hparams.data_feat != "Phase":
@@ -565,12 +565,15 @@ class PropPredictor(LightningModule):
             self.should_stop = True
 
         for metric in logs:
-            self.log(metric + "/" + str(self.fold), logs[metric])
+            if train:
+                self.log("train_" + metric + "/" + str(self.fold), logs[metric])
+            else:
+                self.log(metric + "/" + str(self.fold), logs[metric])
 
 
     def training_step(self, batch, batch_idx):
         prediction = self(batch).float()
-        true_lab = batch["property"][:, 2:].float() # ignore extra info, keep only the label
+        true_lab = batch["property"][:, 2:].int() # ignore extra info, keep only the label
 
         loss_array = self.loss(prediction, true_lab)
 
@@ -582,14 +585,20 @@ class PropPredictor(LightningModule):
             message = f"Trial was pruned since training loss > 1000"
             raise optuna.exceptions.TrialPruned(message)
 
-        return loss_value
+        return {"loss": loss_value, "prediction":prediction, "true_lab": true_lab}
 
 
     def training_epoch_end(self, training_step_outputs):
         # do something with all training_step outputs
+
         if self.should_stop:
             print("\nSTOPPPING")
             raise KeyboardInterrupt
+
+        # calculate training accuracy
+        all_predictions = torch.cat([x["prediction"] for x in training_step_outputs])
+        all_true_labels = torch.cat([x["true_lab"] for x in training_step_outputs])
+        self.accuracy(all_predictions.detach(), all_true_labels, train=True)
 
 
     def validation_step(self, batch, batch_idx):
