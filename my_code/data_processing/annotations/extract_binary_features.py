@@ -20,14 +20,14 @@ def open_elan_tier_for_property(elan_object, property_name):
 
     return tier[0] if len(tier[0]) > 0 else tier[1]
 
-def open_or_create_label_dict(annotation_folder, dict_file):
+def open_or_create_label_dict(annotation_folder, dict_file, properties_to_consider):
     """
     Open or create a dictionary that maps property names to their index-label pairs.
 
     Args:
         annotation_folder:  path to the annotation folder
         dict_file:  the save path of the dictionary
-
+        properties_to_consider: the properties to use when the dict is created
     Returns:
         The dictionary that maps properties to their labels.
     """
@@ -39,7 +39,7 @@ def open_or_create_label_dict(annotation_folder, dict_file):
     print(f"Creating label dictionary: '{dict_file}'.")
     label_dict = {}
 
-    progress_bar = tqdm(ALL_PROPERTIES)
+    progress_bar = tqdm(properties_to_consider)
     for property_name in progress_bar:
         progress_bar.set_description(f"Parsing [{property_name}] annotations]")
         possible_labels = set()
@@ -56,19 +56,15 @@ def open_or_create_label_dict(annotation_folder, dict_file):
                 elan_tier = open_elan_tier_for_property(elan_object, property_name)
             except KeyError as missing_property_warning:
                 print(f"WARNING: {missing_property_warning}")
-                # TODO(RN) This used to be break which I think is incorrect
                 continue
 
             for annotation_entry in elan_tier.values():
                 assert len(annotation_entry) == 4
                 st_t, end_t, annotation_str, _ = annotation_entry
+                
                 # Sometimes they are messed up
                 if annotation_str is None:
                     st_t, annotation_str, _, _ = annotation_entry
-
-                # Skip missing annotations
-                if annotation_str.strip() == "":
-                    continue
 
                 labels = extract_labels(annotation_str)
                 for label in labels:
@@ -284,7 +280,7 @@ def create_hdf5_file(annotation_filename):
     return h5py.File(name=hdf5_file_name, mode='w')
 
 if __name__ == "__main__":
-    ALL_PROPERTIES = [
+    all_properties = [
         'R.G.Left Semantic', 'R.G.Right Semantic',
         'R.G.Left.Phase',    'R.G.Right.Phase',
         'R.G.Left.Phrase',   'R.G.Right.Phrase',
@@ -298,7 +294,7 @@ if __name__ == "__main__":
 
     dict_file = "dict.pkl"
     # TODO(RN) find a better name
-    PROPERTY_DIM_TO_LABEL = open_or_create_label_dict(annotation_folder, dict_file)
+    PROPERTY_DIM_TO_LABEL = open_or_create_label_dict(annotation_folder, dict_file, all_properties)
     pprint(PROPERTY_DIM_TO_LABEL)
 
     progress_bar = tqdm(sorted(os.listdir(annotation_folder)))
