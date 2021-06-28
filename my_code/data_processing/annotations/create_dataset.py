@@ -156,7 +156,7 @@ def create_datasets(audio_dir, text_dir, gest_prop_dir, elan_dir, property_names
         recording_idx_progress_bar.set_description(f"Recording {recording_idx}")
        
         # Check for missing files
-        audio_file     = join(audio_dir, f"V{recording_idx}.mov_enhanced.wav")
+        audio_file     = join(audio_dir, f"V{str(int(recording_idx))}K3.mov_enhanced.wav")
         text_file      = join(text_dir, f"{recording_idx}_text.hdf5")
         gest_prop_file = join(gest_prop_dir, f"{recording_idx}_feat.hdf5")
         input_files    = [audio_file, text_file, gest_prop_file]
@@ -171,7 +171,7 @@ def create_datasets(audio_dir, text_dir, gest_prop_dir, elan_dir, property_names
         gest_prop_hf = h5py.File(gest_prop_file, mode='r')
         text_vec_hf = h5py.File(text_file, mode='r')
         text_dataset = text_vec_hf.get("text")
-        text_vec_hf.close()
+        # text_vec_hf.close()
         
         # Extract timing info from the dataset
         word_starts             = text_dataset[:, 0].round(1)
@@ -418,12 +418,17 @@ def remove_data_when_interlocutor_speaks(
     tqdm.write(f"Recording {recording_idx}:", end="\t")
     tqdm.write(f"INFO: Deleting {n_frames:<4} frames (~{n_seconds:<3} seconds) where the interlocutor was speaking.")
 
-    all_arrays = [audio_features, text_features] + list_of_gest_prop_features
-    for array in all_arrays:
+
+    def remove_data(array):
         if is_empty(array):
             tqdm.write("INFO: Detected missing gesture property.")
         else:
-            np.delete(array, indices_to_delete, axis=0)
+            array = np.delete(array, indices_to_delete, axis=0)
+        return array
+    
+    audio_features = remove_data(audio_features)
+    text_features = remove_data(text_features)
+    list_of_gest_prop_features = [remove_data(feats) for feats in list_of_gest_prop_features]
     
     return audio_features, text_features, list_of_gest_prop_features
 
@@ -629,11 +634,11 @@ def upsample(X, Y, n_features):
 
 
 if __name__ == "__main__":
-    gest_prop_dir = "/home/work/Desktop/repositories/probabilistic-gesticulator/my_code/data_processing/annotations/feat/gesture_properties"
-    text_vec_dir  = "/home/work/Desktop/repositories/probabilistic-gesticulator/my_code/data_processing/annotations/feat/text_vectors"
-    audio_dir = "/home/work/Desktop/repositories/probabilistic-gesticulator/my_code/data_processing/annotations/renamed_audio"
-    elan_dir = "/home/work/Desktop/repositories/probabilistic-gesticulator/dataset/All_the_transcripts/"
-    output_dir = "created_datasets"    
+    gest_prop_dir = "../../../dataset/processed/gesture_properties/"
+    text_vec_dir  = "../../../dataset/processed/word_vectors/"
+    audio_dir     = "../../../dataset/EnhancedAudio/enhanced/"
+    elan_dir      = "../../../dataset/All_the_transcripts/"
+    output_dir    = "../../../dataset/processed/numpy_arrays/"    
     
     feature_dims = [6, 4, 5, 4]
     feature_names = ["S_Semantic", "Phrase", "Phase", "Semantic"]

@@ -150,7 +150,7 @@ def create_hdf5_file(annotation_filename):
     Create the output hdf5 object based on the ELAN filename.
     """
     file_idx = annotation_filename[:2]
-    hdf5_file_name = join("feat/", f"{file_idx}_text.hdf5")
+    hdf5_file_name = join("../../../dataset/processed/word_vectors", f"{file_idx}_text.hdf5")
     
     assert os.path.isfile(hdf5_file_name) == False
     
@@ -162,7 +162,7 @@ if __name__ == "__main__":
     tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-german-cased')
     model = DistilBertModel.from_pretrained('distilbert-base-german-cased')
 
-    annotation_folder = "/home/work/Desktop/repositories/probabilistic-gesticulator/dataset/All_the_transcripts/"
+    annotation_folder = "../../../dataset/All_the_transcripts/"
 
     # go though the gesture features
     for filename in tqdm(os.listdir(annotation_folder)):
@@ -175,3 +175,5 @@ if __name__ == "__main__":
         hdf5_dataset = create_hdf5_file(filename)
         
         encode_text(tokenizer, model, elan_object, hdf5_dataset)
+
+        hdf5_dataset.close()

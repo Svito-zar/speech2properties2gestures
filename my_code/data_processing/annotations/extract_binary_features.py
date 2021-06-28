@@ -274,7 +274,7 @@ def create_hdf5_file(annotation_filename):
     Create the output hdf5 object based on the ELAN filename.
     """
     file_idx = annotation_filename[:2]
-    hdf5_file_name = join("feat/gesture_properties/", f"{file_idx}_feat.hdf5")
+    hdf5_file_name = join("../../../dataset/processed/gesture_properties/", f"{file_idx}_feat.hdf5")
     
     assert os.path.isfile(hdf5_file_name) == False
     
@@ -291,10 +291,19 @@ if __name__ == "__main__":
         'R.S.Semantic Feature'
     ]
     
-    annotation_folder = "/home/work/Desktop/repositories/probabilistic-gesticulator/dataset/All_the_transcripts/"
+    annotation_folder = "/../../../dataset/All_the_transcripts/"
 
     dict_file = "dict.pkl"
     # TODO(RN) find a better name
+    # NOTE: This dictionary maps property names to the corresponding index-label pairs 
+    # that show the label of each dimension of the property feature vector
+    # e.g. 'R.G.Right.Phrase' is mapped to {0: 'beat',
+    #                                       1: 'deictic',
+    #                                       2: 'discourse',
+    #                                       3: 'iconic',
+    #                                       4: 'indexing',
+    #                                       5: 'move',
+    #                                       6: 'unclear'}
     PROPERTY_DIM_TO_LABEL = open_or_create_label_dict(annotation_folder, dict_file, all_properties)
     pprint(PROPERTY_DIM_TO_LABEL)
 
@@ -317,3 +326,5 @@ if __name__ == "__main__":
         encode_selected_properties(elan_object, hdf5_dataset, properties)
         encode_phrase_practice(elan_object, hdf5_dataset)
         encode_semantic_labels(elan_object, hdf5_dataset)
+
+        hdf5_dataset.close()
