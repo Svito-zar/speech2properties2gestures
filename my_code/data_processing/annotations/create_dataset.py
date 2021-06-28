@@ -169,7 +169,9 @@ def create_datasets(audio_dir, text_dir, gest_prop_dir, elan_dir, property_names
             
         # Open the encoded hdf5 datasets
         gest_prop_hf = h5py.File(gest_prop_file, mode='r')
-        text_dataset = h5py.File(text_file, mode='r').get("text")
+        text_vec_hf = h5py.File(text_file, mode='r')
+        text_dataset = text_vec_hf.get("text")
+        text_vec_hf.close()
         
         # Extract timing info from the dataset
         word_starts             = text_dataset[:, 0].round(1)
@@ -216,6 +218,9 @@ def create_datasets(audio_dir, text_dir, gest_prop_dir, elan_dir, property_names
         all_audio_features.append(audio_features)
         all_text_features.append(text_features)
         all_gest_prop_features.append(gest_prop_features)
+
+        gest_prop_hf.close()
+        
 
     np.save(join(output_dir, "Audio.npy"), np.concatenate(all_audio_features))
     np.save(join(output_dir, "Text.npy"), np.concatenate(all_text_features))
