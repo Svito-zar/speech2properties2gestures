@@ -142,7 +142,7 @@ def encode_text(tokenizer, model, elan_object, hdf5_dataset):
 
     curr_column_features = np.array(curr_column_features)
 
-    hdf5_dataset.create_dataset(name="text", data=curr_column_features.astype(np.float64))
+    hdf5_dataset.create_dataset(name="text", data=curr_column_features.astype(np.float32))
 
 
 def create_hdf5_file(annotation_filename):
