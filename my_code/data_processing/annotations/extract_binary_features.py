@@ -70,6 +70,7 @@ def open_or_create_label_dict(annotation_folder, dict_file, properties_to_consid
                 for label in labels:
                     possible_labels.add(label)
         
+        assert len(possible_labels) > 0
         # Explicitly store the label indices alongside the values, in alphabetic order
         label_dict[property_name] = {i: val for i, val in enumerate(sorted(possible_labels))}
         print(f"\n-----> '{property_name}' labels:", list(label_dict[property_name].values()), end="\n\n")
