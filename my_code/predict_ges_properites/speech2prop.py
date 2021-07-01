@@ -425,7 +425,7 @@ class PropPredictor(LightningModule):
             enc_dim += hparams.audio_enc["output_dim"]
 
         if self.use_speaker_ID:
-            enc_dim += 1
+            enc_dim += 25
 
         # define the encoding -> output network
         self.decoder = Decoder(enc_dim, hparams)
@@ -467,26 +467,30 @@ class PropPredictor(LightningModule):
 
     def forward(self, batch):
 
+        if self.use_speaker_ID:
+            # convert IDs to OneHot vector
+            speaker_ID = batch["property"][:, 0].long()
+            speaker_OneHot = torch.zeros((speaker_ID.shape[0], 25))
+            speaker_OneHot[np.arange(speaker_ID.shape[0]), speaker_ID - 1] = 1
+
         if self.sp_mod == "text" or self.sp_mod == "both":
             input_text_seq = batch["text"].float()
             text_enc = self.text_enc(input_text_seq)
             enc = text_enc
             if self.use_speaker_ID:
-               speaker_ID = batch["property"][:, 0].unsqueeze(1)
-               enc =  torch.cat((text_enc, speaker_ID), 1)
+               enc = torch.cat((text_enc, speaker_OneHot), 1)
 
         if self.sp_mod == "audio" or self.sp_mod == "both":
             input_audio_seq = batch["audio"].float()
             audio_enc = self.audio_enc(input_audio_seq)
             enc = audio_enc
             if self.use_speaker_ID:
-               speaker_ID = batch["property"][:, 0].unsqueeze(1)
-               enc =  torch.cat((audio_enc, speaker_ID), 1)
+               enc =  torch.cat((audio_enc, speaker_OneHot), 1)
 
         if self.sp_mod == "both":
             enc = torch.cat((text_enc, audio_enc), 1)
             if self.use_speaker_ID:
-               enc =  torch.cat((text_enc, audio_enc, speaker_ID), 1)
+               enc =  torch.cat((text_enc, audio_enc, speaker_OneHot), 1)
 
         output = self.decoder(enc)
 
