@@ -1,6 +1,6 @@
 import os
 
-import optuna
+# import optuna
 import torch
 import torch.nn as nn
 from pytorch_lightning import LightningModule
@@ -192,10 +192,18 @@ class GestPredictor(LightningModule):
 
     def load_datasets(self):
         try:
-            self.train_dataset = GesturePropDataset(self.data_root, "train_n_val", self.hparams.data_feat,
-                                                  speech_modality=self.hparams.speech_modality)
-            self.val_dataset = GesturePropDataset(self.data_root, "train_n_val", self.hparams.data_feat,
-                                                  self.hparams.speech_modality, self.val_ids)
+            self.train_dataset = GesturePropDataset(
+                self.hparams.data_feat, 
+                speech_modality=self.hparams.speech_modality,
+                indices_to_subsample = self.train_ids
+            )
+            
+            self.val_dataset = GesturePropDataset(
+                property_name = self.hparams.data_feat, 
+                speech_modality = self.hparams.speech_modality,
+                indices_to_subsample = self.val_ids
+            )
+
         except FileNotFoundError as err:
             abs_data_dir = os.path.abspath(self.data_root)
             if not os.path.isdir(abs_data_dir):
@@ -227,7 +235,6 @@ class GestPredictor(LightningModule):
 
 
     def loss(self, prediction, label):
-
         loss_val = self.loss_funct(prediction.float(), label.float())
 
         return loss_val
@@ -252,7 +259,7 @@ class GestPredictor(LightningModule):
     def training_step(self, batch, batch_idx):
         prediction = self(batch).float()
         true_lab = batch["property"][:, 2:] # ignore extra info, keep only the label
-
+        
         loss_array = self.loss(prediction, true_lab)
 
         loss_value = torch.mean(loss_array).unsqueeze(-1) / batch["property"].shape[1]
@@ -277,7 +284,7 @@ class GestPredictor(LightningModule):
 
         prediction = self(batch).float()
         true_lab = batch["property"][:,2:]
-
+  
         # plot sequences
         if batch_idx == 0:
 
@@ -289,7 +296,7 @@ class GestPredictor(LightningModule):
                 plt.plot(x, batch["property"][:, feat+2].cpu(), 'r--', x, predicted_prob[:, feat].cpu(), 'bs--')
                 image_file_name = "fig/valid_res_"+str(self.current_epoch) + "_" + str(feat) + ".png"
                 plt.savefig(fname=image_file_name)
-                self.logger.experiment.log_image(image_file_name)
+                # self.logger.experiment.log_image(image_file_name)
                 plt.clf()
 
         loss_array = self.loss(prediction, true_lab)
@@ -378,7 +385,7 @@ class GestPredictor(LightningModule):
     def val_dataloader(self):
 
         # Validate on the whole dataset at once
-        val_batch_size = len(self.val_dataset.y_dataset)
+        val_batch_size = len(self.val_dataset)
 
         loader = torch.utils.data.DataLoader(
             dataset=self.val_dataset,

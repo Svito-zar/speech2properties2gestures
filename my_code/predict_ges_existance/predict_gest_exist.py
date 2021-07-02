@@ -54,7 +54,10 @@ if __name__ == "__main__":
     ), "Failed to find root dir `{}` of dataset.".format(hparams.data_root)
 
     # Load dataset
-    train_n_val_dataset = GesturePropDataset(hparams.data_root, "train_n_val", hparams.data_feat, speech_modality=hparams.speech_modality)
+    train_n_val_dataset = GesturePropDataset(
+        property_name = hparams.data_feat,
+        speech_modality = hparams.speech_modality,
+    )
 
     if hparams.comet_logger["api_key"] != "None":
         from pytorch_lightning.loggers import CometLogger
