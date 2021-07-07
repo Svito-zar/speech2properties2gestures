@@ -55,10 +55,8 @@ def text_to_feat(tokenizer, model, text):
     input_ids = torch.tensor(tokenizer.encode(text_str, add_special_tokens=False)).unsqueeze(0)
     outputs = model(input_ids)
     last_hidden_states = outputs[0]
-    sub_word_encodings = last_hidden_states[0, :]
-
+    sub_word_encodings = last_hidden_states[0, :].detach()
     sub_word_tokens = tokenizer.convert_ids_to_tokens(input_ids.tolist()[0])
-
     # For each word, we merge the sub-word embeddings (if there are more than one) into a single vector 
     word_encodings = []
     token_idx = 0
@@ -72,8 +70,8 @@ def text_to_feat(tokenizer, model, text):
                 curr_enc.append(sub_word_encodings[token_idx])
                 if token_idx == len(sub_word_tokens) - 1:
                     break
-        merged_word_enc = np.mean(curr_enc, keepdims=1)
-        merged_word_enc = merged_word_enc[0]
+
+        merged_word_enc = torch.stack(curr_enc, dim=0).mean(dim=0)
         word_encodings.append(merged_word_enc)
         token_idx += 1
 
@@ -165,7 +163,7 @@ if __name__ == "__main__":
     tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-german-cased')
     model = DistilBertModel.from_pretrained('distilbert-base-german-cased')
 
-    annotation_folder = "../../../dataset/All_the_transcripts/"
+    annotation_folder = "../../../dataset/transcripts/"
 
     # go though the gesture features
     for filename in tqdm(os.listdir(annotation_folder)):
