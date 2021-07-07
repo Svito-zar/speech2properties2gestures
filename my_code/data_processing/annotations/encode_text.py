@@ -150,7 +150,10 @@ def create_hdf5_file(annotation_filename):
     Create the output hdf5 object based on the ELAN filename.
     """
     file_idx = annotation_filename[:2]
-    hdf5_file_name = join("../../../dataset/processed/word_vectors", f"{file_idx}_text.hdf5")
+    target_dir = "../../../dataset/processed/word_vectors"
+    if not os.path.isdir(target_dir):
+        os.makedirs(target_dir)
+    hdf5_file_name = join(target_dir, f"{file_idx}_text.hdf5")
     
     assert os.path.isfile(hdf5_file_name) == False
     
