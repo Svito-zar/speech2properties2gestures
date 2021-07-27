@@ -47,7 +47,12 @@ if __name__ == "__main__":
     ), "Failed to find root dir `{}` of dataset.".format(hparams.data_root)
 
     # Load dataset
-    train_n_val_dataset = GesturePropDataset(hparams.data_root, "train_n_val", hparams.data_feat, hparams.speech_modality)
+    train_n_val_dataset = GesturePropDataset(
+        property_name = hparams.data_feat,
+        root_dir = hparams.data_root,
+        speech_modality = hparams.speech_modality,
+    )
+    
     class_freq = train_n_val_dataset.get_freq()
 
     if hparams.comet_logger["api_key"] != "None":
@@ -60,8 +65,8 @@ if __name__ == "__main__":
 
     else:
         from pytorch_lightning import loggers as pl_loggers
-        logger = pl_loggers.TensorBoardLogger('lightning_logs/')
-
+        logger = pl_loggers.TensorBoardLogger('lightning_logs/', version=str(hparams.data_feat))
+    
     hparams.num_dataloader_workers = 8
     hparams.gpus = [1]
 
@@ -69,7 +74,7 @@ if __name__ == "__main__":
     print('--------------------------------')
 
     # Obtain a list of all the recordings present in the dataset
-    recordings_ids = train_n_val_dataset.y_dataset[:, 0]
+    recordings_ids = train_n_val_dataset.property_dataset[:, 0]
     recordings = np.unique(recordings_ids)
 
     # K-fold LEAVE-ONE-OUT Cross Validation model evaluation
@@ -139,7 +144,7 @@ if __name__ == "__main__":
         assert not any(np.isin(train_ids,test_ids))
 
         # Define the model
-        model = PropPredictor(hparams, "a" + str(fold), train_ids, test_ids, upsample=hparams.CB["upsample"])
+        model = PropPredictor(hparams, "a" + str(fold), train_ids, test_ids, upsample=False)
 
         # Define the trainer
         trainer = Trainer.from_argparse_args(hparams, deterministic=False, enable_pl_optimizer=True, logger=logger)

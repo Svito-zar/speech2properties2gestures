@@ -71,8 +71,8 @@ if __name__ == "__main__":
         from pytorch_lightning import loggers as pl_loggers
         logger = pl_loggers.TensorBoardLogger('lightning_logs/')
 
-    hparams.num_dataloader_workers = 0
-    hparams.gpus = 0 # [1]
+    hparams.num_dataloader_workers = 8
+    hparams.gpus = [1] # [1]
 
     # Start print
     print('--------------------------------')

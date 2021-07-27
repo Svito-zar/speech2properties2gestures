@@ -4,7 +4,7 @@ This is the main model file for Speech2Prop prediction model
 
 import os
 
-import optuna
+# import optuna
 import torch
 import torch.nn as nn
 from pytorch_lightning import LightningModule
@@ -452,8 +452,16 @@ class PropPredictor(LightningModule):
 
     def load_datasets(self):
         try:
-            self.train_dataset = GesturePropDataset(self.data_root, "train_n_val", self.hparams.data_feat, self.hparams.speech_modality)
-            self.val_dataset = GesturePropDataset(self.data_root, "train_n_val", self.hparams.data_feat, self.hparams.speech_modality, self.val_ids)
+            self.train_dataset = GesturePropDataset(
+                property_name = self.hparams.data_feat, 
+                speech_modality = self.hparams.speech_modality
+            )
+
+            self.val_dataset = GesturePropDataset(
+                property_name = self.hparams.data_feat, 
+                speech_modality = self.hparams.speech_modality,
+                indices_to_subsample = self.val_ids
+            )
             self.class_freq = self.train_dataset.get_freq()
         except FileNotFoundError as err:
             abs_data_dir = os.path.abspath(self.data_root)
@@ -598,32 +606,32 @@ class PropPredictor(LightningModule):
         true_lab = batch["property"][:,2:].int()
 
         # plot sequences
-        if batch_idx == 0:
+        if False: #batch_idx == 0:
 
             x = batch["property"][10:60, 1].cpu()
             # convert from raw values to likelihood
             predicted_prob = torch.sigmoid(prediction + 1e-6)
             for feat in range(self.decoder.output_dim):
-                plt.figure(figsize=(5.196, 3.63), dpi=300)
-                plt.ylim([-0.01, 1.01])
-                plt.plot(x, batch["property"][110:160, feat+2].cpu(), 'r--', x, predicted_prob[110:160, feat].cpu(), 'bs--', markersize=1)
-                image_file_name = "fig/valid_res_"+str(self.current_epoch) + "_" + str(feat) + "_1.jpg"
-                #spines = plt.gca().spines
-                #spines['right'].set_visible(False)
-                #spines['top'].set_visible(False)
-                plt.savefig(fname=image_file_name, dpi=600)
-                self.logger.experiment.log_image(image_file_name)
-                plt.clf()
+                # plt.figure(figsize=(5.196, 3.63), dpi=300)
+                # plt.ylim([-0.01, 1.01])
+                # plt.plot(x, batch["property"][110:160, feat+2].cpu(), 'r--', x, predicted_prob[110:160, feat].cpu(), 'bs--', markersize=1)
+                # image_file_name = "fig/valid_res_"+str(self.current_epoch) + "_" + str(feat) + "_1.jpg"
+                # #spines = plt.gca().spines
+                # #spines['right'].set_visible(False)
+                # #spines['top'].set_visible(False)
+                # plt.savefig(fname=image_file_name, dpi=600)
+                # # self.logger.experiment.log_image(image_file_name)
+                # plt.clf()
 
-                plt.figure(figsize=(5.196, 3.63), dpi=300)
-                plt.ylim([-0.01, 1.01])
-                plt.plot(x, batch["property"][610:660, feat+2].cpu(), 'r--', x, predicted_prob[610:660, feat].cpu(), 'bs--', markersize=1)
-                image_file_name = "fig/valid_res_"+str(self.current_epoch) + "_" + str(feat) + "_2.jpg"
+                # plt.figure(figsize=(5.196, 3.63), dpi=300)
+                # plt.ylim([-0.01, 1.01])
+                # plt.plot(x, batch["property"][610:660, feat+2].cpu(), 'r--', x, predicted_prob[610:660, feat].cpu(), 'bs--', markersize=1)
+                # image_file_name = "fig/valid_res_"+str(self.current_epoch) + "_" + str(feat) + "_2.jpg"
                 #spines = plt.gca().spines
                 #spines['right'].set_visible(False)
                 #spines['top'].set_visible(False)
                 plt.savefig(fname=image_file_name, dpi=600)
-                self.logger.experiment.log_image(image_file_name)
+                # self.logger.experiment.log_image(image_file_name)
                 plt.clf()
 
 
@@ -712,7 +720,7 @@ class PropPredictor(LightningModule):
             for frame_ind in range(self.train_ids.shape[0]):
                 multipl_factor = 1
                 for curr_feat in range(n_features):
-                    if self.train_dataset.y_dataset[frame_ind, curr_feat + 2] == 1:  # first two numbers are containing extra info
+                    if self.train_dataset.property_dataset[frame_ind, curr_feat + 2] == 1:  # first two numbers are containing extra info
                         multipl_factor = max(multipl_factor, multipliers[curr_feat]) # we take the highest multiplier of all features that are present in the frame
                 if multipl_factor > 1:
                     train_ids_upsampled += [self.train_ids[frame_ind]] * multipl_factor
@@ -733,7 +741,7 @@ class PropPredictor(LightningModule):
     def val_dataloader(self):
 
         # Validate on the whole dataset at once
-        val_batch_size = len(self.val_dataset.y_dataset)
+        val_batch_size = len(self.val_dataset.property_dataset)
 
         loader = torch.utils.data.DataLoader(
             dataset=self.val_dataset,

@@ -139,11 +139,10 @@ class Decoder(nn.Module):
 class GestPredictor(LightningModule):
     def __init__(self, hparams, fold, train_ids, val_ids, upsample=False):
         super().__init__()
-
+        
         self.data_root = hparams.data_root
         self.upsample = upsample
         self.should_stop = False
-
         self.hparams = hparams
 
         # obtain datasets
@@ -153,7 +152,6 @@ class GestPredictor(LightningModule):
         self.fold = fold
 
         # define key parameters
-        self.hparams = hparams
         self.sp_mod = hparams.speech_modality
 
         # Define modality encoders depending on the speech modality used
@@ -193,11 +191,10 @@ class GestPredictor(LightningModule):
     def load_datasets(self):
         try:
             self.train_dataset = GesturePropDataset(
-                self.hparams.data_feat, 
-                speech_modality=self.hparams.speech_modality,
-                indices_to_subsample = self.train_ids
+                property_name = self.hparams.data_feat, 
+                speech_modality = self.hparams.speech_modality
             )
-            
+
             self.val_dataset = GesturePropDataset(
                 property_name = self.hparams.data_feat, 
                 speech_modality = self.hparams.speech_modality,
@@ -378,7 +375,8 @@ class GestPredictor(LightningModule):
             batch_size=self.hparams.batch_size,
             num_workers=8,
             pin_memory=True,
-            sampler=train_subsampler
+            sampler=train_subsampler,
+            drop_last=True
         )
         return loader
 

@@ -39,14 +39,14 @@ class GesturePropDataset(Dataset):
         else:
             raise TypeError("Unknown speech modality - " + speech_modality)
 
-        # Load gesture-property data
+        # Load gesture property data
         self.property_dataset = get_data_file(f"{property_name}_properties.npy")
         
         # Optional subsampling
         if indices_to_subsample is not None:
-            for dataset in [self.audio_dataset, self.text_dataset, self.property_dataset]:
-                if dataset is not None:
-                    dataset = dataset[indices_to_subsample]
+            self.audio_dataset    = self.audio_dataset[indices_to_subsample]
+            self.text_dataset     = self.text_dataset[indices_to_subsample]
+            self.property_dataset = self.property_dataset[indices_to_subsample]
 
         assert len(self.property_dataset) == len(self.audio_dataset) == len(self.text_dataset)
         
@@ -57,22 +57,22 @@ class GesturePropDataset(Dataset):
 
 
     def __getitem__(self, idx):
-        property = self.property_dataset[idx]
+        gest_property = self.property_dataset[idx]
 
         if self.sp_mod == "text":
             text = self.text_dataset[idx]
-            sample = {'text': text, 'property': property}
+            sample = {'text': text, 'property': gest_property}
 
         elif self.sp_mod == "audio":
             audio = self.audio_dataset[idx]
-            sample = {'audio': audio, 'property': property}
+            sample = {'audio': audio, 'property': gest_property}
 
         elif self.sp_mod == "both":
             text = self.text_dataset[idx]
             audio = self.audio_dataset[idx]
-            sample = {'audio': audio, 'text': text, 'property': property}
+            sample = {'audio': audio, 'text': text, 'property': gest_property}
 
-        if len(property) == 0:
+        if len(gest_property) == 0:
             raise Exception("Missing datapoint!")
 
         return sample
@@ -95,5 +95,5 @@ class GesturePropDataset(Dataset):
 
 
 if __name__ == "__main__":
-    TestDataset = GesturePropDataset("Phase", "both")
+    TestDataset = GesturePropDataset("Gest_exist", "both")
     print(len(TestDataset), TestDataset.text_dataset.shape, TestDataset.audio_dataset.shape, TestDataset.property_dataset.shape)

@@ -48,7 +48,10 @@ if __name__ == "__main__":
     ), "Failed to find root dir `{}` of dataset.".format(hparams.data_root)
 
     # Load dataset
-    train_n_val_dataset = GesturePropDataset(hparams.data_root, "train_n_val", hparams.data_feat, speech_modality=hparams.speech_modality)
+    train_n_val_dataset = GesturePropDataset(
+        property_name = hparams.data_feat,
+        speech_modality = hparams.speech_modality,
+    )
 
     if hparams.comet_logger["api_key"] != "None":
         from pytorch_lightning.loggers import CometLogger
@@ -63,13 +66,13 @@ if __name__ == "__main__":
         logger = pl_loggers.TensorBoardLogger('lightning_logs/')
 
     hparams.num_dataloader_workers = 8
-    hparams.gpus =  0 #[0]
+    hparams.gpus = 0  #[0]
 
     # Start print
     print('--------------------------------')
 
     # Obtain a list of all the recordings present in the dataset
-    recordings_ids = train_n_val_dataset.y_dataset[:, 0]
+    recordings_ids = train_n_val_dataset.property_dataset[:, 0]
     recordings = np.unique(recordings_ids)
 
     # K-fold LEAVE-ONE-OUT Cross Validation model evaluation
@@ -121,8 +124,7 @@ if __name__ == "__main__":
 
             # we don't want to take the same part of the recording all the time
             shift = int(curr_record_id % fold_numb)
-
-            curr_test_ind = curr_record_indices[fraction*(fold + shift): fraction * (fold++ shift+ 1)]
+            curr_test_ind = curr_record_indices[fraction*(fold + shift): fraction * (fold+ shift+ 1)]
             curr_train_ids = [x for x in curr_record_indices if x not in curr_test_ind]
 
             if len(train_ids) == 0:
@@ -140,7 +142,7 @@ if __name__ == "__main__":
         assert not any(np.isin(train_ids,test_ids))
 
         # Define the model
-        model = GestPredictor(hparams, "a" + str(fold), train_ids, test_ids, upsample=True)
+        model = GestPredictor(hparams, "a" + str(fold), train_ids, test_ids, upsample=False)
 
         # Define the trainer
         trainer = Trainer.from_argparse_args(hparams, deterministic=False, enable_pl_optimizer=True, logger=logger)

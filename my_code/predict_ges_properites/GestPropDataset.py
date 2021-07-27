@@ -1,5 +1,5 @@
-from __future__ import print_function, division
 from os import path
+from os.path import join
 import torch
 import numpy as np
 from torch.utils.data import Dataset
@@ -10,82 +10,91 @@ torch.set_default_tensor_type('torch.FloatTensor')
 class GesturePropDataset(Dataset):
     """Gesture Properties from the SAGA dataset."""
 
-    def __init__(self, root_dir, dataset_type, features_name, speech_modality, indices_to_subsample = None):
+    def __init__(self, 
+        property_name,
+        speech_modality,
+        root_dir = "../../dataset/processed/numpy_arrays", 
+        dataset_type = "train_n_val", 
+        indices_to_subsample = None
+    ):
         """
         Args:
             root_dir (string): Directory with the datasat.
         """
         self.root_dir = root_dir
         self.sp_mod = speech_modality
+        get_data_file = lambda fname : np.load(join(root_dir, dataset_type, fname))
 
         # define data file name
         self.type = dataset_type
-        self.y_file_name = root_dir + dataset_type + "_Y_" + features_name + ".npy"
 
+        # Load speech input data
         if speech_modality == "text":
-            self.t_file_name = root_dir + dataset_type + "_X_" + features_name + ".npy"
-            self.t_dataset = np.load(self.t_file_name)
-            self.a_dataset = None
+            self.text_dataset = get_data_file(f"{property_name}_nozeros_text.npy")
+            self.audio_dataset = None
+        
         elif speech_modality == "audio":
-            self.a_file_name = root_dir + dataset_type + "_A_" + features_name + ".npy"
-            self.a_dataset = np.load(self.a_file_name)
-            self.t_dataset = None
+            self.text_dataset = None
+            self.audio_dataset = get_data_file(f"{property_name}_nozeros_audio.npy")
+        
         elif speech_modality == "both":
-            self.t_file_name = root_dir + dataset_type + "_X_" + features_name + ".npy"
-            self.a_file_name = root_dir + dataset_type + "_A_" + features_name + ".npy"
-            self.t_dataset = np.load(self.t_file_name)
-            self.a_dataset = np.load(self.a_file_name)
+            self.audio_dataset = get_data_file(f"{property_name}_nozeros_audio.npy")
+            self.text_dataset = get_data_file(f"{property_name}_nozeros_text.npy")
+        
         else:
             raise TypeError("Unknown speech modality - " + speech_modality)
 
-        # read prop dataset
-        self.y_dataset = np.load(self.y_file_name)
+        # Load gesture property data
+        self.property_dataset = get_data_file(f"{property_name}_nozeros_properties.npy")
 
-        # select indices if provided
+        if self.audio_dataset is not None:
+            assert len(self.property_dataset) == len(self.audio_dataset)
+        if self.text_dataset is not None:
+            assert len(self.property_dataset) == len(self.text_dataset)
+        
+        # Optional subsampling
         if indices_to_subsample is not None:
-            self.y_dataset = self.y_dataset[indices_to_subsample]
-            if self.a_dataset is not None:
-                self.a_dataset = self.a_dataset[indices_to_subsample]
-            if self.t_dataset is not None:
-                self.t_dataset = self.t_dataset[indices_to_subsample]
+            if self.audio_dataset is not None:
+                self.audio_dataset = self.audio_dataset[indices_to_subsample]
+            if self.text_dataset is not None:
+                self.text_dataset = self.text_dataset[indices_to_subsample]
+            self.property_dataset = self.property_dataset[indices_to_subsample]
 
-        self.len = self.y_dataset.shape[0]
-
+    
         self.calculate_frequencies()
 
 
     def __len__(self):
-        return self.len
+        return len(self.property_dataset)
 
 
     def __getitem__(self, idx):
-
-        property = self.y_dataset[idx]
+        gest_property = self.property_dataset[idx]
 
         if self.sp_mod == "text":
-	    #text = self.t_dataset[idx, :, 1:]
-            text = self.t_dataset[idx]
-            sample = {'text': text, 'property': property}
-        elif self.sp_mod == "audio":
-            audio = self.a_dataset[idx]
-            sample = {'audio': audio, 'property': property}
-        elif self.sp_mod == "both":
-            #text = self.t_dataset[idx, :, 1:]
-            text = self.t_dataset[idx]
-            audio = self.a_dataset[idx]
-            sample = {'audio': audio, 'text': text, 'property': property}
+            text = self.text_dataset[idx]
+            sample = {'text': text, 'property': gest_property}
 
-        if len(property) == 0:
+        elif self.sp_mod == "audio":
+            audio = self.audio_dataset[idx]
+            sample = {'audio': audio, 'property': gest_property}
+
+        elif self.sp_mod == "both":
+            text = self.text_dataset[idx]
+            audio = self.audio_dataset[idx]
+            sample = {'audio': audio, 'text': text, 'property': gest_property}
+
+        if len(gest_property) == 0:
             raise Exception("Missing datapoint!")
 
         return sample
 
 
     def calculate_frequencies(self):
-        numb_feat = self.y_dataset.shape[1] - 2
+        numb_feat = self.property_dataset.shape[1] - 2
         freq = np.zeros(numb_feat)
         for feat in range(numb_feat):
-            column = self.y_dataset[:, 2 + feat]
+            column = self.property_dataset[:, 2 + feat]
             freq[feat] = np.sum(column)
             if freq[feat] < 50:
                 freq[feat] = 1000
