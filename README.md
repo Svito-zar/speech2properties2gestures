@@ -7,6 +7,7 @@ Taras Kucherenko, Patrik Jonell, Rajmund Nagy, Michael Neff, Hedvig Kjellström 
 
 ## Reproduction
 ```python
+conda env create -f environment.yml
 pip install -e .
 cd my_code/data_processing/annotations/
 python extract_binary_features.py  
