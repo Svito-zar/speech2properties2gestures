@@ -5,8 +5,28 @@ Taras Kucherenko, Rajmund Nagy, Michael Neff, Hedvig Kjellström and Gustav Eje 
 *Multimodal analysis of hand gesture properties predictibility*.    
 Taras Kucherenko, Patrik Jonell, Rajmund Nagy, Michael Neff, Hedvig Kjellström and Gustav Eje Henter.
 
-# Data Processing
+## Reproduction
+```python
+pip install -e .
+cd my_code/data_processing/annotations/
+python extract_binary_features.py  
+python encode_text.py
 
+# Note that he following warning is expected:
+# "WARNING: Skipping recording 17 because of missing files: ['17_text.hdf5', '17_feat.hdf5']"
+python create_dataset.py
+python concatenate_gesture_properties.py 
+python create_gesture_existance_array.py 
+python remove_zeros.py
+
+cd ../../predict_ges_existance/
+python cross-validation.py prop_params/Speech2GestExist.yaml 
+cd ../predict_ges_properites/
+python cross-validation.py prop_params/main/Both_Phase.yaml 
+```
+_______________________________
+
+# Data Processing
 ### To encode binary gesture properties
 ```
 python my_code/data_processing/annotations/create_binary_gesture_labels.py
