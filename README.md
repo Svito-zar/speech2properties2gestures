@@ -48,7 +48,8 @@ cd ../predict_ges_properites/
 python cross-validation.py prop_params/main/Both_Phase.yaml 
 ```
 _______________________________
-
+# Old stuff below:
+_______________________________
 # Data Processing
 ### To encode binary gesture properties
 ```
