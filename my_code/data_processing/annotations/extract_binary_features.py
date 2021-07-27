@@ -269,13 +269,12 @@ def encode_semantic_labels(elan_object, output_hdf5_object):
             data = np.array(feature_vectors)
         )
 
-def create_hdf5_file(annotation_filename):
+def create_hdf5_file(target_dir, annotation_filename):
     """
     Create the output hdf5 object based on the ELAN filename.
     """
     file_idx = annotation_filename[:2]
     
-    target_dir = "../../../dataset/processed/gesture_properties"
     if not os.path.isdir(target_dir):
         os.makedirs(target_dir)
 
@@ -297,6 +296,7 @@ if __name__ == "__main__":
     ]
     
     annotation_folder = "../../../dataset/transcripts/"
+    output_dir = "../../../dataset/processed/gesture_properties/train_n_val"
 
     dict_file = "dict.pkl"
     # TODO(RN) find a better name
@@ -320,7 +320,7 @@ if __name__ == "__main__":
 
         annotation_file = join(annotation_folder, filename)
         elan_object = pympi.Elan.Eaf(file_path=annotation_file)
-        hdf5_dataset = create_hdf5_file(filename)
+        hdf5_dataset = create_hdf5_file(output_dir, filename)
         
         properties = [
             "R.G.Left.Phase",  "R.G.Right.Phase",

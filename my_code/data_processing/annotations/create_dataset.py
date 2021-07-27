@@ -12,10 +12,7 @@ from my_code.data_processing.tools import calculate_spectrogram, extract_prosodi
 class MissingDataException(Exception):
     pass
 
-# TODO(RN): TEMPORARY
-ROUNDING_ERROR_COUNT = 0
 
-# TODO(RN): TEMPORARY
 def check_time_diff(arr):
     # See if the time difference between the two time steps is always the same
     time_dif = (arr[1:, 1] - arr[:-1, 1]).round(1)
@@ -34,7 +31,6 @@ def get_timesteps_between(start_time, end_time):
     n_frames = calculate_number_of_frames(start_time, end_time)
     timesteps = np.linspace(start_time, end_time, num=n_frames, endpoint=False)
     # Correct numerical errors 
-    # TODO(RN): it sucks that this is necessary
     timesteps = [correct_the_time(step) for step in timesteps] 
 
     return timesteps
@@ -107,10 +103,6 @@ def timestep_to_frame_index(timestep, start_time):
    
     frame_ind = round((timestep - start_time) * 5)
     prev_ind = round((timestep - 0.2 - start_time) * 5)
-    # TODO(RN): TEMPORARY count incorrect rounding issues
-    if frame_ind == prev_ind:
-        global ROUNDING_ERROR_COUNT
-        ROUNDING_ERROR_COUNT += 1
 
     return round((timestep - start_time) * 5)
 
@@ -123,7 +115,7 @@ def correct_the_time(time_st):
         time_st += 0.1
     return round(time_st, 1)
 
-def create_datasets(audio_dir, text_dir, gest_prop_dir, elan_dir, property_names, property_dims, output_dir):
+def create_datasets(audio_dir, text_dir, gest_prop_dir, elan_dir, property_names, property_dims, output_dir, held_out_idxs):
     """
     Create np.array datasets containing aligned audio, text and binary gesture property frames.
     
@@ -151,6 +143,11 @@ def create_datasets(audio_dir, text_dir, gest_prop_dir, elan_dir, property_names
 
     recording_idx_progress_bar = tqdm(range(1, 26))
     for recording_idx in recording_idx_progress_bar:
+        if recording_idx in held_out_idxs:
+            tqdm.write('-'*40)
+            tqdm.write(f"Recording {recording_idx} is held out, skipping to next file.")
+            tqdm.write('-'*40)
+            continue
         # Update progress par
         recording_idx = str(recording_idx).zfill(2)
         recording_idx_progress_bar.set_description(f"Recording {recording_idx}")
@@ -161,7 +158,7 @@ def create_datasets(audio_dir, text_dir, gest_prop_dir, elan_dir, property_names
         gest_prop_file = join(gest_prop_dir, f"{recording_idx}_feat.hdf5")
         input_files    = [audio_file, text_file, gest_prop_file]
         missing_files = [basename(file) for file in input_files if not isfile(file)]
-        if len(missing_files) > 0 or int(recording_idx) in [1, 13]:
+        if len(missing_files) > 0:
             tqdm.write('-'*40)
             tqdm.write(f"WARNING: Skipping recording {recording_idx} because of missing files: {missing_files}.")
             tqdm.write('-'*40)
@@ -634,17 +631,22 @@ def upsample(X, Y, n_features):
 
 
 if __name__ == "__main__":
-    gest_prop_dir = "../../../dataset/processed/gesture_properties/"
-    text_vec_dir  = "../../../dataset/processed/word_vectors/"
+    gest_prop_dir = "../../../dataset/processed/gesture_properties/train_n_val/"
+    text_vec_dir  = "../../../dataset/processed/word_vectors/train_n_val/"
     audio_dir     = "../../../dataset/audio/"
     elan_dir      = "../../../dataset/transcripts/"
-    output_dir    = "../../../dataset/processed/numpy_arrays/"    
+    output_dir    = "../../../dataset/processed/numpy_arrays/train_n_val/"    
     
+    if not os.path.isdir(output_dir):
+        os.makedirs(output_dir)
+        
     feature_dims = [6, 4, 5, 4]
     feature_names = ["S_Semantic", "Phrase", "Phase", "Semantic"]
+    held_out_idxs = [1, 13]
     
     create_datasets(
         audio_dir, text_vec_dir, gest_prop_dir, elan_dir,
         feature_names, feature_dims, 
-        output_dir
+        output_dir,
+        held_out_idxs
     )

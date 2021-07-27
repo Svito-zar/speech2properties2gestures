@@ -140,7 +140,7 @@ def encode_text(tokenizer, model, elan_object, hdf5_dataset):
 
     curr_column_features = np.array(curr_column_features)
 
-    hdf5_dataset.create_dataset(name="text", data=curr_column_features.astype(np.float32))
+    hdf5_dataset.create_dataset(name="text", data=curr_column_features.astype(np.float64))
 
 
 def create_hdf5_file(annotation_filename):
@@ -148,7 +148,7 @@ def create_hdf5_file(annotation_filename):
     Create the output hdf5 object based on the ELAN filename.
     """
     file_idx = annotation_filename[:2]
-    target_dir = "../../../dataset/processed/word_vectors"
+    target_dir = "../../../dataset/processed/word_vectors/train_n_val/"
     if not os.path.isdir(target_dir):
         os.makedirs(target_dir)
     hdf5_file_name = join(target_dir, f"{file_idx}_text.hdf5")

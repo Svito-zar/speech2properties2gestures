@@ -1,7 +1,7 @@
 import numpy as np
 from os.path import join
 
-dataset_dir = "../../../dataset/processed/numpy_arrays/"
+dataset_dir = "../../../dataset/processed/numpy_arrays/train_n_val/"
 
 get_dataset = lambda fname : np.load(join(dataset_dir, fname + ".npy"))
 

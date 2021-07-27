@@ -24,7 +24,7 @@ def print_stats(dataset):
     print(f"Phase: {has_phase}, Phrase: {has_phrase}, Semantic: {has_semantic}, No feat: {no_feat}")
 
 
-dataset_dir = "../../../dataset/processed/numpy_arrays/"
+dataset_dir = "../../../dataset/processed/numpy_arrays/train_n_val/"
 
 property_dataset = np.load(join(dataset_dir, "All_properties.npy"))
 
