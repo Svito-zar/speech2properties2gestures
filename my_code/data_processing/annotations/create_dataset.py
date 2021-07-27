@@ -636,8 +636,8 @@ def upsample(X, Y, n_features):
 if __name__ == "__main__":
     gest_prop_dir = "../../../dataset/processed/gesture_properties/"
     text_vec_dir  = "../../../dataset/processed/word_vectors/"
-    audio_dir     = "../../../dataset/EnhancedAudio/enhanced/"
-    elan_dir      = "../../../dataset/All_the_transcripts/"
+    audio_dir     = "../../../dataset/audio/"
+    elan_dir      = "../../../dataset/transcripts/"
     output_dir    = "../../../dataset/processed/numpy_arrays/"    
     
     feature_dims = [6, 4, 5, 4]
