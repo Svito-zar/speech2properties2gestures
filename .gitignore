@@ -137,3 +137,5 @@ models
 config.local.toml
 
 dataset/
+*.png
+**/*logs/*
