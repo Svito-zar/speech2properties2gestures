@@ -58,7 +58,7 @@ batch_size: 64
 benchmark: true
 check_val_every_n_epoch: 3
 checkpoint_callback: true
-data_root: /home/taras/Documents/storage/Saga/GestPropPred/Full_dataset_May/Phrase/no_zero/
+data_root: ../../dataset/processed/numpy_arrays
 data_feat: Phrase
 default_root_dir: null
 deterministic: true
@@ -105,5 +105,5 @@ val_percent_check: 0.2
 weights_save_path: null
 weights_summary: top
 comet_logger:
-  api_key: DVWPz8OdEU7HGvsUjlJhh5Q5p
+  api_key: None
   project_name: new_cb_loss_normal_phrase
