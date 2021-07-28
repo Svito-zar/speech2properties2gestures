@@ -12,6 +12,9 @@ from my_code.data_processing.tools import calculate_spectrogram, extract_prosodi
 class MissingDataException(Exception):
     pass
 
+def print_shape(name, data):
+    """Print the name and the shape of the dataset."""
+    tqdm.write(f"{name}: {data.shape}")
 
 def check_time_diff(arr):
     # See if the time difference between the two time steps is always the same
@@ -218,9 +221,18 @@ def create_datasets(audio_dir, text_dir, gest_prop_dir, elan_dir, property_names
 
         gest_prop_hf.close()
         
+    final_audio_dataset = np.concatenate(all_audio_features)
+    final_text_dataset = np.concatenate(all_text_features)
+        
+        
 
-    np.save(join(output_dir, "Audio.npy"), np.concatenate(all_audio_features))
-    np.save(join(output_dir, "Text.npy"), np.concatenate(all_text_features))
+    np.save(join(output_dir, "Audio.npy"), final_audio_dataset)
+    np.save(join(output_dir, "Text.npy"), final_text_dataset)
+    
+    tqdm.write("-"*80 + "\nFinal dataset shapes:\n" + "-"*80)
+    print_shape("audio", final_audio_dataset)
+    print_shape("text", final_text_dataset)
+   
     save_property_datasets(all_gest_prop_features, property_names)
     
     # Separately save the audio/text from those files which have the speech semantic property
@@ -229,11 +241,16 @@ def create_datasets(audio_dir, text_dir, gest_prop_dir, elan_dir, property_names
     kept_audio = [all_audio_features[idx] for idx in range(n_files) if idx not in idxs_without_speech_semantics]
     kept_text  = [all_text_features[idx]  for idx in range(n_files) if idx not in idxs_without_speech_semantics]
     
-    np.save(join(output_dir, "S_Semantic_Audio.npy"), np.concatenate(kept_audio))
-    np.save(join(output_dir, "S_Semantic_Text.npy"), np.concatenate(kept_text))
+    s_semantic_audio = np.concatenate(kept_audio)
+    s_semantic_text = np.concatenate(kept_text)
+    np.save(join(output_dir, "S_Semantic_Audio.npy"), s_semantic_audio)
+    np.save(join(output_dir, "S_Semantic_Text.npy"), s_semantic_text)
+    
+    print_shape("S_Semantic audio", s_semantic_audio)
+    print_shape("S_Semantic_text", s_semantic_text)
     
 def save_property_datasets(all_gest_prop_features, property_names):
-    
+
     for property_idx, property_name in enumerate(property_names):
         curr_property_features = []
         for file_properties in all_gest_prop_features:
@@ -242,8 +259,8 @@ def save_property_datasets(all_gest_prop_features, property_names):
         
         output_data = np.concatenate(curr_property_features)
         output_file = join(output_dir, f"{property_name}_properties.npy")
-        
         np.save(output_file, output_data)
+        print_shape(property_name + " labels", output_data)
 
 
 def create_gesture_property_datasets(
