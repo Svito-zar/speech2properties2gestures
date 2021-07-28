@@ -1,4 +1,4 @@
-name: gesture_flow
+name: speech2prop
 channels:
   - pytorch
   - defaults
@@ -87,6 +87,7 @@ dependencies:
     - appdirs==1.4.4
     - audioread==2.1.9
     - charset-normalizer==2.0.3
+    - comet-ml==3.13.1
     - cycler==0.10.0
     - decorator==5.0.9
     - filelock==3.0.12
@@ -109,7 +110,7 @@ dependencies:
     - pympi-ling==1.69
     - pyparsing==2.4.7
     - python-dateutil==2.8.2
-    - pytorch-lightning==1.4.0
+    - pytorch-lightning==1.2.0
     - pyyaml==5.4.1
     - regex==2021.7.6
     - resampy==0.2.2

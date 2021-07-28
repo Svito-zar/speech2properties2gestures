@@ -1,6 +1,7 @@
 import os
 from argparse import ArgumentParser, Namespace
 import yaml
+import comet_ml
 import torch
 import numpy as np
 
