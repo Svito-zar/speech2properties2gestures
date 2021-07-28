@@ -470,7 +470,7 @@ class PropPredictor(LightningModule):
         if self.use_speaker_ID:
             # convert IDs to OneHot vector
             speaker_ID = batch["property"][:, 0].long()
-            speaker_OneHot = torch.zeros((speaker_ID.shape[0], 25))
+            speaker_OneHot = torch.zeros((speaker_ID.shape[0], 25), device="cuda")
             speaker_OneHot[np.arange(speaker_ID.shape[0]), speaker_ID - 1] = 1
 
         if self.sp_mod == "text" or self.sp_mod == "both":
@@ -602,7 +602,7 @@ class PropPredictor(LightningModule):
         # calculate training accuracy
         all_predictions = torch.cat([x["prediction"] for x in training_step_outputs])
         all_true_labels = torch.cat([x["true_lab"] for x in training_step_outputs])
-        self.accuracy(all_predictions.detach(), all_true_labels, train=True)
+        #self.accuracy(all_predictions.detach(), all_true_labels, train=True)
 
 
     def validation_step(self, batch, batch_idx):
