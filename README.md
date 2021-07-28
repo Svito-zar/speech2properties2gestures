@@ -5,7 +5,11 @@ Taras Kucherenko, Rajmund Nagy, Michael Neff, Hedvig Kjellström and Gustav Eje 
 *Multimodal analysis of hand gesture properties predictibility*.    
 Taras Kucherenko, Patrik Jonell, Rajmund Nagy, Michael Neff, Hedvig Kjellström and Gustav Eje Henter.
 
-# Expected dataset folders
+# Dataset
+
+You can download the data from https://kth.app.box.com/folder/126255878610 files "denoised_audios" and "all_the_annotations".
+
+## Expected dataset folders
 ```
 dataset/transcripts:
 01_video.eaf       05_video.eaf   08_video.pfsx  13_video.eaf   19_video.eaf   24_video.eaf
@@ -26,10 +30,17 @@ V13K3.mov_enhanced.wav             V19K3.mov_enhanced.wav   V25K3.mov_enhanced.w
 V14K3.mov_enhanced.wav             V1K3.mov_enhanced.wav    V2K3.mov_enhanced.wav   V9K3.mov_enhanced.wav
 V15K3.mov_enhanced.wav             V20K3.mov_enhanced.wav   V3K3.mov_enhanced.wav
 ```
-# Running the code
+
+
+# Setting up the environment
 ```python
 conda env create -f environment.yml
+conda activate speech2prop
 pip install -e .
+```
+
+# Preprocessing the data
+```python
 cd my_code/data_processing/annotations/
 python extract_binary_features.py  
 python encode_text.py
@@ -40,7 +51,10 @@ python create_dataset.py
 python concatenate_gesture_properties.py 
 python create_gesture_existance_array.py 
 python remove_zeros.py
+```
 
+# Running the model
+```python
 # Example runs
 cd ../../predict_ges_existance/
 python cross-validation.py prop_params/Speech2GestExist.yaml 
