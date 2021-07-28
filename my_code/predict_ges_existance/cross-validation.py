@@ -49,6 +49,7 @@ if __name__ == "__main__":
 
     # Load dataset
     train_n_val_dataset = GesturePropDataset(
+        root_dir = hparams.data_root,
         property_name = hparams.data_feat,
         speech_modality = hparams.speech_modality,
     )

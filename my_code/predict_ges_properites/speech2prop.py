@@ -453,11 +453,13 @@ class PropPredictor(LightningModule):
     def load_datasets(self):
         try:
             self.train_dataset = GesturePropDataset(
+                root_dir = self.hparams.data_root, 
                 property_name = self.hparams.data_feat, 
                 speech_modality = self.hparams.speech_modality
             )
 
             self.val_dataset = GesturePropDataset(
+                root_dir = self.hparams.data_root, 
                 property_name = self.hparams.data_feat, 
                 speech_modality = self.hparams.speech_modality,
                 indices_to_subsample = self.val_ids
