@@ -43,4 +43,4 @@ assert gesture_existance_array[:, 2].min() == 0
 
 np.save(join(dataset_dir, "Gest_exist_properties.npy"), gesture_existance_array)
 print("FINAL SHAPE:", gesture_existance_array.shape)
-print("# gestures:", gesture_existance_array[:, 2].sum())
+print("# frames with gesture:", gesture_existance_array[:, 2].sum())
