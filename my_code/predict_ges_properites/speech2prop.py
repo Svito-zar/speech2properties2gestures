@@ -470,7 +470,8 @@ class PropPredictor(LightningModule):
         if self.use_speaker_ID:
             # convert IDs to OneHot vector
             speaker_ID = batch["property"][:, 0].long()
-            speaker_OneHot = torch.zeros((speaker_ID.shape[0], 25), device="cuda")
+            speaker_OneHot = torch.zeros((speaker_ID.shape[0], 25))
+            speaker_OneHot.to(self.device)
             speaker_OneHot[np.arange(speaker_ID.shape[0]), speaker_ID - 1] = 1
 
         if self.sp_mod == "text" or self.sp_mod == "both":
