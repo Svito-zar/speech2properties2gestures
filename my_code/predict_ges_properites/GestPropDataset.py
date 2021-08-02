@@ -14,7 +14,7 @@ class GesturePropDataset(Dataset):
         property_name,
         speech_modality,
         root_dir = "../../dataset/processed/numpy_arrays", 
-        dataset_type = "train_n_val", 
+        dataset_type = "train_n_val/no_zeros",
         indices_to_subsample = None
     ):
         """
@@ -30,22 +30,22 @@ class GesturePropDataset(Dataset):
 
         # Load speech input data
         if speech_modality == "text":
-            self.text_dataset = get_data_file(f"{property_name}_nozeros_text.npy")
+            self.text_dataset = get_data_file("Text.npy")
             self.audio_dataset = None
         
         elif speech_modality == "audio":
             self.text_dataset = None
-            self.audio_dataset = get_data_file(f"{property_name}_nozeros_audio.npy")
+            self.audio_dataset = get_data_file("Audio.npy")
         
         elif speech_modality == "both":
-            self.audio_dataset = get_data_file(f"{property_name}_nozeros_audio.npy")
-            self.text_dataset = get_data_file(f"{property_name}_nozeros_text.npy")
+            self.audio_dataset = get_data_file("Audio.npy")
+            self.text_dataset = get_data_file("Text.npy")
         
         else:
             raise TypeError("Unknown speech modality - " + speech_modality)
 
         # Load gesture property data
-        self.property_dataset = get_data_file(f"{property_name}_nozeros_properties.npy")
+        self.property_dataset = get_data_file(f"{property_name}_properties.npy")
 
         if self.audio_dataset is not None:
             assert len(self.property_dataset) == len(self.audio_dataset)
