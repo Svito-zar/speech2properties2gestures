@@ -185,7 +185,7 @@ def create_datasets(audio_dir, text_dir, gest_prop_dir, elan_dir, property_names
         audio_features = extract_audio_features(
             audio_file, 
             recording_start_time, recording_end_time, 
-            total_number_of_frames
+            total_number_of_frames, elan_dir,  f"{recording_idx}_video"
         )
 
         text_features = extract_text_features(
@@ -200,12 +200,6 @@ def create_datasets(audio_dir, text_dir, gest_prop_dir, elan_dir, property_names
             recording_start_time, recording_end_time, 
             total_number_of_frames
         )
-        
-        audio_features, text_features, gest_prop_features = remove_data_when_interlocutor_speaks(
-            elan_dir, audio_features, text_features, gest_prop_features, 
-            recording_idx, recording_start_time, recording_end_time
-        )
-        
 
         for property_dataset in gest_prop_features:
             if is_empty(property_dataset):
@@ -550,7 +544,7 @@ def extract_text_features(text_dataset, word_starts, start_time, end_time, total
 
     return text_features
 
-def extract_audio_features(audio_file, start_time, end_time, total_number_of_frames):
+def extract_audio_features(audio_file, start_time, end_time, total_number_of_frames, elan_source_dir, fname):
     """
     Extract audio features from a given file
 
@@ -580,6 +574,9 @@ def extract_audio_features(audio_file, start_time, end_time, total_number_of_fra
     assert start_ind > context_length
     assert stop_ind < prosodic_features.shape[0]
 
+    # remove interloculor's speech
+    prosodic_features = mask_interlocutor_speech(prosodic_features, fps, elan_source_dir, fname)
+
     audio_features = np.array([
         prosodic_features[i - context_length : i + context_length + 1]
         for i in range(start_ind, stop_ind, seq_step)])
@@ -587,6 +584,73 @@ def extract_audio_features(audio_file, start_time, end_time, total_number_of_fra
     assert(len(audio_features) == total_number_of_frames)
 
     return audio_features
+
+
+def mask_interlocutor_speech(audio_feat_vectors, sampling_rate, elan_dir, elan_ann_fname):
+    """
+    Code taken from https://github.com/nagyrajmund/StyleGestures/blob/0892816b8f1e9b8980bbd42d04c1c665d2f7fdb4/data_processing/feature_extraction.py#L171
+
+    Set every frame where the interlocutor is talking in the given audio_feat_vectors
+    to zero using the transcription in the ELAN file in `elan_dir`.
+
+    Args:
+        audio_feat_vectors:        [T, D] - audio feature vector
+        sampling_rate:             int - sampling rate
+        elan_dir:                  str - directory with all the annotation ELAN files
+        elan_ann_fname:            str - file name of the ELAN file to use
+
+    Returns:
+        audio_feat_vectors:        [T, D] - audio feature vector, where interlocutor speech is masked
+    """
+
+    # Define "silence" feature vector
+    silence_vectors = extract_prosodic_features(join(os.getcwd(), "silence.wav"))
+    audio_mask_feat_vec = silence_vectors[0]
+
+    # Open the annotation file
+    elan_file = join(elan_dir, elan_ann_fname + ".eaf")
+    elan = pympi.Elan.Eaf(file_path=elan_file)
+
+    if "F.S.Form" not in elan.tiers:
+        tqdm.write("INFO: Interlocutor speech data is not present in current file.")
+        return audio_feat_vectors
+
+    def to_idx(timeslot):
+        """
+        Convert the given ELAN timestamp to the correspoding
+        index of the audio_feat_vectors vector.
+        NOTE: ELAN times are in milliseconds.
+        """
+        return elan.timeslots[timeslot] * sampling_rate // 1000
+
+    n_masked = 0
+    interlocutor_annotations = elan.tiers["F.S.Form"][0]
+    for annotation_entry in interlocutor_annotations.values():
+        start, end, word, _ = annotation_entry
+        word = word.strip().lower()
+
+        # Only consider words which are clearly not back channels
+        if word in [
+            "",
+            "mhm",
+            "hm",
+            "ok",
+            "ja",
+            "ah",
+            "äh",
+            "aha",
+        ]:
+            continue
+
+        # the end frame is not masked now, while I would rather mask it
+        audio_feat_vectors[to_idx(start): to_idx(end)] = audio_mask_feat_vec
+        n_masked += to_idx(end) - to_idx(start)
+
+    tqdm.write(
+        f"INFO: ({elan_ann_fname}) masking {n_masked / len(audio_feat_vectors) : .0%} of audio frames with zero due to interlocutor speech."
+    )
+    return audio_feat_vectors
+
 
 def upsample(X, Y, n_features):
     """
@@ -648,18 +712,20 @@ def upsample(X, Y, n_features):
 
 
 if __name__ == "__main__":
-    gest_prop_dir = "../../../dataset/processed/gesture_properties/train_n_val/"
-    text_vec_dir  = "../../../dataset/processed/word_vectors/train_n_val/"
-    audio_dir     = "../../../dataset/audio/"
-    elan_dir      = "../../../dataset/transcripts/"
-    output_dir    = "../../../dataset/processed/numpy_arrays/train_n_val/"    
+
+    core_dir = "/home/tarask/Documents/Code/probabilistic-gesticulator/dataset/"
+    gest_prop_dir = core_dir + "processed/gesture_properties/train_n_val/"
+    text_vec_dir  = core_dir + "processed/word_vectors/train_n_val/"
+    audio_dir     = core_dir + "audio/"
+    elan_dir      = core_dir + "transcripts/"
+    output_dir    = core_dir + "processed/numpy_arrays/train_n_val/"    
     
     if not os.path.isdir(output_dir):
         os.makedirs(output_dir)
         
     feature_dims = [6, 4, 5, 4]
     feature_names = ["S_Semantic", "Phrase", "Phase", "Semantic"]
-    held_out_idxs = [1, 13]
+    held_out_idxs = [4, 5, 6, 7, 8, 10, 12, 13, 14, 15, 17, 18, 19, 20, 21, 22, 23, 24 ]
     
     create_datasets(
         audio_dir, text_vec_dir, gest_prop_dir, elan_dir,
