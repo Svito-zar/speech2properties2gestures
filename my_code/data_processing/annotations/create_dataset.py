@@ -586,7 +586,7 @@ def extract_audio_features(audio_file, start_time, end_time, total_number_of_fra
     return audio_features
 
 
-def mask_interlocutor_speech(audio_feat_vectors, sampling_rate, elan_dir, elan_ann_fname):
+def mask_interlocutor_speech(audio_feat_vectors, fps, elan_dir, elan_ann_fname):
     """
     Code taken from https://github.com/nagyrajmund/StyleGestures/blob/0892816b8f1e9b8980bbd42d04c1c665d2f7fdb4/data_processing/feature_extraction.py#L171
 
@@ -595,7 +595,7 @@ def mask_interlocutor_speech(audio_feat_vectors, sampling_rate, elan_dir, elan_a
 
     Args:
         audio_feat_vectors:        [T, D] - audio feature vector
-        sampling_rate:             int - sampling rate
+        fps:                       int - frames per second (fps) rate
         elan_dir:                  str - directory with all the annotation ELAN files
         elan_ann_fname:            str - file name of the ELAN file to use
 
@@ -621,7 +621,7 @@ def mask_interlocutor_speech(audio_feat_vectors, sampling_rate, elan_dir, elan_a
         index of the audio_feat_vectors vector.
         NOTE: ELAN times are in milliseconds.
         """
-        return elan.timeslots[timeslot] * sampling_rate // 1000
+        return elan.timeslots[timeslot] * fps // 1000
 
     n_masked = 0
     interlocutor_annotations = elan.tiers["F.S.Form"][0]
