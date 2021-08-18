@@ -18,16 +18,16 @@ def print_shape(name, data):
 
 def check_time_diff(arr):
     # See if the time difference between the two time steps is always the same
-    time_dif = (arr[1:, 1] - arr[:-1, 1]).round(1)
+    time_dif = (arr[1:, 1] - arr[:-1, 1]).round(2)
     max_td = np.max(time_dif)
     min_td = np.min(time_dif)
-    if max_td != 0.2 or min_td != 0.2:
+    if max_td != 0.05 or min_td != 0.05:
         tqdm.write("WARNING: WRONG TIMING, time difference is in [", min_td, ", ", max_td, "]")
-        tqdm.write( [arr[int(i)-1:int(i)+2, 1] for i in np.argwhere(time_dif != 0.2) ] )
+        tqdm.write( [arr[int(i)-1:int(i)+2, 1] for i in np.argwhere(time_dif != 0.05) ] )
 
 def get_timesteps_between(start_time, end_time):
     """
-    Get a list of 0.2s timesteps between the two given timestamps, with 'end_time' included.
+    Get a list of 0.05s timesteps between the two given timestamps, with 'end_time' included.
     """
     start_time = correct_the_time(start_time)
     end_time = correct_the_time(end_time)
@@ -40,11 +40,11 @@ def get_timesteps_between(start_time, end_time):
 
 def calculate_number_of_frames(start_time, end_time):
     """
-    Return the number of frames between the two timestamps, assuming 5 FPS.
+    Return the number of frames between the two timestamps, assuming 20 FPS.
     """
     duration = correct_the_time(end_time - start_time)
-    # NOTE: we have 0.2s timesteps
-    n_frames = int(duration * 5)
+    # NOTE: we have 0.05s timesteps, meaning 20 frames per second
+    n_frames = int(duration * 20)
 
     return n_frames
 
@@ -107,16 +107,21 @@ def timestep_to_frame_index(timestep, start_time):
     frame_ind = round((timestep - start_time) * 5)
     prev_ind = round((timestep - 0.2 - start_time) * 5)
 
-    return round((timestep - start_time) * 5)
+    return round((timestep - start_time) * 20)
 
 def correct_the_time(time_st):
     """
-    Round the given timestep to the a multiple of 0.2,
-    since we have time steps of 0.2 seconds.
+    Round the given timestep to the a multiple of 0.05,
+    since we have time steps of 0.05 seconds.
+
+    Taken from: https://stackoverflow.com/questions/28425705/python-rounding-a-floating-point-number-to-nearest-0-05
     """
-    if round(time_st * 10) % 2 == 1:
-        time_st += 0.1
-    return round(time_st, 1)
+
+    mulpl = 0.05 # for 20 fps
+
+    new_time_st = round(time_st / mulpl) * mulpl
+
+    return round(new_time_st, 2)
 
 def create_datasets(audio_dir, text_dir, gest_prop_dir, elan_dir, property_names, property_dims, output_dir, held_out_idxs):
     """
@@ -174,8 +179,8 @@ def create_datasets(audio_dir, text_dir, gest_prop_dir, elan_dir, property_names
         # text_vec_hf.close()
         
         # Extract timing info from the dataset
-        word_starts             = text_dataset[:, 0].round(1)
-        word_ends               = text_dataset[:, 1].round(1)
+        word_starts             = text_dataset[:, 0].round(2)
+        word_ends               = text_dataset[:, 1].round(2)
         # We reserve first and last three words as context
         recording_start_time    = correct_the_time(word_starts[3])
         recording_end_time      = correct_the_time(word_ends[-4])
@@ -336,7 +341,7 @@ def _extract_gesture_property_features(
     #----------------------------------------------------
     # TODO(RN) TEMPORARY: check rounding issues
     for i in range(1, len(timesteps)-1):
-         if (timesteps[i] - timesteps[i-1]).round(1) != 0.2 or (timesteps[i+1] - timesteps[i]).round(1) != 0.2:
+         if round(timesteps[i] - timesteps[i-1],2) != 0.05 or round(timesteps[i+1] - timesteps[i],2) != 0.05:
             tqdm.write(timesteps[i-1 : i+2])
             raise ValueError("rounding_issues")
     #----------------------------------------------------
@@ -533,7 +538,7 @@ def extract_text_features(text_dataset, word_starts, start_time, end_time, total
     text_features = np.zeros((total_number_of_frames, sequence_length, 1 + n_bert_dims))
     time_ind = 0
     for timestep in tqdm(get_timesteps_between(start_time, end_time), desc="Processing text", leave=False):
-        curr_word_idx = bisect.bisect(word_starts, timestep) - 1
+        curr_word_idx = bisect.bisect(word_starts, timestep) - 1 # why do we subtract 1 here??
 
         feature_vector = [
             np.array( [word_starts[word_idx] - timestep] + list(text_dataset[word_idx, 2:]) )
@@ -558,8 +563,8 @@ def extract_audio_features(audio_file, start_time, end_time, total_number_of_fra
         curr_file_A_data:       [total_number_of_frames, X, Y] array of audio features
 
     """
-    fps = 5
-    context_length = 5
+    fps = 20
+    context_length = 20
     # tqdm.write("Timing: [", start_time, ", ", end_time, "]")
     # tqdm.write("Number of frames: ", total_number_of_frames)
 
@@ -567,7 +572,7 @@ def extract_audio_features(audio_file, start_time, end_time, total_number_of_fra
 
     # create a list of sequences with a fixed past and future context length ( overlap them to use data more efficiently)
     start_ind = int(start_time*fps)
-    seq_step = 1  # overlap of sequences: 0.2s
+    seq_step = 1  # overlap of sequences: 0.05s
 
     stop_ind = int(end_time*fps)
 

@@ -176,10 +176,10 @@ def extract_prosodic_features(audio_filename):
     pitch_der = derivative(t, pitch)
 
     # Average everything in order to match the frequency
-    energy = average(energy, 40)
-    energy_der = average(energy_der, 40)
-    pitch = average(pitch, 40)
-    pitch_der = average(pitch_der, 40)
+    energy = average(energy, 10)
+    energy_der = average(energy_der, 10)
+    pitch = average(pitch, 10)
+    pitch_der = average(pitch_der, 10)
 
     # Cut them to the same size
     min_size = min(len(energy), len(energy_der), len(pitch_der), len(pitch_der))
