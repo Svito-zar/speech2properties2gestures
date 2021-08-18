@@ -104,8 +104,8 @@ def timestep_to_frame_index(timestep, start_time):
     Convert the given timestep from seconds to the index of the corresponding frame.
     """
    
-    frame_ind = round((timestep - start_time) * 5)
-    prev_ind = round((timestep - 0.2 - start_time) * 5)
+    frame_ind = round((timestep - start_time) * 20)
+    prev_ind = round((timestep - 0.05 - start_time) * 20)
 
     return round((timestep - start_time) * 20)
 
@@ -138,7 +138,7 @@ def create_datasets(audio_dir, text_dir, gest_prop_dir, elan_dir, property_names
         nothing, but it saves the audio/text/property arrays into 'output_dir' per file
 
     NOTE: see 'open_and_clean_property_data_for_both_hands()' for the list of supported properties
-    NOTE: each frame is 0.2 seconds long.
+    NOTE: each frame is 0.05 seconds long.
     """
     all_audio_features     = []
     all_text_features      = []
@@ -407,7 +407,7 @@ def remove_data_when_interlocutor_speaks(
         if word == "" or word in ["mhm", "hm", "OK", "ja", "ah", "äh"]:
             continue
             
-        # Convert ms to s and make sure the timestep fits with the 0.2 sec frames
+        # Convert ms to s and make sure the timestep fits with the 0.05 sec frames
         word_start_time = correct_the_time(timeslots[st_t] / 1000)
         word_end_time = correct_the_time(timeslots[end_t] / 1000)
 
@@ -427,7 +427,7 @@ def remove_data_when_interlocutor_speaks(
     
     # Delete the selected frames
     n_frames = len(indices_to_delete)
-    n_seconds = round(n_frames / 5)
+    n_seconds = round(n_frames / 20)
     tqdm.write(f"Recording {recording_idx}:", end="\t")
     tqdm.write(f"INFO: Deleting {n_frames:<4} frames (~{n_seconds:<3} seconds) where the interlocutor was speaking.")
 
