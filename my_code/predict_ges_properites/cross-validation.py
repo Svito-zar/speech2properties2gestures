@@ -128,7 +128,11 @@ if __name__ == "__main__":
             shift = int(curr_record_id % fold_numb)
 
             curr_test_ind = curr_record_indices[fraction*(fold + shift): fraction * (fold++ shift+ 1)]
-            curr_train_ids = [x for x in curr_record_indices if x not in curr_test_ind]
+
+            # make sure that sequences do not overlap by not using 20 closest sequences to the test data
+            curr_train_ids_1st_half = curr_record_indices[:fraction*(fold + shift)-20]
+            curr_train_ids_2nd_half = curr_record_indices[fraction * (fold++ shift+ 1)+20:]
+            curr_train_ids = curr_train_ids_1st_half + curr_train_ids_2nd_half
 
             if len(train_ids) == 0:
                 train_ids = curr_train_ids
