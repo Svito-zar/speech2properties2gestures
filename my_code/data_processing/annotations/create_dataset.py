@@ -728,9 +728,9 @@ if __name__ == "__main__":
     if not os.path.isdir(output_dir):
         os.makedirs(output_dir)
         
-    feature_dims = [6, 4, 5, 4]
-    feature_names = ["S_Semantic", "Phrase", "Phase", "Semantic"]
-    held_out_idxs = [4, 5, 6, 7, 8, 10, 12, 13, 14, 15, 17, 18, 19, 20, 21, 22, 23, 24 ]
+    feature_dims = [4, 5, 4]
+    feature_names = ["Phrase", "Phase", "Semantic"]
+    held_out_idxs = [7, 8, 10] # 11, 12, 21
     
     create_datasets(
         audio_dir, text_vec_dir, gest_prop_dir, elan_dir,
