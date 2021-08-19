@@ -125,7 +125,7 @@ if __name__ == "__main__":
             fraction = len_curr_ids // fold_numb
 
             # we don't want to take the same part of the recording all the time
-            shift = int(curr_record_id + fold % fold_numb)
+            shift = int((curr_record_id + fold) % fold_numb)
 
             curr_test_ind = curr_record_indices[fraction*(shift): fraction * ( shift+ 1)]
 
