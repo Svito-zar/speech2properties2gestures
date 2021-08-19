@@ -130,9 +130,11 @@ if __name__ == "__main__":
             curr_test_ind = curr_record_indices[fraction*(fold + shift): fraction * (fold++ shift+ 1)]
 
             # make sure that sequences do not overlap by not using 20 closest sequences to the test data
-            curr_train_ids_1st_half = curr_record_indices[:fraction*(fold + shift)-20]
-            curr_train_ids_2nd_half = curr_record_indices[fraction * (fold++ shift+ 1)+20:]
-            curr_train_ids = curr_train_ids_1st_half + curr_train_ids_2nd_half
+            first_half_end = np.clip(fraction*(fold + shift)-20, 0, len(recordings_ids))
+            curr_train_ids_1st_half = curr_record_indices[:first_half_end]
+            second_half_start = np.clip(fraction*(fold+ shift+2)+20, 0, len(recordings_ids))
+            curr_train_ids_2nd_half = curr_record_indices[second_half_start:]
+            curr_train_ids = np.concatenate((curr_train_ids_1st_half,curr_train_ids_2nd_half))
 
             if len(train_ids) == 0:
                 train_ids = curr_train_ids
@@ -141,9 +143,13 @@ if __name__ == "__main__":
                 train_ids = np.concatenate((train_ids, curr_train_ids))
                 test_ids = np.concatenate((test_ids, curr_test_ind))
 
-        # Make sure that train_ids[0] does in fact contain all indices!
+            # Make sure train and test inds are not overlapping
+            assert not any(np.isin(train_ids,test_ids))
+
+            # Here would be cool to actually test the difference between any two indices is not smaller than 20
+
+        # Make sure that train_ids[0] does in fact contain some indices!
         assert len(train_ids) > 0
-        assert len(train_ids) + len(test_ids) == len(recordings_ids)
 
         # Make sure train and test inds are not overlapping
         assert not any(np.isin(train_ids,test_ids))
