@@ -125,14 +125,14 @@ if __name__ == "__main__":
             fraction = len_curr_ids // fold_numb
 
             # we don't want to take the same part of the recording all the time
-            shift = int(curr_record_id % fold_numb)
+            shift = int(curr_record_id + fold % fold_numb)
 
-            curr_test_ind = curr_record_indices[fraction*(fold + shift): fraction * (fold++ shift+ 1)]
+            curr_test_ind = curr_record_indices[fraction*(shift): fraction * ( shift+ 1)]
 
             # make sure that sequences do not overlap by not using 20 closest sequences to the test data
-            first_half_end = np.clip(fraction*(fold + shift)-20, 0, len(recordings_ids))
+            first_half_end = np.clip(fraction*(shift)-20, 0, len(recordings_ids))
             curr_train_ids_1st_half = curr_record_indices[:first_half_end]
-            second_half_start = np.clip(fraction*(fold+ shift+2)+20, 0, len(recordings_ids))
+            second_half_start = np.clip(fraction*(shift+1)+20, 0, len(recordings_ids))
             curr_train_ids_2nd_half = curr_record_indices[second_half_start:]
             curr_train_ids = np.concatenate((curr_train_ids_1st_half,curr_train_ids_2nd_half))
 
