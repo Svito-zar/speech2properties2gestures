@@ -69,7 +69,7 @@ if __name__ == "__main__":
         logger = pl_loggers.TensorBoardLogger('lightning_logs/', version=str(hparams.data_feat))
     
     hparams.num_dataloader_workers = 8
-    hparams.gpus = [1]
+    hparams.gpus = 0 # [1]
 
     # Start print
     print('--------------------------------')
@@ -136,17 +136,17 @@ if __name__ == "__main__":
             curr_train_ids_2nd_half = curr_record_indices[second_half_start:]
             curr_train_ids = np.concatenate((curr_train_ids_1st_half,curr_train_ids_2nd_half))
 
+            # Test the difference between any two indices in train and val is not smaller than 20
+            for tr_ind in range(len(curr_train_ids)):
+                for test_ind in range(len(curr_test_ind)):
+                    assert abs(curr_train_ids[tr_ind] - curr_test_ind[test_ind]) >= 20
+
             if len(train_ids) == 0:
                 train_ids = curr_train_ids
                 test_ids = curr_test_ind
             else:
                 train_ids = np.concatenate((train_ids, curr_train_ids))
                 test_ids = np.concatenate((test_ids, curr_test_ind))
-
-            # Make sure train and test inds are not overlapping
-            assert not any(np.isin(train_ids,test_ids))
-
-            # Here would be cool to actually test the difference between any two indices is not smaller than 20
 
         # Make sure that train_ids[0] does in fact contain some indices!
         assert len(train_ids) > 0

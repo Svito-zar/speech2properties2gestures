@@ -295,8 +295,8 @@ if __name__ == "__main__":
         'R.S.Semantic Feature'
     ]
     
-    annotation_folder = "../../../dataset/transcripts/"
-    output_dir = "../../../dataset/processed/gesture_properties/train_n_val"
+    annotation_folder =  "/home/tarask/Documents/Code/probabilistic-gesticulator/dataset/transcripts/"
+    output_dir = "/home/tarask/Documents/Code/probabilistic-gesticulator/dataset/processed/gesture_properties/train_n_val"
 
     dict_file = "dict.pkl"
     # TODO(RN) find a better name

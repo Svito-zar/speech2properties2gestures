@@ -161,7 +161,7 @@ def extract_prosodic_features(audio_filename):
         pros_feature:     energy, energy_der, pitch, pitch_der, pitch_ind
     """
 
-    WINDOW_LENGTH = 5
+    WINDOW_LENGTH = 10
 
     # Read audio from file
     sound = AudioSegment.from_file(audio_filename, format="wav")
@@ -176,10 +176,10 @@ def extract_prosodic_features(audio_filename):
     pitch_der = derivative(t, pitch)
 
     # Average everything in order to match the frequency
-    energy = average(energy, 10)
-    energy_der = average(energy_der, 10)
-    pitch = average(pitch, 10)
-    pitch_der = average(pitch_der, 10)
+    energy = average(energy, 5)
+    energy_der = average(energy_der, 5)
+    pitch = average(pitch, 5)
+    pitch_der = average(pitch_der, 5)
 
     # Cut them to the same size
     min_size = min(len(energy), len(energy_der), len(pitch_der), len(pitch_der))

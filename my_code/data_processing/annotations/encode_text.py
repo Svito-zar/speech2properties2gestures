@@ -163,7 +163,7 @@ if __name__ == "__main__":
     tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-german-cased')
     model = DistilBertModel.from_pretrained('distilbert-base-german-cased')
 
-    annotation_folder = "../../../dataset/transcripts/"
+    annotation_folder = "/home/tarask/Documents/Code/probabilistic-gesticulator/dataset/transcripts/"
 
     # go though the gesture features
     for filename in tqdm(os.listdir(annotation_folder)):

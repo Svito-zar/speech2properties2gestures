@@ -58,7 +58,7 @@ batch_size: 512
 benchmark: true
 check_val_every_n_epoch: 3
 checkpoint_callback: true
-data_root: ../../dataset/processed/numpy_arrays
+data_root: /home/tarask/Documents/Code/probabilistic-gesticulator/dataset/processed/numpy_arrays
 data_feat: Phase
 default_root_dir: null
 deterministic: true

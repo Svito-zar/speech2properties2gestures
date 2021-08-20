@@ -635,7 +635,7 @@ class PropPredictor(LightningModule):
                 # #spines = plt.gca().spines
                 # #spines['right'].set_visible(False)
                 # #spines['top'].set_visible(False)
-                # plt.savefig(fname=image_file_name, dpi=600)
+                # plt.savefig(elan_ann_fname=image_file_name, dpi=600)
                 # # self.logger.experiment.log_image(image_file_name)
                 # plt.clf()
 
