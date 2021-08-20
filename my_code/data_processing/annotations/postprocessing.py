@@ -125,7 +125,7 @@ def print_banner(text):
     print("-"*30)
 
 if __name__ == "__main__":
-    DATASET_DIR = "/home/tarask/Documents/Code/probabilistic-gesticulator/dataset/processed/numpy_arrays/train_n_val/"
+    DATASET_DIR = "../../../dataset/processed/numpy_arrays/train_n_val/"
     print("Using dataset dir:", abspath(DATASET_DIR))
     
     main()

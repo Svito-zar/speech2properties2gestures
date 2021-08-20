@@ -58,7 +58,7 @@ batch_size: 512
 benchmark: true
 check_val_every_n_epoch: 3
 checkpoint_callback: true
-data_root: /home/tarask/Documents/Code/probabilistic-gesticulator/dataset/processed/numpy_arrays
+data_root: ../../dataset/processed/numpy_arrays
 data_feat: Phase
 default_root_dir: null
 deterministic: true
@@ -70,7 +70,7 @@ log_gpu_memory: null
 log_save_interval: 80
 log_root: results/gesture_flow/log/
 logger: true
-lr: 0.00001
+lr: 0.0001
 max_epochs: 60
 max_steps: null
 min_epochs: 1
