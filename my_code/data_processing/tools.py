@@ -167,36 +167,85 @@ def extract_prosodic_features(audio_filename):
     sound = AudioSegment.from_file(audio_filename, format="wav")
 
     # Alternative prosodic features
-    pitch, energy = compute_prosody(audio_filename, WINDOW_LENGTH / 1000)
+    pitch, energy, voiced_flag = compute_prosody(audio_filename, WINDOW_LENGTH / 1000)
 
+    # Define time-frames
     duration = len(sound) / 1000
     t = np.arange(0, duration, WINDOW_LENGTH / 1000)
 
+    # Take numerical derivatives
     energy_der = derivative(t, energy)
     pitch_der = derivative(t, pitch)
+
+    # Test percentage of voiced frames
+    # print("Percentage: ", np.sum(voiced_flag) * 100 / len(voiced_flag), " %")
 
     # Average everything in order to match the frequency
     energy = average(energy, 5)
     energy_der = average(energy_der, 5)
     pitch = average(pitch, 5)
     pitch_der = average(pitch_der, 5)
+    voiced_av = average(voiced_flag, 5)
 
     # Cut them to the same size
-    min_size = min(len(energy), len(energy_der), len(pitch_der), len(pitch_der))
+    min_size = min(len(energy), len(energy_der), len(pitch_der), len(pitch_der), len(voiced_av))
     energy = energy[:min_size]
     energy_der = energy_der[:min_size]
     pitch = pitch[:min_size]
     pitch_der = pitch_der[:min_size]
+    voiced_av = voiced_av[:min_size]
 
     # Stack them all together
-    pros_feature = np.stack((energy, energy_der, pitch, pitch_der))#, pitch_ind))
+    pros_feature = np.stack((energy, energy_der, pitch, pitch_der, voiced_av))
 
     # And reshape
     pros_feature = np.transpose(pros_feature)
 
+    visualize = False
+    if visualize:
+
+        import matplotlib.pyplot as plt
+
+        s = energy[:200]
+        t = np.arange(s.shape[0])
+        plt.plot(t, s, color='green')
+
+        plt.xlabel('Time frames')
+        plt.ylabel('Energy after the transform')
+        plt.title('Energy')
+        plt.grid(True)
+
+        plt.show()
+
+        s = energy_der[:200]
+        t = np.arange(s.shape[0])
+        plt.plot(t, s, color='green')
+
+        plt.xlabel('Time frames')
+        plt.ylabel('Energy derivative after the transform')
+        plt.title('Energy derivative')
+        plt.grid(True)
+
+        plt.show()
+
+        s = pitch[:200]
+        t = np.arange(s.shape[0])
+        plt.plot(t, s, color='green')
+
+        s = voiced_av[:200]
+        t = np.arange(s.shape[0])
+        plt.plot(t, s, color='red')
+
+        plt.xlabel('Time frames')
+        plt.ylabel('Pitch after the transform')
+        plt.title('Pitch and voiced')
+        plt.grid(True)
+
+        plt.show()
+
     return pros_feature
 
-def compute_prosody(audio_filename, time_step=0.05):
+def compute_prosody(audio_filename, time_step):
     audio = pm.Sound(audio_filename)
 
     # Extract pitch and intensity
@@ -212,14 +261,23 @@ def compute_prosody(audio_filename, time_step=0.05):
     intensity_values = np.nan_to_num(
         np.asarray([intensity.get_value(t) for t in times]))
 
-    intensity_values = np.clip(
-        intensity_values, np.finfo(intensity_values.dtype).eps, None)
+    # Calculate an array of voiced binary indicators
+    voiced = np.zeros(pitch_values.shape)
+    for i in range(pitch_values.shape[0]):
+        if pitch_values[i] > 1e-6:
+            voiced[i] = 1
 
     # Normalize features [Chiu '11]
+    intensity_values = np.clip(
+        intensity_values, np.finfo(intensity_values.dtype).eps, None)
     pitch_norm = np.clip(np.log(pitch_values + 1) - 4, 0, None)
     intensity_norm = np.clip(np.log(intensity_values) - 3, 0, None)
 
-    return pitch_norm, intensity_norm
+    # interpolate
+    if len(pitch_norm[pitch_norm>1e-8]) > 0:
+        pitch_norm = np.interp(times, times[pitch_norm>1e-8], pitch_norm[pitch_norm>1e-8])
+
+    return pitch_norm, intensity_norm, voiced
 
 if __name__ == "__main__":
     Debug=1
