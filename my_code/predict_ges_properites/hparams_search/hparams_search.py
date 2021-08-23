@@ -7,6 +7,7 @@ from argparse import ArgumentParser, Namespace
 from pprint import pprint
 from datetime import datetime
 
+import comet_ml
 import numpy as np
 import optuna
 import pytorch_lightning as pl
@@ -98,7 +99,7 @@ def run(hparams, return_dict, trial, batch_size, current_date):
     kfold = KFold(n_splits=k_folds)
 
     # Load dataset
-    train_n_val_dataset = GesturePropDataset(hparams.data_root, "train_n_val", hparams.data_feat, hparams.speech_modality)
+    train_n_val_dataset = GesturePropDataset(hparams.data_feat, hparams.speech_modality, hparams.data_root, "train_n_val/no_zeros")
 
     # Start print
     print('--------------------------------')

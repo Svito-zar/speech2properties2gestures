@@ -453,15 +453,15 @@ class PropPredictor(LightningModule):
     def load_datasets(self):
         try:
             self.train_dataset = GesturePropDataset(
-                root_dir = self.hparams.data_root, 
                 property_name = self.hparams.data_feat, 
-                speech_modality = self.hparams.speech_modality
+                speech_modality = self.hparams.speech_modality,
+                root_dir = self.hparams.data_root
             )
 
             self.val_dataset = GesturePropDataset(
-                root_dir = self.hparams.data_root, 
                 property_name = self.hparams.data_feat, 
                 speech_modality = self.hparams.speech_modality,
+                root_dir = self.hparams.data_root,
                 indices_to_subsample = self.val_ids
             )
             self.class_freq = self.train_dataset.get_freq()
@@ -622,32 +622,18 @@ class PropPredictor(LightningModule):
         true_lab = batch["property"][:,2:].int()
 
         # plot sequences
-        if False: #batch_idx == 0:
+        if batch_idx == 0:
 
             x = batch["property"][10:60, 1].cpu()
             # convert from raw values to likelihood
             predicted_prob = torch.sigmoid(prediction + 1e-6)
             for feat in range(self.decoder.output_dim):
-                # plt.figure(figsize=(5.196, 3.63), dpi=300)
-                # plt.ylim([-0.01, 1.01])
-                # plt.plot(x, batch["property"][110:160, feat+2].cpu(), 'r--', x, predicted_prob[110:160, feat].cpu(), 'bs--', markersize=1)
-                # image_file_name = "fig/valid_res_"+str(self.current_epoch) + "_" + str(feat) + "_1.jpg"
-                # #spines = plt.gca().spines
-                # #spines['right'].set_visible(False)
-                # #spines['top'].set_visible(False)
-                # plt.savefig(elan_ann_fname=image_file_name, dpi=600)
-                # # self.logger.experiment.log_image(image_file_name)
-                # plt.clf()
-
-                # plt.figure(figsize=(5.196, 3.63), dpi=300)
-                # plt.ylim([-0.01, 1.01])
-                # plt.plot(x, batch["property"][610:660, feat+2].cpu(), 'r--', x, predicted_prob[610:660, feat].cpu(), 'bs--', markersize=1)
-                # image_file_name = "fig/valid_res_"+str(self.current_epoch) + "_" + str(feat) + "_2.jpg"
-                #spines = plt.gca().spines
-                #spines['right'].set_visible(False)
-                #spines['top'].set_visible(False)
+                plt.figure(figsize=(5.196, 3.63), dpi=300)
+                plt.ylim([-0.01, 1.01])
+                plt.plot(x, batch["property"][10:60, feat+2].cpu(), 'r--', x, predicted_prob[10:60, feat].cpu(), 'bs--', markersize=1)
+                image_file_name = "fig/valid_res_"+str(self.current_epoch) + "_" + str(feat) + "_1.jpg"
                 plt.savefig(fname=image_file_name, dpi=600)
-                # self.logger.experiment.log_image(image_file_name)
+                self.logger.experiment.log_image(image_file_name)
                 plt.clf()
 
 
