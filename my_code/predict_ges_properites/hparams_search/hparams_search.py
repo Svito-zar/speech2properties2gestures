@@ -116,6 +116,14 @@ def run(hparams, return_dict, trial, batch_size, current_date):
         print(f'FOLD {fold}')
         print('--------------------------------')
 
+        # Make sure that sequences do not overlap
+        indices_to_remove = []
+        for tr_ind in range(len(train_ids)):
+            for test_ind in range(len(test_ids)):
+                if abs(train_ids[tr_ind] - test_ids[test_ind]) < 20:
+                    indices_to_remove.append(tr_ind)
+        train_ids = np.delete(train_ids, indices_to_remove, axis=0)
+
         trainer = Trainer.from_argparse_args(trainer_params, deterministic=False, enable_pl_optimizer=True)
         model = PropPredictor(hparams, fold, train_ids, test_ids, upsample=hparams.CB["upsample"])
 
