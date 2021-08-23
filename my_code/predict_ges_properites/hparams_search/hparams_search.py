@@ -19,7 +19,7 @@ from pytorch_lightning import Trainer, seed_everything
 
 import os
 from my_code.predict_ges_properites.speech2prop import PropPredictor
-from my_code.predict_ges_properites.trainer import get_hparams
+from my_code.predict_ges_properites.cross_validation import get_hparams
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning import loggers as pl_loggers
 from my_code.predict_ges_properites.hparams_search import hparams_range_of_values as hparam_configs
@@ -61,7 +61,7 @@ def prepare_hparams(trial):
     params.update(vars(override_params))
     hparams = Namespace(**params)
 
-    hparams.gpus = [0] # [0,1]
+    hparams.gpus = 0 # [0] # [0,1]
 
     return hparam_configs.hparam_options(hparams, trial)
 
