@@ -106,6 +106,10 @@ def run(hparams, return_dict, trial, batch_size, current_date):
 
     trainer_params = Namespace(**trainer_params)
 
+    # Obtain a list of all the recordings present in the dataset
+    recordings_ids = train_n_val_dataset.property_dataset[:, 0]
+    recordings = np.unique(recordings_ids)
+
     # K-fold Cross Validation model evaluation
     for fold, (train_ids, test_ids) in enumerate(kfold.split(train_n_val_dataset)):
 
@@ -118,10 +122,27 @@ def run(hparams, return_dict, trial, batch_size, current_date):
 
         # Make sure that sequences do not overlap
         indices_to_remove = []
-        for tr_ind in range(len(train_ids)):
-            for test_ind in range(len(test_ids)):
-                if abs(train_ids[tr_ind] - test_ids[test_ind]) < 20:
-                    indices_to_remove.append(tr_ind)
+        # Take 5% of each recording into the validation set
+        for curr_record_id in recordings:
+            curr_record_indices = np.where(recordings_ids == curr_record_id)[0]
+
+            # find current train indices by an overlap
+            train_curr_record_indices = list( set(curr_record_indices) & set(train_ids) )
+
+            # find current test indices by an overlap
+            test_curr_record_indices = list ( set(curr_record_indices) & set(test_ids) )
+
+            # skip recordings which are not in train or val
+            if len(train_curr_record_indices) == 0 or len(test_curr_record_indices) == 0:
+                continue
+
+            for tr_ind in range(len(train_curr_record_indices)):
+                for test_ind in range(len(test_curr_record_indices)):
+                    if abs(train_curr_record_indices[tr_ind] - test_curr_record_indices[test_ind]) < 20:
+                        indices_to_remove.append(tr_ind)
+                        # consider next tr_ind
+                        break
+
         train_ids = np.delete(train_ids, indices_to_remove, axis=0)
 
         trainer = Trainer.from_argparse_args(trainer_params, deterministic=False, enable_pl_optimizer=True)
