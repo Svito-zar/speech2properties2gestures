@@ -181,7 +181,7 @@ def extract_prosodic_features(audio_filename, fps):
     # Test percentage of voiced frames
     # print("Percentage: ", np.sum(voiced_flag) * 100 / len(voiced_flag), " %")
 
-    # define downsampling rate
+    # define rate to downsample data from the default frame rate of 100 fps to the desired frame rate
     down_sampling_rate = int(100/fps)
 
     # Average everything in order to match the frequency

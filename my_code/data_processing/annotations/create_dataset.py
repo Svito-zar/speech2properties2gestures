@@ -28,7 +28,7 @@ def check_time_diff(arr, fps):
 
 def get_timesteps_between(start_time, end_time, fps):
     """
-    Get a list of 0.05s timesteps between the two given timestamps, with 'end_time' included.
+    Get a list of timesteps between the two given timestamps, with 'end_time' included.
     """
     start_time = correct_the_time(start_time, fps)
     end_time = correct_the_time(end_time, fps)
@@ -41,10 +41,10 @@ def get_timesteps_between(start_time, end_time, fps):
 
 def calculate_number_of_frames(start_time, end_time, fps):
     """
-    Return the number of frames between the two timestamps, assuming 20 FPS.
+    Return the number of frames between the two timestamps, according to the given frame rate.
     """
     duration = correct_the_time(end_time - start_time, fps)
-    # NOTE: we have 0.05s timesteps, meaning 20 frames per second
+    # NOTE: we usually have 0.05s timesteps, meaning 20 frames per second
     n_frames = int(duration * fps)
 
     return n_frames
@@ -109,13 +109,13 @@ def timestep_to_frame_index(timestep, start_time, fps):
 
 def correct_the_time(time_st, fps):
     """
-    Round the given timestep to the a multiple of 0.05,
-    since we have time steps of 0.05 seconds.
+    Round the given timestep to the a multiple of 1/fps,
+    since we have a frame rate given by `fps`.
 
     Taken from: https://stackoverflow.com/questions/28425705/python-rounding-a-floating-point-number-to-nearest-0-05
     """
 
-    mulpl = np.round(1/fps, 3) # would be 0.05 for 20 fps
+    mulpl = np.round(1/fps, 3) # would be for example 0.05 for 20 fps
 
     new_time_st = round(time_st / mulpl) * mulpl
 
@@ -138,7 +138,7 @@ def create_datasets(audio_dir, text_dir, gest_prop_dir, elan_dir, property_names
         nothing, but it saves the audio/text/property arrays into 'output_dir' per file
 
     NOTE: see 'open_and_clean_property_data_for_both_hands()' for the list of supported properties
-    NOTE: each frame is 0.05 seconds long.
+    NOTE: each frame is usually 0.05 seconds long.
     """
     all_audio_features     = []
     all_text_features      = []
@@ -373,71 +373,6 @@ def _extract_gesture_property_features(
     check_time_diff(merged_feature_vectors, fps)
     
     return merged_feature_vectors
-    
-def remove_data_when_interlocutor_speaks(
-    elan_dir, audio_features, text_features, list_of_gest_prop_features,
-    recording_idx, recording_start_time, recording_end_time
-):
-    """
-    """
-    # Open the ELAN annotation file
-    elan_file_name = join(elan_dir, f"{recording_idx}_video.eaf")
-    elan = pympi.Elan.Eaf(file_path=elan_file_name)
-
-    # Interlocutor annotations might be missing
-    if "F.S.Form" not in elan.tiers:
-        return audio_features, text_features, list_of_gest_prop_features
-
-    timeslots = elan.timeslots
-    interlocutor_annotations = elan.tiers["F.S.Form"][0]
-
-    indices_to_delete = []
-
-    for annotation_entry in interlocutor_annotations.values():
-        st_t, end_t, word, _ = annotation_entry
-        word = word.strip()
-        
-        # Only consider words which are clearly not back channels
-        if word == "" or word in ["mhm", "hm", "OK", "ja", "ah", "äh"]:
-            continue
-            
-        # Convert ms to s and make sure the timestep fits with the 0.05 sec frames
-        word_start_time = correct_the_time(timeslots[st_t] / 1000)
-        word_end_time = correct_the_time(timeslots[end_t] / 1000)
-
-        if word_start_time > recording_end_time:
-            break
-
-        if word_end_time < recording_start_time:
-            continue
-        
-        timesteps = get_timesteps_between(word_start_time, word_end_time, fps)
-        for time_st in timesteps:           
-            frame_ind = timestep_to_frame_index(time_st, recording_start_time)
-            indices_to_delete.append(frame_ind)
-
-    # Make sure that all indices are unique
-    assert(np.array(np.array_equal(indices_to_delete, np.unique(indices_to_delete))))
-    
-    # Delete the selected frames
-    n_frames = len(indices_to_delete)
-    n_seconds = round(n_frames / 20)
-    tqdm.write(f"Recording {recording_idx}:", end="\t")
-    tqdm.write(f"INFO: Deleting {n_frames:<4} frames (~{n_seconds:<3} seconds) where the interlocutor was speaking.")
-
-
-    def remove_data(array):
-        if is_empty(array):
-            tqdm.write("INFO: Detected missing gesture property.")
-        else:
-            array = np.delete(array, indices_to_delete, axis=0)
-        return array
-    
-    audio_features = remove_data(audio_features)
-    text_features = remove_data(text_features)
-    list_of_gest_prop_features = [remove_data(feats) for feats in list_of_gest_prop_features]
-    
-    return audio_features, text_features, list_of_gest_prop_features
 
 
 def merge_redundant_speech_semantic_labels(Y):
@@ -566,7 +501,7 @@ def extract_audio_features(audio_file, start_time, end_time, fps, total_number_o
 
     # create a list of sequences with a fixed past and future context length ( overlap them to use data more efficiently)
     start_ind = int(start_time*fps)
-    seq_step = 1  # overlap of sequences: 0.05s
+    seq_step = 1  # overlap of sequences: 1 frame
 
     stop_ind = int(end_time*fps)
 
