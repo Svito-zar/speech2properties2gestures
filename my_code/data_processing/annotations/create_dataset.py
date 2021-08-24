@@ -497,7 +497,14 @@ def extract_audio_features(audio_file, start_time, end_time, fps, total_number_o
 
     context_length = fps
 
-    prosodic_features = extract_prosodic_features(audio_file, fps)
+    #prosodic_features = extract_prosodic_features(audio_file, fps)
+    spectrogram_features = calculate_spectrogram(audio_file, 20)
+
+    audio_features = spectrogram_features
+
+    # Define "silence" feature vector
+    silence_vectors = calculate_spectrogram(join(os.getcwd(), "silence.wav"), fps)
+    audio_mask_feat_vec = np.average(silence_vectors, axis=0)
 
     # create a list of sequences with a fixed past and future context length ( overlap them to use data more efficiently)
     start_ind = int(start_time*fps)
@@ -506,21 +513,21 @@ def extract_audio_features(audio_file, start_time, end_time, fps, total_number_o
     stop_ind = int(end_time*fps)
 
     assert start_ind > context_length
-    assert stop_ind < prosodic_features.shape[0]
+    assert stop_ind < audio_features.shape[0]
 
     # remove interloculor's speech
-    prosodic_features = mask_interlocutor_speech(prosodic_features, fps, elan_source_dir, fname)
+    audio_features = mask_interlocutor_speech(audio_features, audio_mask_feat_vec, fps, elan_source_dir, fname)
 
-    audio_features = np.array([
-        prosodic_features[i - context_length : i + context_length + 1]
+    audio_features_windows = np.array([
+        audio_features[i - context_length : i + context_length + 1]
         for i in range(start_ind, stop_ind, seq_step)])
 
-    assert(len(audio_features) == total_number_of_frames)
+    assert(len(audio_features_windows) == total_number_of_frames)
 
-    return audio_features
+    return audio_features_windows
 
 
-def mask_interlocutor_speech(audio_feat_vectors, fps, elan_dir, elan_ann_fname):
+def mask_interlocutor_speech(audio_feat_vectors, audio_mask_feat_vec, fps, elan_dir, elan_ann_fname):
     """
     Code taken from https://github.com/nagyrajmund/StyleGestures/blob/0892816b8f1e9b8980bbd42d04c1c665d2f7fdb4/data_processing/feature_extraction.py#L171
 
@@ -529,6 +536,7 @@ def mask_interlocutor_speech(audio_feat_vectors, fps, elan_dir, elan_ann_fname):
 
     Args:
         audio_feat_vectors:        [T, D] - audio feature vector
+        audio_mask_feat_vec:       "silence" feature vector
         fps:                       int - frames per second (fps) rate
         elan_dir:                  str - directory with all the annotation ELAN files
         elan_ann_fname:            str - file name of the ELAN file to use
@@ -536,10 +544,6 @@ def mask_interlocutor_speech(audio_feat_vectors, fps, elan_dir, elan_ann_fname):
     Returns:
         audio_feat_vectors:        [T, D] - audio feature vector, where interlocutor speech is masked
     """
-
-    # Define "silence" feature vector
-    silence_vectors = extract_prosodic_features(join(os.getcwd(), "silence.wav"),fps)
-    audio_mask_feat_vec = silence_vectors[0]
 
     # Open the annotation file
     elan_file = join(elan_dir, elan_ann_fname + ".eaf")

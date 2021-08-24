@@ -106,7 +106,7 @@ def calculate_spectrogram(audio_filename, fps=20):
     """ Calculate spectrogram for the audio file
     Args:
         audio_filename: audio file name
-        duration: the duration (in seconds) that should be read from the file (can be used to load just a part of the audio file)
+        fps:            frame rate
     Returns:
         log spectrogram values
     """
