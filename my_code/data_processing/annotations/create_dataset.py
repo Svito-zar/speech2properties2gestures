@@ -16,35 +16,36 @@ def print_shape(name, data):
     """Print the name and the shape of the dataset."""
     tqdm.write(f"{name}: {data.shape}")
 
-def check_time_diff(arr):
+def check_time_diff(arr, fps):
     # See if the time difference between the two time steps is always the same
+    ideal_diff = np.round(1/fps, 3)
     time_dif = (arr[1:, 1] - arr[:-1, 1]).round(2)
     max_td = np.max(time_dif)
     min_td = np.min(time_dif)
-    if max_td != 0.05 or min_td != 0.05:
+    if max_td != ideal_diff or min_td != ideal_diff:
         tqdm.write("WARNING: WRONG TIMING, time difference is in [", min_td, ", ", max_td, "]")
-        tqdm.write( [arr[int(i)-1:int(i)+2, 1] for i in np.argwhere(time_dif != 0.05) ] )
+        tqdm.write( [arr[int(i)-1:int(i)+2, 1] for i in np.argwhere(time_dif != ideal_diff) ] )
 
-def get_timesteps_between(start_time, end_time):
+def get_timesteps_between(start_time, end_time, fps):
     """
     Get a list of 0.05s timesteps between the two given timestamps, with 'end_time' included.
     """
-    start_time = correct_the_time(start_time)
-    end_time = correct_the_time(end_time)
-    n_frames = calculate_number_of_frames(start_time, end_time)
+    start_time = correct_the_time(start_time, fps)
+    end_time = correct_the_time(end_time, fps)
+    n_frames = calculate_number_of_frames(start_time, end_time, fps)
     timesteps = np.linspace(start_time, end_time, num=n_frames, endpoint=False)
     # Correct numerical errors 
-    timesteps = [correct_the_time(step) for step in timesteps] 
+    timesteps = [correct_the_time(step, fps) for step in timesteps]
 
     return timesteps
 
-def calculate_number_of_frames(start_time, end_time):
+def calculate_number_of_frames(start_time, end_time, fps):
     """
     Return the number of frames between the two timestamps, assuming 20 FPS.
     """
-    duration = correct_the_time(end_time - start_time)
+    duration = correct_the_time(end_time - start_time, fps)
     # NOTE: we have 0.05s timesteps, meaning 20 frames per second
-    n_frames = int(duration * 20)
+    n_frames = int(duration * fps)
 
     return n_frames
 
@@ -99,14 +100,14 @@ def open_and_clean_property_data_for_both_hands(hdf5_dataset, property_name):
 
     return L_property_data, R_property_data
 
-def timestep_to_frame_index(timestep, start_time):
+def timestep_to_frame_index(timestep, start_time, fps):
     """
     Convert the given timestep from seconds to the index of the corresponding frame.
     """
 
-    return round((timestep - start_time) * 20)
+    return round((timestep - start_time) * fps)
 
-def correct_the_time(time_st):
+def correct_the_time(time_st, fps):
     """
     Round the given timestep to the a multiple of 0.05,
     since we have time steps of 0.05 seconds.
@@ -114,13 +115,13 @@ def correct_the_time(time_st):
     Taken from: https://stackoverflow.com/questions/28425705/python-rounding-a-floating-point-number-to-nearest-0-05
     """
 
-    mulpl = 0.05 # for 20 fps
+    mulpl = np.round(1/fps, 3) # would be 0.05 for 20 fps
 
     new_time_st = round(time_st / mulpl) * mulpl
 
     return round(new_time_st, 2)
 
-def create_datasets(audio_dir, text_dir, gest_prop_dir, elan_dir, property_names, property_dims, output_dir, held_out_idxs):
+def create_datasets(audio_dir, text_dir, gest_prop_dir, elan_dir, property_names, property_dims, fps, output_dir, held_out_idxs):
     """
     Create np.array datasets containing aligned audio, text and binary gesture property frames.
     
@@ -130,7 +131,9 @@ def create_datasets(audio_dir, text_dir, gest_prop_dir, elan_dir, property_names
         gest_prop_dir:  the folder containing the property vectors (see 'extract_binary_features.py')
         property_names: a list of gesture property names 
         property_dims:  a list of the corresponding dimensionalities
+        fps:            frame rate in frames per second
         output_dir:     the folder where the datasets will be saved
+        held_out_idxs:  recordings indices to be held out
     Returns:
         nothing, but it saves the audio/text/property arrays into 'output_dir' per file
 
@@ -179,27 +182,27 @@ def create_datasets(audio_dir, text_dir, gest_prop_dir, elan_dir, property_names
         word_starts             = text_dataset[:, 0].round(2)
         word_ends               = text_dataset[:, 1].round(2)
         # We reserve first and last three words as context
-        recording_start_time    = correct_the_time(word_starts[3])
-        recording_end_time      = correct_the_time(word_ends[-4])
+        recording_start_time    = correct_the_time(word_starts[3], fps)
+        recording_end_time      = correct_the_time(word_ends[-4], fps)
         total_number_of_frames  = calculate_number_of_frames(
-            recording_start_time, recording_end_time)
+            recording_start_time, recording_end_time, fps)
 
         audio_features = extract_audio_features(
             audio_file, 
-            recording_start_time, recording_end_time, 
+            recording_start_time, recording_end_time, fps,
             total_number_of_frames, elan_dir,  f"{recording_idx}_video"
         )
 
         text_features = extract_text_features(
             text_dataset, word_starts, 
-            recording_start_time, recording_end_time, 
+            recording_start_time, recording_end_time, fps,
             total_number_of_frames
         )
 
         gest_prop_features = create_gesture_property_datasets(
             recording_idx, gest_prop_hf, 
             property_names, property_dims, 
-            recording_start_time, recording_end_time, 
+            recording_start_time, recording_end_time, fps,
             total_number_of_frames
         )
 
@@ -219,8 +222,8 @@ def create_datasets(audio_dir, text_dir, gest_prop_dir, elan_dir, property_names
         
     final_audio_dataset = np.concatenate(all_audio_features)
     final_text_dataset = np.concatenate(all_text_features)
-        
-        
+
+
 
     np.save(join(output_dir, "Audio.npy"), final_audio_dataset)
     np.save(join(output_dir, "Text.npy"), final_text_dataset)
@@ -244,7 +247,8 @@ def create_datasets(audio_dir, text_dir, gest_prop_dir, elan_dir, property_names
     
     print_shape("S_Semantic audio", s_semantic_audio)
     print_shape("S_Semantic_text", s_semantic_text)
-    
+
+
 def save_property_datasets(all_gest_prop_features, property_names):
 
     for property_idx, property_name in enumerate(property_names):
@@ -261,7 +265,7 @@ def save_property_datasets(all_gest_prop_features, property_names):
 
 def create_gesture_property_datasets(
     recording_idx, hdf5_dataset, property_names, property_dims,
-    recording_start_time, recording_end_time, total_number_of_frames
+    recording_start_time, recording_end_time, fps, total_number_of_frames
 ):
     """
     Transform the given hdf5 dataset of binary gesture property vectors into
@@ -278,6 +282,7 @@ def create_gesture_property_datasets(
         property_dims:          the corresponding property dimensionalities
         recording_start_time:   the start of the recording (in seconds)
         recording_end_time:     the end of the recording (in seconds)
+        fps:                    frame rate
         total_number_of_frames: the total number of frames in the output array
     
     Returns:
@@ -288,7 +293,7 @@ def create_gesture_property_datasets(
         try:
             features = _extract_gesture_property_features(
                 recording_idx, hdf5_dataset, property_name, property_dim,
-                recording_start_time, recording_end_time, total_number_of_frames
+                recording_start_time, recording_end_time, fps, total_number_of_frames
             )
             dataset_list.append(features)
         except MissingDataException as warning_msg:
@@ -308,7 +313,7 @@ def is_empty(array):
 def _extract_gesture_property_features(
     recording_idx, hdf5_dataset, 
     property_name, property_dim,
-    recording_start_time, recording_end_time, 
+    recording_start_time, recording_end_time, fps,
     total_number_of_frames
 ):
     """
@@ -330,18 +335,10 @@ def _extract_gesture_property_features(
     R_feature_vectors[:, 0] = recording_idx
 
     # Add timing info
-    timesteps = get_timesteps_between(start_time=recording_start_time, end_time=recording_end_time)
+    timesteps = get_timesteps_between(start_time=recording_start_time, end_time=recording_end_time, fps = fps)
     
     L_feature_vectors[:, 1] = timesteps
     R_feature_vectors[:, 1] = timesteps
-    
-    #----------------------------------------------------
-    # TODO(RN) TEMPORARY: check rounding issues
-    for i in range(1, len(timesteps)-1):
-         if round(timesteps[i] - timesteps[i-1],2) != 0.05 or round(timesteps[i+1] - timesteps[i],2) != 0.05:
-            tqdm.write(timesteps[i-1 : i+2])
-            raise ValueError("rounding_issues")
-    #----------------------------------------------------
 
     # Process the two hands separately    
     for properties, output_vectors in [
@@ -354,18 +351,18 @@ def _extract_gesture_property_features(
 
         # Create the feature vectors for the current hand
         for annotation_entry in properties:
-            annotation_start_time = correct_the_time(annotation_entry[0])
-            annotation_end_time   = correct_the_time(annotation_entry[1])
+            annotation_start_time = correct_the_time(annotation_entry[0], fps)
+            annotation_end_time   = correct_the_time(annotation_entry[1], fps)
             binary_property_vector = annotation_entry[2:]
             
-            for time_st in get_timesteps_between(annotation_start_time, annotation_end_time):                
+            for time_st in get_timesteps_between(annotation_start_time, annotation_end_time, fps):
                 if time_st < recording_start_time:
                     continue
                 if time_st >= recording_end_time:
                     break
 
                 # Store the feature vector in the corresponding frame
-                frame_ind = timestep_to_frame_index(time_st, recording_start_time )
+                frame_ind = timestep_to_frame_index(time_st, recording_start_time, fps)
                 feature_vector = np.concatenate(([recording_idx, time_st], binary_property_vector))
                 output_vectors[frame_ind] = feature_vector
     
@@ -373,7 +370,7 @@ def _extract_gesture_property_features(
     merged_feature_vectors = np.maximum(L_feature_vectors, R_feature_vectors)
 
     # Ensure that the timesteps are correct 
-    check_time_diff(merged_feature_vectors)
+    check_time_diff(merged_feature_vectors, fps)
     
     return merged_feature_vectors
     
@@ -414,7 +411,7 @@ def remove_data_when_interlocutor_speaks(
         if word_end_time < recording_start_time:
             continue
         
-        timesteps = get_timesteps_between(word_start_time, word_end_time)
+        timesteps = get_timesteps_between(word_start_time, word_end_time, fps)
         for time_st in timesteps:           
             frame_ind = timestep_to_frame_index(time_st, recording_start_time)
             indices_to_delete.append(frame_ind)
@@ -515,7 +512,7 @@ def remove_unwanted_phrase_labels(feature_array):
 
     return new_feature_array
 
-def extract_text_features(text_dataset, word_starts, start_time, end_time, total_number_of_frames):
+def extract_text_features(text_dataset, word_starts, start_time, end_time, fps, total_number_of_frames):
     """
     Extract text features from a given file
 
@@ -523,6 +520,7 @@ def extract_text_features(text_dataset, word_starts, start_time, end_time, total
         text_hf:                hdf5 file with the transcript
         start_time:             start time
         end_time:               end time
+        fps:                    frame rate
         total_number_of_frames: total number of frames in the future feature file
 
     Returns:
@@ -534,7 +532,7 @@ def extract_text_features(text_dataset, word_starts, start_time, end_time, total
     # NOTE: 
     text_features = np.zeros((total_number_of_frames, sequence_length, 1 + n_bert_dims))
     time_ind = 0
-    for timestep in tqdm(get_timesteps_between(start_time, end_time), desc="Processing text", leave=False):
+    for timestep in tqdm(get_timesteps_between(start_time, end_time, fps), desc="Processing text", leave=False):
         curr_word_idx = bisect.bisect(word_starts, timestep) - 1 # why do we subtract 1 here??
 
         feature_vector = [
@@ -546,7 +544,7 @@ def extract_text_features(text_dataset, word_starts, start_time, end_time, total
 
     return text_features
 
-def extract_audio_features(audio_file, start_time, end_time, total_number_of_frames, elan_source_dir, fname):
+def extract_audio_features(audio_file, start_time, end_time, fps, total_number_of_frames, elan_source_dir, fname):
     """
     Extract audio features from a given file
 
@@ -554,18 +552,17 @@ def extract_audio_features(audio_file, start_time, end_time, total_number_of_fra
         audio_file:             audio file
         start_time:             start time
         end_time:               end time
+        fps:                    frame rate
         total_number_of_frames: total number of frames in the future feature file
 
     Returns:
         curr_file_A_data:       [total_number_of_frames, X, Y] array of audio features
 
     """
-    fps = 20
-    context_length = 20
-    # tqdm.write("Timing: [", start_time, ", ", end_time, "]")
-    # tqdm.write("Number of frames: ", total_number_of_frames)
 
-    prosodic_features = extract_prosodic_features(audio_file)
+    context_length = fps
+
+    prosodic_features = extract_prosodic_features(audio_file, fps)
 
     # create a list of sequences with a fixed past and future context length ( overlap them to use data more efficiently)
     start_ind = int(start_time*fps)
@@ -606,7 +603,7 @@ def mask_interlocutor_speech(audio_feat_vectors, fps, elan_dir, elan_ann_fname):
     """
 
     # Define "silence" feature vector
-    silence_vectors = extract_prosodic_features(join(os.getcwd(), "silence.wav"))
+    silence_vectors = extract_prosodic_features(join(os.getcwd(), "silence.wav"),fps)
     audio_mask_feat_vec = silence_vectors[0]
 
     # Open the annotation file
@@ -720,7 +717,10 @@ if __name__ == "__main__":
     text_vec_dir  = core_dir + "processed/word_vectors/train_n_val/"
     audio_dir     = core_dir + "audio/"
     elan_dir      = core_dir + "transcripts/"
-    output_dir    = core_dir + "processed/numpy_arrays/train_n_val/"    
+    output_dir    = core_dir + "processed/numpy_arrays/train_n_val/"
+
+    # define frame rate in frames per second (fps)
+    fps = 20
     
     if not os.path.isdir(output_dir):
         os.makedirs(output_dir)
@@ -728,10 +728,10 @@ if __name__ == "__main__":
     feature_dims = [4, 5, 4]
     feature_names = ["Phrase", "Phase", "Semantic"]
     held_out_idxs = [7, 8, 10] # 11, 12, 21
-    
+
     create_datasets(
         audio_dir, text_vec_dir, gest_prop_dir, elan_dir,
-        feature_names, feature_dims, 
+        feature_names, feature_dims, fps,
         output_dir,
         held_out_idxs
     )

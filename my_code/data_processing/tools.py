@@ -152,11 +152,12 @@ def calculate_mfcc(audio_filename):
 
     return feature_vectors
 
-def extract_prosodic_features(audio_filename):
+def extract_prosodic_features(audio_filename, fps):
     """
     Extract all 5 prosodic features
     Args:
         audio_filename:   file name for the audio to be used
+        fps:              frame rate
     Returns:
         pros_feature:     energy, energy_der, pitch, pitch_der, pitch_ind
     """
@@ -180,12 +181,15 @@ def extract_prosodic_features(audio_filename):
     # Test percentage of voiced frames
     # print("Percentage: ", np.sum(voiced_flag) * 100 / len(voiced_flag), " %")
 
+    # define downsampling rate
+    down_sampling_rate = int(100/fps)
+
     # Average everything in order to match the frequency
-    energy = average(energy, 5)
-    energy_der = average(energy_der, 5)
-    pitch = average(pitch, 5)
-    pitch_der = average(pitch_der, 5)
-    voiced_av = average(voiced_flag, 5)
+    energy = average(energy, down_sampling_rate)
+    energy_der = average(energy_der, down_sampling_rate)
+    pitch = average(pitch, down_sampling_rate)
+    pitch_der = average(pitch_der, down_sampling_rate)
+    voiced_av = average(voiced_flag, down_sampling_rate)
 
     # Cut them to the same size
     min_size = min(len(energy), len(energy_der), len(pitch_der), len(pitch_der), len(voiced_av))
