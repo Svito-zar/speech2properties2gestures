@@ -1,13 +1,15 @@
 # Gesture Differently
 *Speech2Properties2Gestures: Gesture-Property Prediction as a Tool for Generating Representational Gestures from Speech*.   
 Taras Kucherenko, Rajmund Nagy, Michael Neff, Hedvig Kjellström and Gustav Eje Henter.
+International Conference on Intelligent Virtual Agents 2021 (IVA’21) 
 
 *Multimodal analysis of hand gesture properties predictibility*.    
 Taras Kucherenko, Patrik Jonell, Rajmund Nagy, Michael Neff, Hedvig Kjellström and Gustav Eje Henter.
+(to submit to) AAMAS 2022
 
 # Dataset
 
-You can download the data from https://kth.app.box.com/folder/126255878610 files "denoised_audios" and "all_the_annotations".
+You can download the data from https://kth.app.box.com/folder/126255878610 file "dataset_raw" and extract the data from it.
 
 ## Expected dataset folders
 ```
