@@ -113,9 +113,6 @@ def run(hparams, return_dict, trial, batch_size, current_date):
     # K-fold Cross Validation model evaluation
     for fold, (train_ids, test_ids) in enumerate(kfold.split(train_n_val_dataset)):
 
-        if fold > 6:
-            break
-
         # Print
         print(f'FOLD {fold}')
         print('--------------------------------')
@@ -154,9 +151,11 @@ def run(hparams, return_dict, trial, batch_size, current_date):
            if str(e).startswith("CUDA out of memory"):
                return_dict["OOM"] = True
                raise FailedTrial("CUDA out of memory")
+           elif isinstance(e, OSError) or str(e).find("memory"):
+               return_dict["memory"] = True
+               raise FailedTrial("CPU out of memory")
            else:
                return_dict["error"] = e
-               raise e
         except (optuna.exceptions.TrialPruned, Exception) as e:
            return_dict["error"] = e
 
@@ -193,7 +192,7 @@ def objective(trial):
         p.start()
         p.join()
 
-        if return_dict.get("OOM"):
+        if return_dict.get("OOM") or return_dict.get("memory"):
             new_batch_size = batch_size // 2
             if new_batch_size < 2:
                 raise FailedTrial("batch size smaller than 2!")
