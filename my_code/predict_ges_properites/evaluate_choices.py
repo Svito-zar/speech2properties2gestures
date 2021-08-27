@@ -123,10 +123,6 @@ if __name__ == "__main__":
 
         print("\n\ntrain IDs: ", train_ids[:20])
 
-        break
-
-        assert len(train_ids) == 0
-
         # Define the model
         model = PropPredictor(hparams, curr_record_id, train_ids, test_ids, upsample=hparams.CB["upsample"])
 
