@@ -124,7 +124,7 @@ if __name__ == "__main__":
         print("\n\ntrain IDs: ", train_ids[:20])
 
         # Define the model
-        model = PropPredictor(hparams, curr_record_id, train_ids, test_ids, upsample=hparams.CB["upsample"])
+        model = PropPredictor(hparams, "a" + str(fold), train_ids, test_ids, upsample=hparams.CB["upsample"])
 
         # Define the trainer
         trainer = Trainer.from_argparse_args(hparams, deterministic=False, enable_pl_optimizer=True, logger=logger)
