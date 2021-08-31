@@ -1,4 +1,5 @@
 import numpy as np
+import h5py
 from os.path import join, isdir, abspath
 from os import makedirs
 
@@ -104,11 +105,21 @@ def remove_zeros(gesture_existance_array):
     
     dataset_names = ["Phrase_properties", "Phase_properties", "Semantic_properties", "Audio", "Text"]
     datasets = { name : load_dataset(name) for name in dataset_names }
+
+    # create hdf5 file
+    hf = h5py.File(output_dir + "/train_n_val.hdf5", 'a')  # open a hdf5 file
+
+    g1 = hf.create_group('train')  # create group
     
     print("Final dataset shapes:")
     for dataset_name, array in datasets.items():
         no_zero_array = np.delete(array, zero_inds, axis=0)
-        np.save(join(output_dir, dataset_name), no_zero_array)
+        if str(dataset_name).find("properties") != -1:
+            # remove `properties` from the name
+            feat_name = dataset_name[:-11]
+        else:
+            feat_name = dataset_name
+        g1.create_dataset(feat_name, data=no_zero_array)
         print("\t", dataset_name, no_zero_array.shape)
     print("Saved arrays to", abspath(output_dir))  
     
