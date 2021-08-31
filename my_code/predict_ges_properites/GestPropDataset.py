@@ -23,18 +23,22 @@ class GesturePropDataset(Dataset):
             root_dir (string): Directory with the datasat.
         """
         self.file_name = join(root_dir, dataset_type, "train_n_val.hdf5")
-        self.sp_mod = speech_modality
 
         # define the modality used
-        self.speech_modality = speech_modality
+        self.sp_mod = speech_modality
 
         # define the property being modeled
         self.property = property_name
 
         # define indices
-        prop_hdf5_obj = h5py.File(self.file_name, "r")["train"][self.property]
+        dataset_obj = h5py.File(self.file_name, "r")
+        prop_hdf5_obj = dataset_obj["train"][self.property]
         size = prop_hdf5_obj.shape[0]
         self.indices = np.arange(size)
+
+        # ensure that the data dims match
+        assert len(dataset_obj["train"]["Audio"]) == len(dataset_obj["train"]["Text"])
+        assert len(dataset_obj["train"]["Audio"]) == len(prop_hdf5_obj)
 
         # save recordings IDs
         self.record_ids = prop_hdf5_obj[:, 0]
@@ -43,7 +47,9 @@ class GesturePropDataset(Dataset):
         if indices_to_subsample is not None:
             self.indices = self.indices[indices_to_subsample]
     
-        self.calculate_frequencies()
+        self.calculate_frequencies(dataset_obj)
+
+        dataset_obj.close()
 
 
     def __len__(self):
@@ -53,8 +59,8 @@ class GesturePropDataset(Dataset):
         index = self.indices[idx]
         with h5py.File(self.file_name, "r") as data:
 
-            def get_data_item(who):
-                return data["train"].get(who)[index]
+            def get_data_item(modality):
+                return data["train"].get(modality)[index]
 
             gest_property = get_data_item(self.property)
 
@@ -77,8 +83,8 @@ class GesturePropDataset(Dataset):
         return sample
 
 
-    def calculate_frequencies(self):
-        property_dataset = h5py.File(self.file_name, "r")["train"][self.property]
+    def calculate_frequencies(self, prop_hdf5_obj):
+        property_dataset = prop_hdf5_obj["train"][self.property]
         numb_feat = property_dataset.shape[1] - 2
         freq = np.zeros(numb_feat)
         for feat in range(numb_feat):
