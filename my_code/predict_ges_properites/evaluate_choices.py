@@ -70,7 +70,6 @@ if __name__ == "__main__":
         from pytorch_lightning import loggers as pl_loggers
         logger = pl_loggers.TensorBoardLogger('lightning_logs/', version=str(hparams.data_feat))
     
-    hparams.num_dataloader_workers = 8
     hparams.gpus = 0 # [1]
 
     # Start print
@@ -95,7 +94,6 @@ if __name__ == "__main__":
 
         # Make sure that sequences do not overlap
         indices_to_remove = []
-        # Take 5% of each recording into the validation set
         for curr_record_id in recordings:
             curr_record_indices = np.where(recordings_ids == curr_record_id)[0]
 
