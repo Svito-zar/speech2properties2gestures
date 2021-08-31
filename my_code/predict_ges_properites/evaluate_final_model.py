@@ -75,7 +75,7 @@ if __name__ == "__main__":
     print('--------------------------------')
 
     # Obtain a list of all the recordings present in the dataset
-    recordings_ids = train_n_val_dataset.property_dataset[:, 0]
+    recordings_ids = train_n_val_dataset.record_ids
     recordings = np.unique(recordings_ids)
 
     # K-fold LEAVE-ONE-OUT Cross Validation model evaluation

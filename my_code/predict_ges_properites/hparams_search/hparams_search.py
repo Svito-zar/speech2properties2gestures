@@ -19,7 +19,7 @@ from pytorch_lightning import Trainer, seed_everything
 
 import os
 from my_code.predict_ges_properites.speech2prop import PropPredictor
-from my_code.predict_ges_properites.cross_validation import get_hparams
+from my_code.predict_ges_properites.evaluate_choices import get_hparams
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning import loggers as pl_loggers
 from my_code.predict_ges_properites.hparams_search import hparams_range_of_values as hparam_configs
@@ -107,7 +107,7 @@ def run(hparams, return_dict, trial, batch_size, current_date):
     trainer_params = Namespace(**trainer_params)
 
     # Obtain a list of all the recordings present in the dataset
-    recordings_ids = train_n_val_dataset.property_dataset[:, 0]
+    recordings_ids = train_n_val_dataset.record_ids
     recordings = np.unique(recordings_ids)
 
     # K-fold Cross Validation model evaluation
@@ -194,6 +194,7 @@ def objective(trial):
 
         if return_dict.get("OOM") or return_dict.get("memory"):
             new_batch_size = batch_size // 2
+            print("\n\nReducing batch size to "+ str(new_batch_size) +" !\n")
             if new_batch_size < 2:
                 raise FailedTrial("batch size smaller than 2!")
             else:

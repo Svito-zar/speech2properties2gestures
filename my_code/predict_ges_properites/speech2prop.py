@@ -743,7 +743,7 @@ class PropPredictor(LightningModule):
     def val_dataloader(self):
 
         # Validate on the whole dataset at once
-        val_batch_size = len(self.val_dataset.property_dataset)
+        val_batch_size = len(self.val_dataset)
 
         loader = torch.utils.data.DataLoader(
             dataset=self.val_dataset,

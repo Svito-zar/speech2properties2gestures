@@ -2,6 +2,7 @@ from os import path
 from os.path import join
 import torch
 import numpy as np
+import h5py
 from torch.utils.data import Dataset
 
 torch.set_default_tensor_type('torch.FloatTensor')
@@ -21,80 +22,67 @@ class GesturePropDataset(Dataset):
         Args:
             root_dir (string): Directory with the datasat.
         """
-        self.root_dir = root_dir
+        self.file_name = join(root_dir, dataset_type, "train_n_val.hdf5")
         self.sp_mod = speech_modality
-        get_data_file = lambda fname : np.load(join(root_dir, dataset_type, fname))
 
-        # define data file name
-        self.type = dataset_type
+        # define the modality used
+        self.speech_modality = speech_modality
 
-        # Load speech input data
-        if speech_modality == "text":
-            self.text_dataset = get_data_file("Text.npy")
-            self.audio_dataset = None
-        
-        elif speech_modality == "audio":
-            self.text_dataset = None
-            self.audio_dataset = get_data_file("Audio.npy")
-        
-        elif speech_modality == "both":
-            self.audio_dataset = get_data_file("Audio.npy")
-            self.text_dataset = get_data_file("Text.npy")
-        
-        else:
-            raise TypeError("Unknown speech modality - " + speech_modality)
+        # define the property being modeled
+        self.property = property_name
 
-        # Load gesture property data
-        self.property_dataset = get_data_file(f"{property_name}_properties.npy")
+        # define indices
+        prop_hdf5_obj = h5py.File(self.file_name, "r")["train"][self.property]
+        size = prop_hdf5_obj.shape[0]
+        self.indices = np.arange(size)
 
-        if self.audio_dataset is not None:
-            assert len(self.property_dataset) == len(self.audio_dataset)
-        if self.text_dataset is not None:
-            assert len(self.property_dataset) == len(self.text_dataset)
-        
+        # save recordings IDs
+        self.record_ids = prop_hdf5_obj[:, 0]
+
         # Optional subsampling
         if indices_to_subsample is not None:
-            if self.audio_dataset is not None:
-                self.audio_dataset = self.audio_dataset[indices_to_subsample]
-            if self.text_dataset is not None:
-                self.text_dataset = self.text_dataset[indices_to_subsample]
-            self.property_dataset = self.property_dataset[indices_to_subsample]
-
+            self.indices = self.indices[indices_to_subsample]
     
         self.calculate_frequencies()
 
 
     def __len__(self):
-        return len(self.property_dataset)
-
+        return len(self.indices)
 
     def __getitem__(self, idx):
-        gest_property = self.property_dataset[idx]
+        index = self.indices[idx]
+        with h5py.File(self.file_name, "r") as data:
 
-        if self.sp_mod == "text":
-            text = self.text_dataset[idx]
-            sample = {'text': text, 'property': gest_property}
+            def get_data_item(who):
+                return data["train"].get(who)[index]
 
-        elif self.sp_mod == "audio":
-            audio = self.audio_dataset[idx]
-            sample = {'audio': audio, 'property': gest_property}
+            gest_property = get_data_item(self.property)
 
-        elif self.sp_mod == "both":
-            text = self.text_dataset[idx]
-            audio = self.audio_dataset[idx]
-            sample = {'audio': audio, 'text': text, 'property': gest_property}
+            if len(gest_property) == 0:
+                raise Exception("Missing datapoint!")
 
-        if len(gest_property) == 0:
-            raise Exception("Missing datapoint!")
+            if self.sp_mod == "text":
+                text = get_data_item("Text")
+                sample = {'text': text, 'property': gest_property}
+
+            elif self.sp_mod == "audio":
+                audio = get_data_item("Audio")
+                sample = {'audio': audio, 'property': gest_property}
+
+            elif self.sp_mod == "both":
+                text = get_data_item("Text")
+                audio = get_data_item("Audio")
+                sample = {'audio': audio, 'text': text, 'property': gest_property}
 
         return sample
 
 
     def calculate_frequencies(self):
-        numb_feat = self.property_dataset.shape[1] - 2
+        property_dataset = h5py.File(self.file_name, "r")["train"][self.property]
+        numb_feat = property_dataset.shape[1] - 2
         freq = np.zeros(numb_feat)
         for feat in range(numb_feat):
-            column = self.property_dataset[:, 2 + feat]
+            column = property_dataset[:, 2 + feat]
             freq[feat] = np.sum(column)
             if freq[feat] < 50:
                 freq[feat] = 1000

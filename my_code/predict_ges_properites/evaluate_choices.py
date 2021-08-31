@@ -55,8 +55,6 @@ if __name__ == "__main__":
         root_dir = hparams.data_root,
         speech_modality = hparams.speech_modality,
     )
-    
-    class_freq = train_n_val_dataset.get_freq()
 
     if hparams.comet_logger["api_key"] != "None":
         from pytorch_lightning.loggers import CometLogger
@@ -69,14 +67,14 @@ if __name__ == "__main__":
     else:
         from pytorch_lightning import loggers as pl_loggers
         logger = pl_loggers.TensorBoardLogger('lightning_logs/', version=str(hparams.data_feat))
-    
+
     hparams.gpus = 0 # [1]
 
     # Start print
     print('--------------------------------')
 
     # Obtain a list of all the recordings present in the dataset
-    recordings_ids = train_n_val_dataset.property_dataset[:, 0]
+    recordings_ids = train_n_val_dataset.record_ids
     recordings = np.unique(recordings_ids)
 
     # Configuration K-fold cross validation
