@@ -61,7 +61,7 @@ def prepare_hparams(trial):
     params.update(vars(override_params))
     hparams = Namespace(**params)
 
-    hparams.gpus = 0 # [0] # [0,1]
+    hparams.gpus = [0] # [0,1]
 
     return hparam_configs.hparam_options(hparams, trial)
 
@@ -96,7 +96,7 @@ def run(hparams, return_dict, trial, batch_size, current_date):
     k_folds = 10
 
     # Define the K-fold Cross Validator
-    kfold = KFold(n_splits=k_folds)
+    kfold = KFold(n_splits=k_folds,  shuffle=True,  random_state=111)
 
     # Load dataset
     train_n_val_dataset = GesturePropDataset(hparams.data_feat, hparams.speech_modality, hparams.data_root, "train_n_val/no_zeros")
