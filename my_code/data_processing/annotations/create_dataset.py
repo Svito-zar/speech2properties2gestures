@@ -23,8 +23,8 @@ def check_time_diff(arr, fps):
     max_td = np.max(time_dif)
     min_td = np.min(time_dif)
     if max_td != ideal_diff or min_td != ideal_diff:
-        tqdm.write("WARNING: WRONG TIMING, time difference is in [", min_td, ", ", max_td, "]")
-        tqdm.write( [arr[int(i)-1:int(i)+2, 1] for i in np.argwhere(time_dif != ideal_diff) ] )
+        tqdm.write(f"WARNING: WRONG TIMING, time difference is in [{min_td}, {max_td} ]")
+        tqdm.write(str([arr[int(i)-1:int(i)+2, 1] for i in np.argwhere(time_dif != ideal_diff) ]))
 
 def get_timesteps_between(start_time, end_time, fps):
     """
@@ -36,7 +36,7 @@ def get_timesteps_between(start_time, end_time, fps):
     timesteps = np.linspace(start_time, end_time, num=n_frames, endpoint=False)
     # Correct numerical errors 
     timesteps = [correct_the_time(step, fps) for step in timesteps]
-
+    
     return timesteps
 
 def calculate_number_of_frames(start_time, end_time, fps):
@@ -45,7 +45,7 @@ def calculate_number_of_frames(start_time, end_time, fps):
     """
     duration = correct_the_time(end_time - start_time, fps)
     # NOTE: we usually have 0.05s timesteps, meaning 20 frames per second
-    n_frames = int(duration * fps)
+    n_frames = int(round(duration * fps))
 
     return n_frames
 
@@ -105,21 +105,14 @@ def timestep_to_frame_index(timestep, start_time, fps):
     Convert the given timestep from seconds to the index of the corresponding frame.
     """
 
-    return round((timestep - start_time) * fps)
+    return int(round((timestep - start_time) * fps))
 
 def correct_the_time(time_st, fps):
     """
     Round the given timestep to the a multiple of 1/fps,
     since we have a frame rate given by `fps`.
-
-    Taken from: https://stackoverflow.com/questions/28425705/python-rounding-a-floating-point-number-to-nearest-0-05
     """
-
-    mulpl = np.round(1/fps, 3) # would be for example 0.05 for 20 fps
-
-    new_time_st = round(time_st / mulpl) * mulpl
-
-    return round(new_time_st, 2)
+    return round(round(time_st * fps) / fps, 2)
 
 def create_datasets(audio_dir, text_dir, gest_prop_dir, elan_dir, property_names, property_dims, fps, output_dir, held_out_idxs):
     """
@@ -181,6 +174,7 @@ def create_datasets(audio_dir, text_dir, gest_prop_dir, elan_dir, property_names
         # Extract timing info from the dataset
         word_starts             = text_dataset[:, 0].round(2)
         word_ends               = text_dataset[:, 1].round(2)
+        
         # We reserve first and last three words as context
         recording_start_time    = correct_the_time(word_starts[3], fps)
         recording_end_time      = correct_the_time(word_ends[-4], fps)
@@ -498,7 +492,7 @@ def extract_audio_features(audio_file, start_time, end_time, fps, total_number_o
     context_length = fps
 
     #prosodic_features = extract_prosodic_features(audio_file, fps)
-    spectrogram_features = calculate_spectrogram(audio_file, 20)
+    spectrogram_features = calculate_spectrogram(audio_file, fps)
 
     audio_features = spectrogram_features
 
@@ -507,10 +501,10 @@ def extract_audio_features(audio_file, start_time, end_time, fps, total_number_o
     audio_mask_feat_vec = np.average(silence_vectors, axis=0)
 
     # create a list of sequences with a fixed past and future context length ( overlap them to use data more efficiently)
-    start_ind = int(start_time*fps)
-    seq_step = 1  # overlap of sequences: 1 frame
+    start_ind = int(round(correct_the_time(start_time, fps) * fps))
+    seq_step = 1  # )overlap of sequences: 1 frame
 
-    stop_ind = int(end_time*fps)
+    stop_ind = int(round(correct_the_time(end_time, fps) * fps))
 
     assert start_ind > context_length
     assert stop_ind < audio_features.shape[0]
