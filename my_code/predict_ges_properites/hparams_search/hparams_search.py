@@ -136,11 +136,12 @@ def run(hparams, return_dict, trial, batch_size, current_date):
             for tr_ind in range(len(train_curr_record_indices)):
                 for test_ind in range(len(test_curr_record_indices)):
                     if abs(train_curr_record_indices[tr_ind] - test_curr_record_indices[test_ind]) < 20:
-                        indices_to_remove.append(tr_ind)
+                        indices_to_remove.append(train_curr_record_indices[tr_ind])
                         # consider next tr_ind
                         break
 
-        train_ids = np.delete(train_ids, indices_to_remove, axis=0)
+        # remove all the indices where train sequences overlaps with validation
+        train_ids = [x for x in train_ids if x not in indices_to_remove]
 
         trainer = Trainer.from_argparse_args(trainer_params, deterministic=False, enable_pl_optimizer=True)
         model = PropPredictor(hparams, fold, train_ids, test_ids, upsample=hparams.CB["upsample"])
