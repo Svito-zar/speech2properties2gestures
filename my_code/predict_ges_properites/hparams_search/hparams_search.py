@@ -18,12 +18,11 @@ from optuna.integration import PyTorchLightningPruningCallback
 from pytorch_lightning import Trainer, seed_everything
 
 import os
-from my_code.predict_ges_properites.speech2prop import PropPredictor
-from my_code.predict_ges_properites.evaluate_choices import get_hparams
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning import loggers as pl_loggers
 from my_code.predict_ges_properites.hparams_search import hparams_range_of_values as hparam_configs
 from my_code.predict_ges_properites.GestPropDataset import GesturePropDataset
+from my_code.predict_ges_properites.cross_validation import K_fold_CV, get_hparams
 
 from sklearn.model_selection import KFold
 
@@ -86,17 +85,19 @@ def run(hparams, return_dict, trial, batch_size, current_date):
     if hparams.comet_logger["api_key"]:
         from pytorch_lightning.loggers import CometLogger
 
-        trainer_params["logger"] = CometLogger(
+        logger = CometLogger(
             api_key=hparams.comet_logger["api_key"],
             project_name=hparams.comet_logger["project_name"],
             experiment_name="GestProp" + current_date
         )
 
+        trainer_params["logger"] = logger
+    else:
+        from pytorch_lightning import loggers as pl_loggers
+        logger = pl_loggers.TensorBoardLogger('lightning_logs/', version=str(hparams.data_feat))
+
     # Configuration K-fold cross validation
     k_folds = 10
-
-    # Define the K-fold Cross Validator
-    kfold = KFold(n_splits=k_folds,  shuffle=True,  random_state=111)
 
     # Load dataset
     train_n_val_dataset = GesturePropDataset(hparams.data_feat, hparams.speech_modality, hparams.data_root, "train_n_val/no_zeros")
@@ -108,60 +109,21 @@ def run(hparams, return_dict, trial, batch_size, current_date):
 
     # Obtain a list of all the recordings present in the dataset
     recordings_ids = train_n_val_dataset.record_ids
-    recordings = np.unique(recordings_ids)
 
     # K-fold Cross Validation model evaluation
-    for fold, (train_ids, test_ids) in enumerate(kfold.split(train_n_val_dataset)):
-
-        # Print
-        print(f'FOLD {fold}')
-        print('--------------------------------')
-
-        # Make sure that sequences do not overlap
-        indices_to_remove = []
-        # Take 5% of each recording into the validation set
-        for curr_record_id in recordings:
-            curr_record_indices = np.where(recordings_ids == curr_record_id)[0]
-
-            # find current train indices by an overlap
-            train_curr_record_indices = list( set(curr_record_indices) & set(train_ids) )
-
-            # find current test indices by an overlap
-            test_curr_record_indices = list ( set(curr_record_indices) & set(test_ids) )
-
-            # skip recordings which are not in train or val
-            if len(train_curr_record_indices) == 0 or len(test_curr_record_indices) == 0:
-                continue
-
-            for tr_ind in range(len(train_curr_record_indices)):
-                for test_ind in range(len(test_curr_record_indices)):
-                    if abs(train_curr_record_indices[tr_ind] - test_curr_record_indices[test_ind]) < 20:
-                        indices_to_remove.append(train_curr_record_indices[tr_ind])
-                        # consider next tr_ind
-                        break
-
-        # remove all the indices where train sequences overlaps with validation
-        train_ids = [x for x in train_ids if x not in indices_to_remove]
-
-        trainer = Trainer.from_argparse_args(trainer_params, deterministic=False, enable_pl_optimizer=True)
-        model = PropPredictor(hparams, fold, train_ids, test_ids, upsample=hparams.CB["upsample"])
-
-        try:
-           trainer.fit(model)
-        except RuntimeError as e:
-           if str(e).startswith("CUDA out of memory"):
-               return_dict["OOM"] = True
-               raise FailedTrial("CUDA out of memory")
-           elif isinstance(e, OSError) or str(e).find("memory"):
-               return_dict["memory"] = True
-               raise FailedTrial("CPU out of memory")
-           else:
-               return_dict["error"] = e
-        except (optuna.exceptions.TrialPruned, Exception) as e:
+    try:
+       K_fold_CV(hparams, recordings_ids, logger, k_folds, extra_shift=6)
+    except RuntimeError as e:
+       if str(e).startswith("CUDA out of memory"):
+           return_dict["OOM"] = True
+           raise FailedTrial("CUDA out of memory")
+       elif isinstance(e, OSError) or str(e).find("memory"):
+           return_dict["memory"] = True
+           raise FailedTrial("CPU out of memory")
+       else:
            return_dict["error"] = e
-
-        for key, item in trainer.callback_metrics.items():
-           return_dict[key] = float(item)
+    except (optuna.exceptions.TrialPruned, Exception) as e:
+       return_dict["error"] = e
 
 
 def get_training_name():
