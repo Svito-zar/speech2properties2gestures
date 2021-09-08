@@ -12,6 +12,121 @@ from pytorch_lightning import Trainer, seed_everything
 torch.set_default_tensor_type('torch.FloatTensor')
 
 
+def K_fold_CV(hparams, recordings_ids, logger, fold_numb, extra_shift=0):
+    """
+    The classical K-fold Cross-Validation
+    Args:
+        hparams:         hyper-parameters of the model to evaluate
+        recordings_ids:  list of recordings available in the dataset
+        logger:          logger to log the experiment, usually CometML
+        fold_numb:       number of the folds in the cross-validation
+        extra_shift:     extra shift to make sure that we use different folds
+
+    Returns:
+        nothing, trains and evaluates a model instead
+
+    """
+
+    recordings = np.unique(recordings_ids)
+
+    # K-fold mix x% of each Cross Validation model evaluation
+    for fold in range(fold_numb):
+        # Print
+        print(f'Testing on hold out FOLD {fold}')
+        print('--------------------------------')
+
+        train_ids = []
+        test_ids = []
+
+        # Take 5% of each recording into the validation set
+        for curr_record_id in recordings:
+            curr_record_indices = np.where(recordings_ids == curr_record_id)[0]
+            len_curr_ids = len(curr_record_indices)
+            fraction = len_curr_ids // fold_numb
+
+            # we don't want to take the same part of the recording all the time
+            shift = int((curr_record_id + fold + extra_shift) % fold_numb)
+
+            curr_test_ind = curr_record_indices[fraction * (shift): fraction * (shift + 1)]
+
+            # make sure that sequences do not overlap by not using 20 closest sequences to the test data
+            first_half_end = np.clip(fraction * (shift) - 20, 0, len(recordings_ids))
+            curr_train_ids_1st_half = curr_record_indices[:first_half_end]
+            second_half_start = np.clip(fraction * (shift + 1) + 20, 0, len(recordings_ids))
+            curr_train_ids_2nd_half = curr_record_indices[second_half_start:]
+            curr_train_ids = np.concatenate((curr_train_ids_1st_half, curr_train_ids_2nd_half))
+
+            # Test the difference between any two indices in train and val is not smaller than 20
+            for tr_ind in range(len(curr_train_ids)):
+                for test_ind in range(len(curr_test_ind)):
+                    assert abs(curr_train_ids[tr_ind] - curr_test_ind[test_ind]) >= 20
+
+            if len(train_ids) == 0:
+                train_ids = curr_train_ids
+                test_ids = curr_test_ind
+            else:
+                train_ids = np.concatenate((train_ids, curr_train_ids))
+                test_ids = np.concatenate((test_ids, curr_test_ind))
+
+        # Make sure that train_ids[0] does in fact contain some indices!
+        assert len(train_ids) > 0
+
+        # Make sure train and test inds are not overlapping
+        assert not any(np.isin(train_ids, test_ids))
+
+        # Define the model
+        model = PropPredictor(hparams, "a" + str(fold), train_ids, test_ids, upsample=False)
+
+        # Define the trainer
+        trainer = Trainer.from_argparse_args(hparams, deterministic=False, enable_pl_optimizer=True, logger=logger)
+
+        # Train
+        trainer.fit(model)
+
+
+def leave_one_out_CV(hparams, recordings_ids, logger):
+    """
+    Leave One Out Cross-validation
+    Args:
+        hparams:         hyper-parameters of the model to evaluate
+        recordings_ids:  list of recordings available in the dataset
+        logger:          logger to log the experiment, usually CometML
+
+    Returns:
+
+    """
+
+    recordings = np.unique(recordings_ids)
+
+    # K-fold LEAVE-ONE-OUT Cross Validation model evaluation
+    for curr_record_id in recordings:
+
+        # Print
+        print(f'Testing on hold out recording {curr_record_id}')
+        print('--------------------------------')
+
+        # Select all the indices with this recording for the validation set
+        test_ids = np.where(recordings_ids == curr_record_id)
+
+        # Select the rest indices for the training set
+        train_ids = np.where(recordings_ids != curr_record_id)
+
+        # Make sure that train_ids[0] does in fact contain all indices!
+        assert len(train_ids[0]) > 0
+        assert len(train_ids[0]) + len(test_ids[0]) == len(recordings_ids)
+
+        # Make sure train and test inds are not overlapping
+        assert not any(np.isin(train_ids[0], test_ids[0]))
+
+        # Define the model
+        model = PropPredictor(hparams, curr_record_id, train_ids[0], test_ids[0], upsample=hparams.CB["upsample"])
+
+        # Define the trainer
+        trainer = Trainer.from_argparse_args(hparams, deterministic=False, enable_pl_optimizer=True, logger=logger)
+        # Train
+        trainer.fit(model)
+
+
 def get_hparams():
     parser = ArgumentParser()
     parser.add_argument("hparams_file")
@@ -69,7 +184,7 @@ if __name__ == "__main__":
         logger = pl_loggers.TensorBoardLogger('lightning_logs/', version=str(hparams.data_feat))
     
     hparams.num_dataloader_workers = 8
-    hparams.gpus = 0 # [1]
+    hparams.gpus = [1]
 
     # Start print
     print('--------------------------------')
@@ -78,87 +193,8 @@ if __name__ == "__main__":
     recordings_ids = train_n_val_dataset.record_ids
     recordings = np.unique(recordings_ids)
 
-    # K-fold LEAVE-ONE-OUT Cross Validation model evaluation
-    for curr_record_id in recordings:
+    # K-fold Cross-Validation
+    K_fold_CV(hparams, recordings_ids, logger, 20)
 
-        break
-
-        # Print
-        print(f'Testing on hold out recording {curr_record_id}')
-        print('--------------------------------')
-
-        # Select all the indices with this recording for the validation set
-        test_ids = np.where(recordings_ids == curr_record_id)
-
-        # Select the rest indices for the training set
-        train_ids = np.where(recordings_ids != curr_record_id)
-
-        # Make sure that train_ids[0] does in fact contain all indices!
-        assert len(train_ids[0]) > 0
-        assert len(train_ids[0]) + len(test_ids[0]) == len(recordings_ids)
-
-        # Make sure train and test inds are not overlapping
-        assert not any(np.isin(train_ids[0], test_ids[0]))
-
-        # Define the model
-        model = PropPredictor(hparams, curr_record_id, train_ids[0], test_ids[0], upsample=hparams.CB["upsample"])
-
-        # Define the trainer
-        trainer = Trainer.from_argparse_args(hparams, deterministic=False, enable_pl_optimizer=True, logger=logger)
-        # Train
-        trainer.fit(model)
-
-    # K-fold mix 5% of each Cross Validation model evaluation
-    fold_numb = 20
-    for fold in range(fold_numb):
-        # Print
-        print(f'Testing on hold out FOLD {fold}')
-        print('--------------------------------')
-
-        train_ids = []
-        test_ids = []
-
-        # Take 5% of each recording into the validation set
-        for curr_record_id in recordings:
-            curr_record_indices = np.where(recordings_ids == curr_record_id)[0]
-            len_curr_ids = len(curr_record_indices)
-            fraction = len_curr_ids // fold_numb
-
-            # we don't want to take the same part of the recording all the time
-            shift = int((curr_record_id + fold) % fold_numb)
-
-            curr_test_ind = curr_record_indices[fraction*(shift): fraction * ( shift+ 1)]
-
-            # make sure that sequences do not overlap by not using 20 closest sequences to the test data
-            first_half_end = np.clip(fraction*(shift)-20, 0, len(recordings_ids))
-            curr_train_ids_1st_half = curr_record_indices[:first_half_end]
-            second_half_start = np.clip(fraction*(shift+1)+20, 0, len(recordings_ids))
-            curr_train_ids_2nd_half = curr_record_indices[second_half_start:]
-            curr_train_ids = np.concatenate((curr_train_ids_1st_half,curr_train_ids_2nd_half))
-
-            # Test the difference between any two indices in train and val is not smaller than 20
-            for tr_ind in range(len(curr_train_ids)):
-                for test_ind in range(len(curr_test_ind)):
-                    assert abs(curr_train_ids[tr_ind] - curr_test_ind[test_ind]) >= 20
-
-            if len(train_ids) == 0:
-                train_ids = curr_train_ids
-                test_ids = curr_test_ind
-            else:
-                train_ids = np.concatenate((train_ids, curr_train_ids))
-                test_ids = np.concatenate((test_ids, curr_test_ind))
-
-        # Make sure that train_ids[0] does in fact contain some indices!
-        assert len(train_ids) > 0
-
-        # Make sure train and test inds are not overlapping
-        assert not any(np.isin(train_ids,test_ids))
-
-        # Define the model
-        model = PropPredictor(hparams, "a" + str(fold), train_ids, test_ids, upsample=False)
-
-        # Define the trainer
-        trainer = Trainer.from_argparse_args(hparams, deterministic=False, enable_pl_optimizer=True, logger=logger)
-
-        # Train
-        trainer.fit(model)
+    # Leave-One-Out Cross-Validation
+    leave_one_out_CV(hparams, recordings_ids, logger)
