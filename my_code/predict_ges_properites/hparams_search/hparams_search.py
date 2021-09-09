@@ -173,7 +173,7 @@ def objective(trial):
         if metric == "Loss/val_loss" and isinstance(val, float):
             trial.set_user_attr(metric, float(val))
 
-    return float(return_dict["Loss/val_loss"])
+    return 1
 
 
 if __name__ == "__main__":
