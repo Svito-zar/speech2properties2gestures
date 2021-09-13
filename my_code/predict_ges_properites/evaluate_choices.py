@@ -26,6 +26,7 @@ if __name__ == "__main__":
         property_name = hparams.data_feat,
         root_dir = hparams.data_root,
         speech_modality = hparams.speech_modality,
+        dataset_type = "train_n_val/"+hparams.data_type
     )
 
     if hparams.comet_logger["api_key"] != "None":

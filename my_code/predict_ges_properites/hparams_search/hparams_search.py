@@ -100,7 +100,7 @@ def run(hparams, return_dict, trial, batch_size, current_date):
     k_folds = 10
 
     # Load dataset
-    train_n_val_dataset = GesturePropDataset(hparams.data_feat, hparams.speech_modality, hparams.data_root, "train_n_val/no_zeros")
+    train_n_val_dataset = GesturePropDataset(hparams.data_feat, hparams.speech_modality, hparams.data_root, "train_n_val/"+hparams.data_type)
 
     # Start print
     print('--------------------------------')
@@ -114,6 +114,7 @@ def run(hparams, return_dict, trial, batch_size, current_date):
     try:
        K_fold_CV(hparams, recordings_ids, logger, k_folds, extra_shift=6)
     except RuntimeError as e:
+       raise(e)
        if str(e).startswith("CUDA out of memory"):
            return_dict["OOM"] = True
            raise FailedTrial("CUDA out of memory")
