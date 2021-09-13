@@ -40,9 +40,11 @@ def concatenate_gesture_properties():
     )
 
     # Save property labels with the timestamps
-    joint_dataset = np.concatenate((timestamps, property_features), axis=1)
-    np.save(join(DATASET_DIR, "All_properties.npy"), joint_dataset)
-    print("Created joint property dataset with shape:", joint_dataset.shape)
+    joint_array = np.concatenate((timestamps, property_features), axis=1)
+    joint_dataset = {"Audio":load_dataset("Audio"), "Text":load_dataset("Text"), "All":joint_array}
+    # create hdf5 file
+    save_dataset(join(DATASET_DIR, "all_together"), joint_dataset)
+    print("Created joint property dataset with shape:", joint_array.shape)
 
     return joint_dataset
 
@@ -86,7 +88,11 @@ def create_gest_exist_array():
     assert gesture_existance_array[:, 2].max() == 1 
     assert gesture_existance_array[:, 2].min() == 0
 
-    np.save(join(DATASET_DIR, "Gest_exist_properties.npy"), gesture_existance_array)
+    # Save gesture existance labels with the timestamps
+    exist_dataset = {"Audio":load_dataset("Audio"), "Text":load_dataset("Text"), "exist":gesture_existance_array}
+    # create hdf5 file
+    print("Created joint property dataset with shape:", gesture_existance_array.shape)
+    save_dataset(join(DATASET_DIR, "gest_exist"), exist_dataset)
     print("FINAL SHAPE:", gesture_existance_array.shape)
     print("# frames with gesture:", gesture_existance_array[:, 2].sum())
     
@@ -98,8 +104,6 @@ def remove_zeros(gesture_existance_array):
     """
     print_banner("Removing frames without a gesture")
     output_dir = join(DATASET_DIR, "no_zeros")
-    if not isdir(output_dir):
-        makedirs(output_dir)
     # Gather indices of frames without a gesture
     zero_inds = np.where(gesture_existance_array[:, 2] == 0)
     
@@ -107,27 +111,29 @@ def remove_zeros(gesture_existance_array):
     datasets = { name : load_dataset(name) for name in dataset_names }
 
     # create hdf5 file
-    hf = h5py.File(output_dir + "/train_n_val.hdf5", 'a')  # open a hdf5 file
+    save_dataset(output_dir, datasets, zero_inds)
 
+
+def load_dataset(fname):
+    return np.load(join(DATASET_DIR, fname + ".npy"))
+
+
+def save_dataset(output_dir, datasets, zero_inds=False):
+    if not isdir(output_dir):
+        makedirs(output_dir)
+    hf = h5py.File(output_dir + "/train_n_val.hdf5", 'a')  # open a hdf5 file
     g1 = hf.create_group('train')  # create group
-    
-    print("Final dataset shapes:")
     for dataset_name, array in datasets.items():
-        no_zero_array = np.delete(array, zero_inds, axis=0)
+        if zero_inds != False:
+            array = np.delete(array, zero_inds, axis=0)
         if str(dataset_name).find("properties") != -1:
             # remove `properties` from the name
             feat_name = dataset_name[:-11]
         else:
             feat_name = dataset_name
-        g1.create_dataset(feat_name, data=no_zero_array)
-        print("\t", dataset_name, no_zero_array.shape)
+        g1.create_dataset(feat_name, data=array)
+        print("\t", dataset_name, array.shape)
     print("Saved arrays to", abspath(output_dir))  
-    
-def load_dataset(fname):
-    return np.load(join(DATASET_DIR, fname + ".npy"))
-
-def save_dataset(fname, array):
-    np.save(join(DATASET_DIR, fname), array)
 
 def print_banner(text):
     print()
@@ -136,7 +142,7 @@ def print_banner(text):
     print("-"*30)
 
 if __name__ == "__main__":
-    DATASET_DIR = "../../../dataset/processed/numpy_arrays/train_n_val/"
+    DATASET_DIR = "/home/taras/Documents/storage/Saga/dataset/processed/numpy_arrays/train_n_val/"
     print("Using dataset dir:", abspath(DATASET_DIR))
     
     main()
