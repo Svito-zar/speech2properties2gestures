@@ -42,8 +42,12 @@ def concatenate_gesture_properties():
     # Save property labels with the timestamps
     joint_array = np.concatenate((timestamps, property_features), axis=1)
     joint_dataset = {"Audio":load_dataset("Audio"), "Text":load_dataset("Text"), "All":joint_array}
+    # Gather indices of frames without a gesture
+    zero_inds = np.where(np.max(property_features, axis=1) == 0)
+    # save into npy
+    property_dataset = np.save(join(DATASET_DIR, "All_properties.npy"), joint_array)
     # create hdf5 file
-    save_dataset(join(DATASET_DIR, "all_together"), joint_dataset)
+    save_dataset(join(DATASET_DIR, "all_together"), joint_dataset, zero_inds)
     print("Created joint property dataset with shape:", joint_array.shape)
 
     return joint_dataset
@@ -76,6 +80,7 @@ def create_gest_exist_array():
     print_banner("Creating gest. exist. array")
     property_dataset = np.load(join(DATASET_DIR, "All_properties.npy"))
     print_stats(property_dataset)
+
 
     gesture_existance_array = np.zeros((property_dataset.shape[0], 3))
     # Copy timestamps
@@ -134,6 +139,7 @@ def save_dataset(output_dir, datasets, zero_inds=False):
         g1.create_dataset(feat_name, data=array)
         print("\t", dataset_name, array.shape)
     print("Saved arrays to", abspath(output_dir))  
+    hf.close()
 
 def print_banner(text):
     print()
