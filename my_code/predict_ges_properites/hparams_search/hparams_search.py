@@ -114,7 +114,6 @@ def run(hparams, return_dict, trial, batch_size, current_date):
     try:
        K_fold_CV(hparams, recordings_ids, logger, k_folds, extra_shift=6)
     except RuntimeError as e:
-       raise(e)
        if str(e).startswith("CUDA out of memory"):
            return_dict["OOM"] = True
            raise FailedTrial("CUDA out of memory")
@@ -123,6 +122,7 @@ def run(hparams, return_dict, trial, batch_size, current_date):
            raise FailedTrial("CPU out of memory")
        else:
            return_dict["error"] = e
+           raise(e)
     except (optuna.exceptions.TrialPruned, Exception) as e:
        return_dict["error"] = e
 

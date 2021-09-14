@@ -60,6 +60,7 @@ check_val_every_n_epoch: 3
 checkpoint_callback: true
 data_root: /home/taras/Documents/storage/Saga/dataset/complete/BERTbased/
 data_feat: Semantic
+data_type: no_zeros
 default_root_dir: null
 deterministic: true
 distributed_backend: null

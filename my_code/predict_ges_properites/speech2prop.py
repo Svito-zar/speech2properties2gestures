@@ -455,14 +455,15 @@ class PropPredictor(LightningModule):
             self.train_dataset = GesturePropDataset(
                 property_name = self.hparams.data_feat, 
                 speech_modality = self.hparams.speech_modality,
-                root_dir = self.hparams.data_root
+                root_dir = self.hparams.data_root, 
+                dataset_type = "train_n_val/"+self.hparams.data_type
             )
 
             self.val_dataset = GesturePropDataset(
                 property_name = self.hparams.data_feat, 
                 speech_modality = self.hparams.speech_modality,
                 root_dir = self.hparams.data_root,
-                indices_to_subsample = self.val_ids
+                dataset_type = "train_n_val/"+self.hparams.data_type
             )
             self.class_freq = self.train_dataset.get_freq()
         except FileNotFoundError as err:
@@ -622,7 +623,7 @@ class PropPredictor(LightningModule):
         true_lab = batch["property"][:,2:].int()
 
         # plot sequences
-        if batch_idx == 0:
+        if batch_idx == -1:
 
             x = batch["property"][10:60, 1].cpu()
             # convert from raw values to likelihood
@@ -734,7 +735,7 @@ class PropPredictor(LightningModule):
         loader = torch.utils.data.DataLoader(
             dataset=self.train_dataset,
             batch_size=self.hparams.batch_size,
-            num_workers=8,
+            num_workers=4,
             pin_memory=True,
             sampler=train_subsampler
         )
@@ -748,7 +749,7 @@ class PropPredictor(LightningModule):
         loader = torch.utils.data.DataLoader(
             dataset=self.val_dataset,
             batch_size=val_batch_size,
-            num_workers=8,
+            num_workers=4,
             pin_memory=True,
             shuffle=False
         )

@@ -37,6 +37,6 @@ def hparam_options(hparams, trial):
     hparams.Loss["alpha"] = trial.suggest_uniform("alpha", 0.8, 0.95)
 
     hparams.lr = trial.suggest_loguniform("lr", 1e-5, 1e-3)
-    hparams.batch_size = trial.suggest_categorical("batch_size", [64, 128, 256, 512])
+    hparams.batch_size = trial.suggest_categorical("batch_size", [16, 32, 64, 128])
 
     return hparams

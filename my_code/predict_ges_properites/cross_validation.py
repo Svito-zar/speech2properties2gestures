@@ -51,9 +51,9 @@ def K_fold_CV(hparams, recordings_ids, logger, fold_numb, extra_shift=0, catch_e
             curr_train_ids = np.concatenate((curr_train_ids_1st_half, curr_train_ids_2nd_half))
 
             # Test the difference between any two indices in train and val is not smaller than 20
-            for tr_ind in range(len(curr_train_ids)):
-                for test_ind in range(len(curr_test_ind)):
-                    assert abs(curr_train_ids[tr_ind] - curr_test_ind[test_ind]) >= 20
+            #for tr_ind in range(len(curr_train_ids)):
+            #    for test_ind in range(len(curr_test_ind)):
+            #        assert abs(curr_train_ids[tr_ind] - curr_test_ind[test_ind]) >= 20
 
             if len(train_ids) == 0:
                 train_ids = curr_train_ids

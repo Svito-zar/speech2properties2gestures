@@ -59,6 +59,7 @@ benchmark: true
 check_val_every_n_epoch: 3
 checkpoint_callback: true
 data_root: /home/taras/Documents/storage/Saga/dataset/complete/ProsBased
+data_type: no_zeros
 data_feat: Phase
 default_root_dir: null
 deterministic: true
