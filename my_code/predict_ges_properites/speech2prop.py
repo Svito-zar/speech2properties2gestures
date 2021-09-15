@@ -736,7 +736,8 @@ class PropPredictor(LightningModule):
             dataset=self.train_dataset,
             batch_size=self.hparams.batch_size,
             num_workers=4,
-            pin_memory=True,
+            pin_memory=False,
+            drop_last=True,
             sampler=train_subsampler
         )
         return loader
@@ -750,7 +751,7 @@ class PropPredictor(LightningModule):
             dataset=self.val_dataset,
             batch_size=val_batch_size,
             num_workers=4,
-            pin_memory=True,
+            pin_memory=False,
             shuffle=False
         )
 
