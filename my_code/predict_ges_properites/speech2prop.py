@@ -612,8 +612,8 @@ class PropPredictor(LightningModule):
             raise KeyboardInterrupt
 
         # calculate training accuracy
-        all_predictions = torch.cat([x["prediction"] for x in training_step_outputs])
-        all_true_labels = torch.cat([x["true_lab"] for x in training_step_outputs])
+        #all_predictions = torch.cat([x["prediction"] for x in training_step_outputs])
+        #all_true_labels = torch.cat([x["true_lab"] for x in training_step_outputs])
         #self.accuracy(all_predictions.detach(), all_true_labels, train=True)
 
 
@@ -644,14 +644,17 @@ class PropPredictor(LightningModule):
 
         self.log('Loss/val_loss', loss_value)
 
-        self.accuracy(prediction, true_lab)
-
         if self.hparams.optuna and self.global_step > 20 and loss_value > 1000000:
             message = f"Trial was pruned since loss > 1000"
             raise optuna.exceptions.TrialPruned(message)
-        output = {"Loss/val_loss": loss_value}
+        output = {"Loss/val_loss": loss_value, "prediction":prediction, "true_lab": true_lab}
 
         return output
+
+    def validation_epoch_end(self, val_step_outputs):
+        all_predictions = torch.cat([x["prediction"] for x in val_step_outputs])
+        all_true_labels = torch.cat([x["true_lab"] for x in val_step_outputs])
+        self.accuracy(all_predictions.detach(), all_true_labels)
 
 
     def configure_optimizers(self):
@@ -744,12 +747,9 @@ class PropPredictor(LightningModule):
 
     def val_dataloader(self):
 
-        # Validate on the whole dataset at once
-        val_batch_size = len(self.val_dataset)
-
         loader = torch.utils.data.DataLoader(
             dataset=self.val_dataset,
-            batch_size=val_batch_size,
+            batch_size=self.hparams.batch_size,
             num_workers=4,
             pin_memory=False,
             shuffle=False
