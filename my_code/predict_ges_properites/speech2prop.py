@@ -747,12 +747,15 @@ class PropPredictor(LightningModule):
 
     def val_dataloader(self):
 
+        val_subsampler = torch.utils.data.SubsetRandomSampler(self.val_ids)
+
         loader = torch.utils.data.DataLoader(
             dataset=self.val_dataset,
             batch_size=self.hparams.batch_size,
             num_workers=4,
             pin_memory=False,
-            shuffle=False
+            shuffle=False,
+            sampler=val_subsampler
         )
 
         return loader
