@@ -392,6 +392,7 @@ class PropPredictor(LightningModule):
     def __init__(self, hparams, fold, train_ids, val_ids, upsample=False):
         super().__init__()
 
+
         self.data_root = hparams.data_root
         self.upsample = upsample
         self.should_stop = False
@@ -482,7 +483,6 @@ class PropPredictor(LightningModule):
             # convert IDs to OneHot vector
             speaker_ID = batch["property"][:, 0].long()
             speaker_OneHot = torch.zeros((speaker_ID.shape[0], 25))
-            speaker_OneHot.to(self.device)
             speaker_OneHot[np.arange(speaker_ID.shape[0]), speaker_ID - 1] = 1
 
         if self.sp_mod == "text" or self.sp_mod == "both":
@@ -490,6 +490,7 @@ class PropPredictor(LightningModule):
             text_enc = self.text_enc(input_text_seq)
             enc = text_enc
             if self.use_speaker_ID:
+               speaker_OneHot = speaker_OneHot.to(enc.device)
                enc = torch.cat((text_enc, speaker_OneHot), 1)
 
         if self.sp_mod == "audio" or self.sp_mod == "both":
@@ -497,11 +498,13 @@ class PropPredictor(LightningModule):
             audio_enc = self.audio_enc(input_audio_seq)
             enc = audio_enc
             if self.use_speaker_ID:
+               speaker_OneHot = speaker_OneHot.to(enc.device)
                enc =  torch.cat((audio_enc, speaker_OneHot), 1)
 
         if self.sp_mod == "both":
             enc = torch.cat((text_enc, audio_enc), 1)
             if self.use_speaker_ID:
+               speaker_OneHot = speaker_OneHot.to(enc.device)
                enc =  torch.cat((text_enc, audio_enc, speaker_OneHot), 1)
 
         output = self.decoder(enc)
