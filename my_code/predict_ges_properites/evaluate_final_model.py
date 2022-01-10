@@ -23,11 +23,7 @@ if __name__ == "__main__":
     ), "Failed to find root dir `{}` of dataset.".format(hparams.data_root)
 
     # Load dataset
-    train_n_val_dataset = GesturePropDataset(
-        property_name = hparams.data_feat,
-        root_dir = hparams.data_root,
-        speech_modality = hparams.speech_modality,
-    )
+    train_n_val_dataset = GesturePropDataset(hparams.data_feat, hparams.speech_modality, hparams.data_root, "train_n_val/"+hparams.data_type)
     
     class_freq = train_n_val_dataset.get_freq()
 
@@ -56,4 +52,4 @@ if __name__ == "__main__":
     K_fold_CV(hparams, recordings_ids, logger, 20)
 
     # Leave-One-Out Cross-Validation
-    leave_one_out_CV(hparams, recordings_ids, logger)
+    #leave_one_out_CV(hparams, recordings_ids, logger)

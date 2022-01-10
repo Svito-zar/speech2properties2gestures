@@ -457,7 +457,7 @@ def extract_text_features(text_dataset, word_starts, start_time, end_time, fps, 
 
     """
     sequence_length = 7
-    n_bert_dims = 768
+    n_bert_dims = 300
     # NOTE: 
     text_features = np.zeros((total_number_of_frames, sequence_length, 1 + n_bert_dims))
     time_ind = 0
@@ -491,13 +491,13 @@ def extract_audio_features(audio_file, start_time, end_time, fps, total_number_o
 
     context_length = fps
 
-    #prosodic_features = extract_prosodic_features(audio_file, fps)
-    spectrogram_features = calculate_spectrogram(audio_file, fps)
+    prosodic_features = extract_prosodic_features(audio_file, fps)
+    #spectrogram_features = calculate_spectrogram(audio_file, fps)
 
-    audio_features = spectrogram_features
+    audio_features = prosodic_features
 
     # Define "silence" feature vector
-    silence_vectors = calculate_spectrogram(join(os.getcwd(), "silence.wav"), fps)
+    silence_vectors = extract_prosodic_features(join(os.getcwd(), "silence.wav"), fps)
     audio_mask_feat_vec = np.average(silence_vectors, axis=0)
 
     # create a list of sequences with a fixed past and future context length ( overlap them to use data more efficiently)
@@ -645,7 +645,7 @@ def upsample(X, Y, n_features):
 
 if __name__ == "__main__":
 
-    core_dir = "/home/tarask/Documents/Code/probabilistic-gesticulator/dataset/"
+    core_dir = "/home/taras/Documents/storage/Saga/dataset/"
     gest_prop_dir = core_dir + "processed/gesture_properties/train_n_val/"
     text_vec_dir  = core_dir + "processed/word_vectors/train_n_val/"
     audio_dir     = core_dir + "audio/"
