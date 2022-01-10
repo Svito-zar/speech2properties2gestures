@@ -1,0 +1,110 @@
+audio_enc:
+  input_dim: 5
+  seq_length: 41
+  hidden_dim: 32
+  n_layers: 5
+  output_dim: 64
+  kernel_size: 5
+  dropout: 0.313
+text_enc:
+  input_dim: 301
+  seq_length: 7
+  hidden_dim: 96
+  n_layers: 2
+  output_dim: 16
+  kernel_size: 7
+  dropout: 0.465
+decoder:
+  hidden_dim: 64
+  n_layers: 2
+  output_dim: 1
+  dropout: 0.251
+Loss:
+  beta: 0.93
+  alpha: 0.89
+  gamma: 2.0
+Optim:
+  Schedule:
+    args:
+      lambda:
+        val: 10
+      multiplicative:
+        val: 10
+      step:
+        gamma: 0.95
+        step_size: 10
+    name: step
+    warm_up: 1278
+  args:
+    adam:
+      betas:
+      - 0.9
+      - 0.9999
+      eps: 1.0e-06
+    rmsprop:
+      eps: 1.0e-08
+    sgd:
+      momentum: 0.9
+  name: rmsprop
+CB:
+  upsample: false
+  loss_type: normal
+accumulate_grad_batches: 1
+amp_level: O1
+auto_lr_find: false
+auto_scale_batch_size: false
+auto_select_gpus: false
+batch_size: 64
+benchmark: true
+check_val_every_n_epoch: 2
+checkpoint_callback: true
+data_root: /home/tarask/storage/dataset/processed/numpy_arrays/
+data_feat: exist
+data_type: gest_exist
+default_root_dir: null
+deterministic: true
+distributed_backend: null
+early_stop_callback: false
+fast_dev_run: false
+gradient_clip_val: 20
+log_gpu_memory: null
+log_save_interval: 80
+log_root: results/gesture_flow/log/
+logger: true
+lr: 8.86e-5
+max_epochs: null
+max_steps: 25000
+min_epochs: null
+min_steps: 1000
+num_nodes: 1
+num_processes: 1
+num_sanity_val_steps: 1
+num_tpu_cores: null
+optuna: true
+overfit_pct: 0.0
+precision: 32
+print_nan_grads: false
+process_position: 0
+profiler: null
+progress_bar_callback: true
+progress_bar_refresh_rate: 1
+reload_dataloaders_every_epoch: false
+replace_sampler_ddp: true
+resume_from_checkpoint: null
+row_log_interval: 10
+seed: 12345
+speech_modality: both
+terminate_on_nan: false
+test_percent_check: 1.0
+track_grad_norm: -1
+train_percent_check: 1.0
+truncated_bptt_steps: null
+use_speaker_ID: false
+val_gest_dir: ./results/gesture_flow/val_res
+val_percent_check: 1.0
+num_sanity_val_steps: 0
+weights_save_path: null
+weights_summary: top
+comet_logger:
+  api_key: DVWPz8OdEU7HGvsUjlJhh5Q5p
+  project_name: exist_both
