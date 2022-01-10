@@ -1,24 +1,24 @@
 audio_enc:
   input_dim: 5
   seq_length: 41
-  hidden_dim: 96
-  n_layers: 2
-  output_dim: 96
-  kernel_size: 7
-  dropout: 0.23
+  hidden_dim: 64
+  n_layers: 3
+  output_dim: 32
+  kernel_size: 3
+  dropout: 0.329
 text_enc:
-  input_dim: 301
+  input_dim: 300
   seq_length: 7
   hidden_dim: 32
-  n_layers: 1
+  n_layers: 4
   output_dim: 96
   kernel_size: 3
-  dropout: 0.26
+  dropout: 0.15
 decoder:
   hidden_dim: 64
-  n_layers: 2
-  output_dim: 1
-  dropout: 0.37
+  n_layers: 0
+  output_dim: 4
+  dropout: 0.26
 Loss:
   beta: 0.93
   alpha: 0.89
@@ -34,7 +34,7 @@ Optim:
         gamma: 0.95
         step_size: 10
     name: step
-    warm_up: 527
+    warm_up: 616
   args:
     adam:
       betas:
@@ -45,7 +45,7 @@ Optim:
       eps: 1.0e-08
     sgd:
       momentum: 0.9
-  name: sgd
+  name: adam
 CB:
   upsample: false
   loss_type: normal
@@ -56,11 +56,11 @@ auto_scale_batch_size: false
 auto_select_gpus: false
 batch_size: 32
 benchmark: true
-check_val_every_n_epoch: 2
+check_val_every_n_epoch: 1
 checkpoint_callback: true
 data_root: /home/tarask/storage/SaGA/dataset/processed/numpy_arrays/
-data_feat: exist
-data_type: gest_exist
+data_feat: Semantic
+data_type: no_zeros
 default_root_dir: null
 deterministic: true
 distributed_backend: null
@@ -71,7 +71,7 @@ log_gpu_memory: null
 log_save_interval: 80
 log_root: results/gesture_flow/log/
 logger: true
-lr: 0.0000105
+lr: 0.000669
 max_epochs: null
 max_steps: 40000
 min_epochs: null
@@ -93,7 +93,7 @@ replace_sampler_ddp: true
 resume_from_checkpoint: null
 row_log_interval: 10
 seed: 12345
-speech_modality: both
+speech_modality: text
 terminate_on_nan: false
 test_percent_check: 1.0
 track_grad_norm: -1
@@ -107,4 +107,4 @@ weights_save_path: null
 weights_summary: top
 comet_logger:
   api_key: DVWPz8OdEU7HGvsUjlJhh5Q5p
-  project_name: exist_both
+  project_name: text_no_time_semant

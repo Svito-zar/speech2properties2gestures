@@ -1,24 +1,24 @@
 audio_enc:
   input_dim: 5
   seq_length: 41
+  hidden_dim: 64
+  n_layers: 3
+  output_dim: 32
+  kernel_size: 3
+  dropout: 0.329
+text_enc:
+  input_dim: 301
+  seq_length: 7
   hidden_dim: 128
   n_layers: 3
   output_dim: 32
   kernel_size: 7
-  dropout: 0.33
-text_enc:
-  input_dim: 301
-  seq_length: 7
-  hidden_dim: 96
-  n_layers: 3
-  output_dim: 64
-  kernel_size: 5
-  dropout: 0.3
+  dropout: 0.468
 decoder:
-  hidden_dim: 96
+  hidden_dim: 32
   n_layers: 2
   output_dim: 13
-  dropout: 0.18
+  dropout: 0.242
 Loss:
   beta: 0.93
   alpha: 0.89
@@ -45,7 +45,7 @@ Optim:
       eps: 1.0e-08
     sgd:
       momentum: 0.9
-  name: sgd
+  name: adam
 CB:
   upsample: false
   loss_type: normal
@@ -54,11 +54,11 @@ amp_level: O1
 auto_lr_find: false
 auto_scale_batch_size: false
 auto_select_gpus: false
-batch_size: 256
+batch_size: 512
 benchmark: true
 check_val_every_n_epoch: 3
 checkpoint_callback: true
-data_root: /home/taras/Documents/storage/Saga/dataset/complete/FastTextProsBased
+data_root: /home/tarask/storage/SaGA/dataset/processed/numpy_arrays/
 data_feat: All
 data_type: all_together
 default_root_dir: null
@@ -71,9 +71,9 @@ log_gpu_memory: null
 log_save_interval: 80
 log_root: results/gesture_flow/log/
 logger: true
-lr: 0.000739
+lr: 0.000262
 max_epochs: null
-max_steps: 25000
+max_steps: 40000
 min_epochs: null
 min_steps: 1000
 num_nodes: 1

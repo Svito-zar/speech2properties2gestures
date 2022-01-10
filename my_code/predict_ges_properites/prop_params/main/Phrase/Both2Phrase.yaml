@@ -1,24 +1,24 @@
 audio_enc:
   input_dim: 5
   seq_length: 41
-  hidden_dim: 96
-  n_layers: 2
-  output_dim: 96
+  hidden_dim: 32
+  n_layers: 1
+  output_dim: 16
   kernel_size: 7
-  dropout: 0.23
+  dropout: 0.194
 text_enc:
   input_dim: 301
   seq_length: 7
-  hidden_dim: 32
-  n_layers: 1
-  output_dim: 96
-  kernel_size: 3
-  dropout: 0.26
+  hidden_dim: 128
+  n_layers: 3
+  output_dim: 16
+  kernel_size: 5
+  dropout: 0.44
 decoder:
   hidden_dim: 64
   n_layers: 2
-  output_dim: 1
-  dropout: 0.37
+  output_dim: 4
+  dropout: 0.365
 Loss:
   beta: 0.93
   alpha: 0.89
@@ -34,7 +34,7 @@ Optim:
         gamma: 0.95
         step_size: 10
     name: step
-    warm_up: 527
+    warm_up: 78
   args:
     adam:
       betas:
@@ -54,13 +54,13 @@ amp_level: O1
 auto_lr_find: false
 auto_scale_batch_size: false
 auto_select_gpus: false
-batch_size: 32
+batch_size: 256
 benchmark: true
-check_val_every_n_epoch: 2
+check_val_every_n_epoch: 3
 checkpoint_callback: true
 data_root: /home/tarask/storage/SaGA/dataset/processed/numpy_arrays/
-data_feat: exist
-data_type: gest_exist
+data_feat: Phrase
+data_type: no_zeros
 default_root_dir: null
 deterministic: true
 distributed_backend: null
@@ -71,7 +71,7 @@ log_gpu_memory: null
 log_save_interval: 80
 log_root: results/gesture_flow/log/
 logger: true
-lr: 0.0000105
+lr: 0.000619
 max_epochs: null
 max_steps: 40000
 min_epochs: null
@@ -107,4 +107,4 @@ weights_save_path: null
 weights_summary: top
 comet_logger:
   api_key: DVWPz8OdEU7HGvsUjlJhh5Q5p
-  project_name: exist_both
+  project_name: main_phrase_both
